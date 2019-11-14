@@ -1,27 +1,26 @@
-## SSDS nextflow pipeline
-## for details, see / cite :
-## Khil et al. Genome Research 2012
-## and Brick, Pratto et al., Methods in Enzymology 2019
+# SSDS nextflow pipeline : 
+Initial paper: Khil et al. Genome Research 2012
+Technical paper: Brick, Pratto et al., Methods in Enzymology 2018
 
 This nextflow pipeline is configured to work on a SLURM-based HPC with modules. It can be relatively easily configured to run on other systems (see nextflow documentation : https://www.nextflow.io/). 
 
 # Requirements:
 Tool:	Version:
-bedtools	2.25.0
-bwa	0.7.17
-deeptools	3.0.1
-fastqc	0.11.5
-fastqc	0.11.8
-fastqtools	0.8
-fastxtoolkit	0.0.14
-java	1.8.0_92
-nextflow	0.30.2
-picard	2.9.2
-python	2.7
-samtools	1.8
-sratoolkit	2.9.2
-trimgalore	0.4.5
-ucsc	365
+- bedtools	2.25.0
+- bwa	0.7.17
+- deeptools	3.0.1
+- fastqc	0.11.5
+- fastqc	0.11.8
+- fastqtools	0.8
+- fastxtoolkit	0.0.14
+- java	1.8.0_92
+- nextflow	0.30.2
+- picard	2.9.2
+- python	2.7
+- samtools	1.8
+- sratoolkit	2.9.2
+- trimgalore	0.4.5
+- ucsc	365
 
 # Global variables required: 
 $NXF_PIPEDIR    Path to folder containing SSDSPipeline_1.6.groovy
