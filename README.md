@@ -1,7 +1,7 @@
 # SSDS nextflow pipeline : 
-Initial paper: Khil et al. Genome Research 2012
+**_Initial paper:_** [Khil et al. Genome Research 2012](https://genome.cshlp.org/content/22/5/957.long)
 
-Technical paper: Brick, Pratto et al., Methods in Enzymology 2018
+**_Technical paper:_** [Brick, Pratto et al., Methods in Enzymology 2018](https://www.sciencedirect.com/science/article/pii/S0076687917303750?via%3Dihub)
 
 This nextflow pipeline is configured to work on a SLURM-based HPC with modules. It can be relatively easily configured to run on other systems (see nextflow documentation : https://www.nextflow.io/). 
 
