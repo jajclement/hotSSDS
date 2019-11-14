@@ -5,7 +5,7 @@
 
 This nextflow pipeline is configured to work on a SLURM-based HPC with modules. It can be relatively easily configured to run on other systems (see nextflow documentation : https://www.nextflow.io/). 
 
-# Requirements:
+## Requirements:
 *Tools / programs :*
 - bedtools	2.25.0
 - bwa	0.7.17
@@ -32,7 +32,7 @@ This nextflow pipeline is configured to work on a SLURM-based HPC with modules. 
 - Statistics::Descriptive
 - Time::HiRes
 
-# Global variables required: 
+## Global variables required: 
 $NXF_PIPEDIR   : Path to folder containing SSDSPipeline_1.6.groovy
 
 $NXF_GENOMES   : Path to folder containing reference genomes for alignment
@@ -53,13 +53,13 @@ $NXF_GENOMES/\<genome\>/BWAIndex/version0.7.10/  : BWA 0.7 index files (should a
 
 
 
-# Temp folder requirements
+### Temp folder requirements
 The pipeline requires a high-level temporary folder called /lscratch. On a SLURM-based HPC, each job is assigned a global id ($SLURM_JOBID) and this is appended to the temp folder name for each process. This is currently hard-coded. Thus, there is a requirement for :
 
 /lscratch folder for temporary files
 SLURM_JOBID global variable for each HPC job.
 
-# Pipeline execution
+## Pipeline execution
 
 ### RUN ON LOCAL MACHINE
 ```
