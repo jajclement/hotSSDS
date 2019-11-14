@@ -1,15 +1,15 @@
 # SSDS nextflow pipeline : 
 Initial paper: Khil et al. Genome Research 2012
+
 Technical paper: Brick, Pratto et al., Methods in Enzymology 2018
 
 This nextflow pipeline is configured to work on a SLURM-based HPC with modules. It can be relatively easily configured to run on other systems (see nextflow documentation : https://www.nextflow.io/). 
 
 # Requirements:
-Tool:	Version:
+Tools / programs :
 - bedtools	2.25.0
 - bwa	0.7.17
 - deeptools	3.0.1
-- fastqc	0.11.5
 - fastqc	0.11.8
 - fastqtools	0.8
 - fastxtoolkit	0.0.14
@@ -24,8 +24,11 @@ Tool:	Version:
 
 # Global variables required: 
 $NXF_PIPEDIR    Path to folder containing SSDSPipeline_1.6.groovy
+
 $NXF_GENOMES    Path to folder containing reference genomes for alignment
+
                 This folder requires a very specific structure (see below)
+
 $SLURM_JOBID    Specifies the temporary subfolder to use 
 
 # Other requirements

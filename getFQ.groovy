@@ -457,7 +457,7 @@ if (params.withFQC){
     memory params.mem
 
     module 'fastqtools/0.8'
-    module 'fastqc/0.11.5'
+    module 'fastqc/0.11.8'
     module 'bwa/0.7.17'
 
     time { 24.hour }
