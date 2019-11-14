@@ -725,8 +725,8 @@ process makeSSreport {
 	script:
 	"""
 	export TMPDIR=/lscratch/$SLURM_JOBID
-	export HOTSPOTS=\$NXF_PIPEDIR/hotspots
-	perl \$NXF_PIPEDIR/accessoryFiles/SSDS/scripts/makeSSMultiQCReport_nextFlow.pl $bam $ssdsBEDs
+	export HOTSPOTS=\$NXF_PIPEDIR/accessoryFiles/SSDS/hotspots
+	perl \$NXF_PIPEDIR/accessoryFiles/SSDS/scripts/makeSSMultiQCReport_nextFlow.pl $bam $ssdsBEDs --g ${params.genome}
 	"""
   }
 
