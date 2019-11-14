@@ -18,7 +18,7 @@ if (params.help) {
   log.info " "
   log.info "/data/RDCO/code/pipelines/pipeIt --h for help \\ "
   log.info " "
-  log.info "------------------------------------------------------------------------- "
+  log.info "-----------------------------------------------------------------------------------------------------------"
   log.info "nextflow run $NXF_PIPEDIR/SSDSPipeline_1.6.groovy \\"
   log.info " --bam           <bam file>"
   log.info " --sra           <sra name (SRRXXXXX)>"
@@ -41,7 +41,7 @@ if (params.help) {
   log.info " "
   log.info "HELP: nextflow run $NXF_PIPEDIR/SSDSPipeline_1.6.groovy --help"
   log.info " "
-  log.info "=========================================================================="
+  log.info "==========================================================================================================="
   log.info "Required Arguments:"
   log.info " "
   log.info "          --bam				STRING     BAM FILE                     OR"
@@ -49,7 +49,7 @@ if (params.help) {
   log.info "          --obj				STRING     Regex for object store       OR"
   log.info "          --fq1				STRING     READ1 FASTQ FILE"
   log.info "          --fq2				STRING     READ2 FASTQ FILE"
-  log.info "          --genome          STRING     FASTA FILE (GENOME REFERENCE)"
+  log.info "          --genome    STRING     FASTA FILE (GENOME REFERENCE)"
   log.info " "
   log.info "Output and Tempory directory Arguments"
   log.info " "
@@ -66,15 +66,18 @@ if (params.help) {
   log.info "          --library         STRING     SAM Read Group Tag RG:LB"
   log.info "          --rundate         STRING     SAM Read Group Tag RG:DT"
   log.info ""
-  log.info "====================================================================================="
+  log.info "==========================================================================================================="
   log.info "Optional Pipeline Arguments:"
-  log.info "====================================================================================="
+  log.info "==========================================================================================================="
   log.info " "
   log.info "Optional BWA Alignment Arguments:"
   log.info " "
   log.info "          --bwa_args        STRING     Optional bwa arguments eg: \"-I 250,50\""
+	log.info "          --genomes2screen  STRING     Comma separated list of genomes to screen reads for contamination"
+	log.info "                                       names must correspond to folders in $NXF_GENOMES"
+	log.info "             default = hg19,hg38,mm10,rn6,saccer3,phix,illuminaadapters,univec,bsub,ecoli,canfam3,mondom"
   log.info " "
-  log.info "====================================================================================="
+  log.info "==========================================================================================================="
   exit 1
 
 }
@@ -106,6 +109,7 @@ params.platform="ILLUMINA"
 params.platform_unit="HISEQ2500"
 params.mem="16G"
 params.bwaSplitSz = 20000000
+params.genomes2screen = 'hg19,hg38,mm10,rn6,saccer3,phix,illuminaadapters,univec,bsub,ecoli,canfam3,mondom'
 
 //output and tempory directories
 params.outdir = "./${params.outName}"
@@ -252,7 +256,7 @@ process runFASTQC {
 		fastqc -t ${params.threads} ${params.outName}.R1.fastq
 		fastqc -t ${params.threads} ${params.outName}.R2.fastq
 
-		perl \$NXF_PIPEDIR/accessoryFiles/SSDS/scripts/generateFastQCScreenConfig.pl hg19,hg38,mm10,rn6,saccer3,phix,illuminaadapters,univec,bsub,ecoli,canfam3,mondom 5 >fastq_screen.conf
+		perl \$NXF_PIPEDIR/accessoryFiles/SSDS/scripts/generateFastQCScreenConfig.pl ${params.genomes2screen} 15 >fastq_screen.conf
 
 		ln -s ${params.outName}.R1.fastq ${params.outName}.fastq
 	   	\$NXF_PIPEDIR/accessoryFiles/SSDS/fastq_screen_v0.11.4/fastq_screen --threads ${params.threads} --force \
