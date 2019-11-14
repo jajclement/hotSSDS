@@ -336,17 +336,17 @@ process bwaAlign {
 		fastx_trimmer -f 1 -l ${params.r1Len} -i $fqR1 -o ${params.tmpName}.R1.fastq
 		fastx_trimmer -f 1 -l ${params.r2Len} -i $fqR2 -o ${params.tmpName}.R2.fastq
 
-		\$SSPIPELINEPATH/bwa_0.7.12 aln \
+		\$NXF_PIPEDIR/accessoryFiles/SSDS/bwa_0.7.12 aln \
 		-t ${task.cpus} \
 		${params.genome_fasta} \
 		${params.tmpName}.R1.fastq >${params.tmpName}.R1.sai
 
-		\$SSPIPELINEPATH/bwa_ra_0.7.12 aln \
+		\$NXF_PIPEDIR/accessoryFiles/SSDS/bwa_ra_0.7.12 aln \
 		-t ${task.cpus} \
 		${params.genome_fasta} \
 		${params.tmpName}.R2.fastq >${params.tmpName}.R2.sai
 
-		\$SSPIPELINEPATH/bwa_0.7.12 sampe \
+		\$NXF_PIPEDIR/accessoryFiles/SSDS/bwa_0.7.12 sampe \
 		${params.genome_fasta} \
 		${params.tmpName}.R1.sai \
 		${params.tmpName}.R2.sai \
