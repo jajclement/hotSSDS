@@ -22,6 +22,8 @@ This nextflow pipeline is configured to work on a SLURM-based HPC with modules. 
 - trimgalore	0.4.5
 - ucsc	365
 
+**NOTE:** These are the recommended (and tested) version of each tool, however newer / older versions will work in most cases. One exception is older versions of nextflow, which will not work. 
+
 *Perl modules:*
 - BioPerl
 - Bio::DB::Sam
