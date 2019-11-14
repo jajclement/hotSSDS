@@ -49,9 +49,9 @@ The pipeline requires a high-level temporary folder called /lscratch. On a SLURM
 /lscratch folder for temporary files
 SLURM_JOBID global variable for each HPC job.
 
-Basic execution is as follows: 
+# Pipeline execution
 
-## RUN ON LOCAL MACHINE
+### RUN ON LOCAL MACHINE
 nextflow run -c $NXF_PIPEDIR/nextflow.local.config $NXF_PIPEDIR/SSDSPipeline_1.6.groovy \
     --fq1 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R1.fastq \
     --fq2 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R2.fastq \
@@ -62,7 +62,7 @@ nextflow run -c $NXF_PIPEDIR/nextflow.local.config $NXF_PIPEDIR/SSDSPipeline_1.6
     --outdir SSDS1.6_test \
     -with-trace -with-timeline
 
-## RUN ON SLURM CLUSTER
+### RUN ON SLURM CLUSTER
 nextflow run -c $NXF_PIPEDIR/nextflow.config $NXF_PIPEDIR/SSDSPipeline_1.6.groovy \
     --fq1 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R1.fastq \
     --fq2 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R2.fastq \
@@ -73,7 +73,8 @@ nextflow run -c $NXF_PIPEDIR/nextflow.config $NXF_PIPEDIR/SSDSPipeline_1.6.groov
     --outdir SSDS1.6_test \
     -with-trace -with-timeline
 
-The tests folder contains small fastq files from an SSDS experiment in mouse. The test should take a few minutes on a local machine (64Gb RAM, 16 Cores).
+### TESTS
+The tests/fastq folder contains small fastq files from an SSDS experiment in mouse. The test should take a few minutes on a local machine (64Gb RAM, 16 Cores).
 
 
 
