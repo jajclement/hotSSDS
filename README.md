@@ -23,13 +23,25 @@ Tools / programs :
 - ucsc	365
 
 # Global variables required: 
-$NXF_PIPEDIR    Path to folder containing SSDSPipeline_1.6.groovy
+$NXF_PIPEDIR   : Path to folder containing SSDSPipeline_1.6.groovy
 
-$NXF_GENOMES    Path to folder containing reference genomes for alignment
+$NXF_GENOMES   : Path to folder containing reference genomes for alignment
+                 ** This folder requires a very specific structure (see below) **
 
-                This folder requires a very specific structure (see below)
+$SLURM_JOBID   : Specifies the temporary subfolder to use 
 
-$SLURM_JOBID    Specifies the temporary subfolder to use 
+### NXF_GENOMES Folder structure
+Each reference genome should be contained in a separate folder (i.e. $NXF_GENOMES/mouse_mm10). The sub-structure within this folder should be as follows: 
+
+$NXF_GENOMES/<<genome>>/genome.fa                : Genome fasta file
+
+$NXF_GENOMES/<<genome>>/genome.fa.fai            : Index of genome fasta file (samtools faidx)
+
+$NXF_GENOMES/<<genome>>/genome.dict              : Sequence dictionary for genome fasta file (use picard CreateSequenceDictionary)
+
+$NXF_GENOMES/<<genome>>/BWAIndex/version0.7.10/  : BWA 0.7 index files (should also contain soft links to the three files above)
+
+
 
 # Other requirements
 The pipeline requires a high-level temporary folder called /lscratch. On a SLURM-based HPC, each job is assigned a global id ($SLURM_JOBID) and this is appended to the temp folder name for each process. This is currently hard-coded. Thus, there is a requirement for :
