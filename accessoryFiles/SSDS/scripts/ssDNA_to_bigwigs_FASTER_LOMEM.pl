@@ -31,7 +31,7 @@ my $tmpFileBase = $tmpFolder.$tmpID;
 my $in = $tmpFileBase.'_1';
 bamToTempBed($bam,$in,$tmpFileBase);
 
-$gIdx = $ENV{GENOMES}.'/'.$g.'/genome.fa.fai';
+$gIdx = $ENV{NXF_GENOMES}.'/'.$g.'/genome.fa.fai';
 
 ## Get or generate genomic windows
 my $newGW    = $tmpFileBase.'_2';

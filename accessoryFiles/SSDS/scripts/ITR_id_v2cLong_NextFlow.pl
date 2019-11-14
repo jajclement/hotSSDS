@@ -4,12 +4,12 @@ use Getopt::Long;
 
 my ($in_bam,$g) = @ARGV;
 
-die ("Genomes path NOT defined ... Please set environment variable \$GENOMES ...") unless ($ENV{GENOMES});
+die ("Genomes path NOT defined ... Please set environment variable \$GENOMES ...") unless ($ENV{NXF_GENOMES});
 
 my $outname = $in_bam;
-my $in_fa   = $ENV{GENOMES}.'/'.$g.'/BWAIndex/version0.7.10/genome.fa';
+my $in_fa   = $ENV{NXF_GENOMES}.'/'.$g.'/BWAIndex/version0.7.10/genome.fa';
 
-die ("Invalid genomes path ['.$ENV{GENOMES}.'] ...\n$in_fa does not exist ...") unless (-e ($in_fa));
+die ("Invalid genomes path ['.$ENV{NXF_GENOMES}.'] ...\n$in_fa does not exist ...") unless (-e ($in_fa));
 
 ## SET UP TEMP FILES FOR EACH SPLIT BAM
 my $splitBEDss1 	= $outname.'.ssDNA_type1.bed';

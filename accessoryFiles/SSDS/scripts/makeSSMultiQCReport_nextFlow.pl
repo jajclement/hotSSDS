@@ -1,5 +1,8 @@
 use strict; 
 use Time::HiRes qw/ time sleep /;
+use Getopt::Long;
+
+GetOptions ('g=s' => \(my $genomeName));
 
 my ($initialBAM,@bedFiles) = @ARGV;
 
@@ -39,7 +42,8 @@ system('sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 '.$unBed.' >'.$unTmp) if ($
 open OUT, '>', $tmpOut;
 
 ## Get species
-my $species = getSpecies($ssdsFile);
+my $species = $genomeName?$genomeName:getSpecies($ssdsFile);
+print $species."\n";
 
 ## generate overall Stats
 my $t1Sz = printBEDcounts($t1Tmp,$t1Bed,'ssDNA_type1_fragments');
@@ -109,7 +113,7 @@ sub printBAMcounts{
 	
 	## modified this to only count unaligned adapter !! Right or wrong ??
 	my $seqsFile = 'ssds_sequences_for_adapterCheck.txt';
-	my $adapter  = `/usr/local/apps/samtools/1.5/bin/samtools view $bam_file |cut -f10 >$seqsFile`;
+	my $adapter  = `samtools view $bam_file |cut -f10 >$seqsFile`;
 	my $adapter  = getAdapterReads($seqsFile);
 
 	chomp $adapter; 
@@ -203,62 +207,17 @@ sub getFRIPs{
 	
 	my ($inBed,$bedCheck,$totalFrags,$species,$lbl) = @_;
 
-	my (%hsFolder,%hs); 
+	my %hs; 
 	
-	$hsFolder{'bsub'}    	= '';
-	$hsFolder{'mondom5'} 	= '';
-	$hsFolder{'ecoli'} 		= '';
-	$hsFolder{'sacc3'} 		= '';
-	$hsFolder{'canfam3'} 	= $ENV{'HOTSPOTS'}.'/canFam3';
-	$hsFolder{'hg19'} 		= $ENV{'HOTSPOTS'}.'/hg19';
-	$hsFolder{'hg38'} 		= $ENV{'HOTSPOTS'}.'/hg38';
-	$hsFolder{'mm10'} 		= $ENV{'HOTSPOTS'}.'/mm10';
-	$hsFolder{'mm10tc1'} 	= $ENV{'HOTSPOTS'}.'/mm10TC1';
-	$hsFolder{'rn5'} 		= $ENV{'HOTSPOTS'}.'/rn5';
+	open my $PIPE, '-|', 'find '.$ENV{'HOTSPOTS'}.' -name "*bed"';
 	
-	$hs{'mm10'}->{'13R'}      = '13R_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'13RxB6'}   = '13RfXB6m_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'Prdm9ko'}  = 'B6_Prdm9ko_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'B6'} 	  = 'B6_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'B6x13R'}   = 'B6fX13Rm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'B6xC3H'}   = 'B6fXC3Hm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'B6xCAST'}  = 'B6fXCASTm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'B6xMOL'}   = 'B6fXMOLm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'B6xPWD'}   = 'B6fXPWDm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'C3H'}   	  = 'C3H_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'C3Hx13R'}  = 'C3HfX13Rm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'C3HxCAST'} = 'C3HfXCASTm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'C3HxMOL'}  = 'C3HfXMOLm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'CAST'}     = 'CAST_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'CASTx13R'} = 'CASTfX13Rm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'CASTxMOL'} = 'CASTfXMOLm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'MOL'} 	  = 'MOL_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'MOLx13R'}  = 'MOLfX13Rm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'PWD'} 	  = 'PWD_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'PWDx13R'}  = 'PWDfX13Rm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'PWDxC3H'}  = 'PWDfXC3Hm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'PWDxCAST'} = 'PWDfXCASTm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'PWDxMOL'}  = 'PWDfXMOLm_hotspots.raw.bedgraph';
-	$hs{'mm10'}->{'ATM_129'}  = 'ATM_129_hotspots.bedgraph';
-	$hs{'mm10'}->{'129'} 	  = '129wt_hotspots.bedgraph';
-	$hs{'mm10'}->{'HSb'} 	  = 'HuB_hotspots.bedgraph';
-	$hs{'mm10'}->{'HSc'} 	  = 'HuC_hotspots.bedgraph';
-	$hs{'mm10'}->{'ATM_Bal'}  = 'ATM_Baltimore_hotspots.bedgraph';
-	$hs{'hg19'}->{'A'}        = 'A-hotspots_permissive.bed';
-	#$hs{'hg19'}->{''} = 'AA1_paper.bedgraph';
-	#$hs{'hg19'}->{''} = 'AA2_paper.bedgraph';
-	#$hs{'hg19'}->{''} = 'AA3_peaks.bedgraph';
-	#$hs{'hg19'}->{''} = 'AA4_peaks.bedgraph';
-	#$hs{'hg19'}->{''} = 'AB1_paper.bedgraph';
-	$hs{'hg19'}->{'AC'}   	  = 'AC_paper.bedgraph';
-	$hs{'hg19'}->{'AN'}  	  = 'AN_peaks.bedgraph';
-	$hs{'hg19'}->{'C'}   	  = 'C-hotspots.bed';
-	$hs{'hg19'}->{'CL4'} 	  = 'CL4_peaks.bedgraph';
-	$hs{'hg38'}->{'A'} 	  	  = 'AA1_all.bed';
-	$hs{'hg38'}->{'AC'} 	  = 'AC_all.bed';
-	$hs{'canfam3'}->{'merge'} = 'Dog_hotspots.bed';
-	$hs{'rn5'}->{'WKY'} 	  = 'WKY_hotspots.bedgraph';
-	$hs{'rn5'}->{'WISTAR'} 	  = 'WISTAR_hotspots.bedgraph';
+	while (<$PIPE>){
+		chomp; 
+		$_ =~ /^.+\/(\S+)\/(\S+)\.bed/;
+		my ($genome,$name) = ($1,$2);
+		$hs{$genome}->{$name} = $_;
+	}
+	close $PIPE; 
 	
 	for my $sp (sort keys(%hs)){
 		for my $hs (sort keys(%{$hs{$sp}})){	
@@ -267,8 +226,9 @@ sub getFRIPs{
 				print OUT join("\t","FRIP\_$lbl",$sp.':'.$hs,"0")."\n";
 			}else{
 				if ($sp eq $species){
-					my $hsFile = $hsFolder{$sp}.'/'.$hs{$sp}->{$hs};
-					my $inHS = `/usr/local/apps/bedtools/2.25.0/bin/intersectBed -a $inBed -b $hsFile -sorted |wc -l `;
+					#my $hsFile = $hsFolder{$sp}.'/'.$hs{$sp}->{$hs};
+					my $hsFile = $hs{$sp}->{$hs};
+					my $inHS = `intersectBed -a $inBed -b $hsFile -sorted |wc -l `;
 					$inHS =~ s/^(\d+)\s+.+/$1/;
 					my $frip = $totalFrags?$inHS/$totalFrags*100:0;
 					print OUT join("\t","FRIP\_$lbl",$sp.':'.$hs,$frip)."\n";
