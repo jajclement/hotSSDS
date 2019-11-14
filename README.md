@@ -36,7 +36,7 @@ $NXF_PIPEDIR   : Path to folder containing SSDSPipeline_1.6.groovy
 $NXF_GENOMES   : Path to folder containing reference genomes for alignment
                  ** This folder requires a very specific structure (see below) **
 
-$SLURM_JOBID   : Specifies the temporary subfolder to use 
+$SLURM_JOBID   : Specifies the temporary subfolder to use  (see Temp folder requirements below)
 
 ### NXF_GENOMES Folder structure
 Each reference genome should be contained in a separate folder (i.e. $NXF_GENOMES/mouse_mm10). The sub-structure within this folder should be as follows: 
@@ -51,7 +51,7 @@ $NXF_GENOMES/\<genome\>/BWAIndex/version0.7.10/  : BWA 0.7 index files (should a
 
 
 
-# Other requirements
+# Temp folder requirements
 The pipeline requires a high-level temporary folder called /lscratch. On a SLURM-based HPC, each job is assigned a global id ($SLURM_JOBID) and this is appended to the temp folder name for each process. This is currently hard-coded. Thus, there is a requirement for :
 
 /lscratch folder for temporary files
