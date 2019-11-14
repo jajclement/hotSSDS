@@ -1,0 +1,51 @@
+{# #######################
+  header.html
+##########################
+
+This block gives the introduction content at the top of each report.
+That is, the page title, welcome message, details of where the report
+was generated and the button that launches the welcome tour.
+
+#}
+
+<h1 id="page_title">
+    <a href="http://multiqc.info" target="_blank">
+        <img src="data:image/png;base64,{{ include_file('assets/img/MultiQC_logo.png', b64=True) }}" title="MultiQC">
+    </a>
+</h1>
+{{ '<h2>'+config.title+'</h2>' if config.title != None }}
+
+<p class="lead">A modular tool to aggregate results from bioinformatics
+    analyses across many samples into a single report.</p>
+
+<div id="analysis_dirs_wrapper">
+  <p>Report generated on {{ config.creation_date }} based on data in:
+  {% if config.analysis_dir | length == 1 %}<code class="mqc_analysis_path">{{ config.analysis_dir[0] }}</code>  
+  {% else %}
+  <ul>
+    {% for d in config.analysis_dir %}
+    <li><code class="mqc_analysis_path">{{ d }}</code></li>
+    {%  endfor %}
+  </ul>
+  {% endif %}
+</div>
+
+<hr id="mqc_header_hr">
+
+<div class="alert alert-info alert-dismissible hidden-print" id="mqc_welcome" style="display: none;">
+  <button type="button" data-dismiss="alert" class="close" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <button type="button" data-dismiss="alert" class="btn-link btn-sm" id="mqc_hide_welcome_btn">don't show again</button>
+  <span class="glyphicon glyphicon-info-sign" aria-hidden="true"></span>
+  <strong>Welcome!</strong> Not sure where to start? &nbsp;
+  <a href="https://www.youtube.com/watch?v=qPbIlO_KWN0" target="_blank" class="btn btn-info btn-sm">Watch a tutorial video</a>
+  &nbsp; <small><em>(6:06)</em></small>
+</div>
+
+{% if report.num_hc_plots > 0 and report.general_stats_html['rows'] | length > config.num_datasets_plot_limit %}
+<div id="mqc-warning-many-samples" class="alert alert-warning alert-dismissible hidden-print">
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+  <span class="glyphicon glyphicon-warning-sign" aria-hidden="true"></span>
+  Because this report contains a lot of samples, you may need to click 'Show plot' to see some graphs.
+  <button id="mqc-render-all-plots" class="btn btn-default btn-sm">Render all plots</button>
+</div>
+{% endif %}

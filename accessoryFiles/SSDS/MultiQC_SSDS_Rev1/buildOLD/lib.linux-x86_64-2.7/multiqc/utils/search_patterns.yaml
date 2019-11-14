@@ -1,0 +1,109 @@
+
+# MultiQC search patterns.
+# Default configurations for how modules can find their log files.
+# Loaded by the config module so that these patterns can be overwritten in user config files.
+
+bamtools:
+  stats:
+    contents: 'Stats for BAM file(s):'
+bismark:
+    align:
+        fn: '*_[SP]E_report.txt'
+        # contents: Writing a C -> T converted version of the input file
+    dedup:
+        fn: '*.deduplication_report.txt'
+    meth_extract:
+        fn: '*_splitting_report.txt'
+        # contents: Bismark Extractor Version
+    m_bias:
+        fn: '*M-bias.txt'
+bowtie:
+    contents: '# reads processed:'
+bowtie2:
+    contents: 'reads; of these:'
+cutadapt:
+    contents: This is cutadapt
+fastq_screen:
+    fn: '*_screen.txt'
+fastqc:
+    data:
+        fn: 'fastqc_data.txt'
+    zip:
+        fn: '*_fastqc.zip'
+featurecounts:
+    fn: '*.summary'
+hicup:
+    fn: 'HiCUP_summary_report*'
+kallisto:
+    contents: '[quant] finding pseudoalignments for the reads'
+methylQA:
+    fn: '*.report'
+picard:
+    markdups:
+        contents: picard.sam.DuplicationMetrics
+    insertsize:
+        contents: picard.analysis.InsertSizeMetrics
+    gcbias:
+        contents: picard.analysis.GcBiasDetailMetrics
+    hsmetrics:
+        contents: picard.analysis.directed.HsMetrics
+    oxogmetrics:
+        contents: picard.analysis.CollectOxoGMetrics
+preseq:
+    contents: 'EXPECTED_DISTINCT'
+    # contents: 'TOTAL_READS	EXPECTED_DISTINCT'
+    # contents: 'TOTAL_BASES	EXPECTED_DISTINCT'
+qualimap:
+    bamqc:
+        raw_data: raw_data
+        genome_results: genome_results.txt
+        coverage: coverage_histogram.txt
+        insert_size: insert_size_histogram.txt
+        genome_fraction: genome_fraction_coverage.txt
+        gc_dist: mapped_reads_gc-content_distribution.txt
+    rnaseq:
+        raw_data: raw_data
+        rnaseq_results: rnaseq_qc_results.txt
+        coverage: coverage_profile_along_genes_(total).txt
+rseqc:
+    bam_stat:
+        contents: 'Proper-paired reads map to different chrom:'
+    gene_body_coverage:
+        fn: '*.geneBodyCoverage.txt'
+    inner_distance:
+        fn: '*.inner_distance_freq.txt'
+    junction_annotation:
+        contents: 'Partial Novel Splicing Junctions:'
+    junction_saturation:
+        fn: '*.junctionSaturation_plot.r'
+    read_gc:
+        fn: '*.GC.xls'
+    read_distribution:
+        contents: 'Group               Total_bases         Tag_count           Tags/Kb'
+    read_duplication_pos:
+        fn: '*.pos.DupRate.xls'
+salmon:
+    meta:
+        fn: 'meta_info.json'
+    fld:
+        fn: 'flenDist.txt'
+samblaster:
+    contents: 'samblaster: Version'
+samtools:
+    stats:
+        contents: 'This file was produced by samtools stats'
+skewer:
+    contents: 'COMMAND LINE:	skewer'
+snpeff:
+    fn: '*snpEff.summary.csv'
+star:
+    fn: '*Log.final.out'
+ssds:
+    ssstats:
+        fn: '*SSDSreport.tab'
+    fragstats:
+        fn: '*.itr_SSDSstats'
+tophat:
+    fn: '*align_summary.txt'
+trimmomatic:
+    contents: 'Trimmomatic'

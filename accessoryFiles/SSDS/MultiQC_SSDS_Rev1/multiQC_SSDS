@@ -1,0 +1,4 @@
+#!/usr/bin/python2.7
+# EASY-INSTALL-SCRIPT: 'multiqc==1.2.dev0','multiqc'
+__requires__ = 'multiqc==1.2.dev0'
+__import__('pkg_resources').run_script('multiqc==1.2.dev0', 'multiqc')
