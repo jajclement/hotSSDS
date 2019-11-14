@@ -33,13 +33,13 @@ $SLURM_JOBID   : Specifies the temporary subfolder to use
 ### NXF_GENOMES Folder structure
 Each reference genome should be contained in a separate folder (i.e. $NXF_GENOMES/mouse_mm10). The sub-structure within this folder should be as follows: 
 
-$NXF_GENOMES/<genome>/genome.fa                : Genome fasta file
+$NXF_GENOMES/\<genome\>/genome.fa                : Genome fasta file
 
-$NXF_GENOMES/<genome>/genome.fa.fai            : Index of genome fasta file (samtools faidx)
+$NXF_GENOMES/\<genome\>/genome.fa.fai            : Index of genome fasta file (samtools faidx)
 
-$NXF_GENOMES/<genome>/genome.dict              : Sequence dictionary for genome fasta file (use picard CreateSequenceDictionary)
+$NXF_GENOMES/\<genome\>/genome.dict              : Sequence dictionary for genome fasta file (use picard CreateSequenceDictionary)
 
-$NXF_GENOMES/<genome>/BWAIndex/version0.7.10/  : BWA 0.7 index files (should also contain soft links to the three files above)
+$NXF_GENOMES/\<genome\>/BWAIndex/version0.7.10/  : BWA 0.7 index files (should also contain soft links to the three files above)
 
 
 
