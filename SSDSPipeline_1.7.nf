@@ -171,7 +171,7 @@ process getFQs{
 		output:
 			//file '*.R1.fastq' optional true into initFQ1
 			//file '*.R2.fastq' optional true into initFQ2
-			set val(outNameStem),file('*.R1.fastq'),file('*.R2.fastq') into FQx1,FQx1b
+			set val("${outNameStem}"),file('*.R1.fastq'),file('*.R2.fastq') into FQx1,FQx1b
 			file '*.R2.fastq'   optional true into initFQ2
 			file '*fastqc*'     optional true into fastQCOut
 			file '*screen*'     optional true into fastQScreenOut
@@ -278,7 +278,7 @@ process trimFASTQs {
 	  set val(myNM),file(fqr1),file(fqr2) from FQx1
 
 	output:
-		set val(outNameStem),file('*R1.fastq'),file('*R2.fastq') into FQx2, FQx3
+		set val("${outNameStem}"),file('*R1.fastq'),file('*R2.fastq') into FQx2, FQx3
 		file '*trimming_report.txt' into trimGaloreReport
 
 	script:
@@ -458,7 +458,7 @@ process parseITRs {
 
   time { 8.hour * task.attempt }
   errorStrategy 'retry'
-  maxRetries 2
+  maxRetries 1
 
 	tag { outNameStem }
 	//publishDir params.outdir,  mode: 'copy', overwrite: false
@@ -669,7 +669,7 @@ process toFRBigWig {
   time { 6.hour }
   memory { 8.GB * task.attempt }
   errorStrategy 'retry'
-  maxRetries 2
+  maxRetries 1
 
 	module 'samtools/1.8'
 	module 'ucsc/365'
