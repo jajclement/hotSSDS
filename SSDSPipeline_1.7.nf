@@ -110,7 +110,7 @@ def tmpNameStem = "${params.name}.tmpFile.${params.genome}"
 params.outdir = "./output_${outNameStem}"
 params.outdir_tmp = "/tmp"
 
-params.bamPGline = '@PG	ID:ssDNAPipeline1.7_KBRICK VN:1.7nxf'
+params.bamPGline = '@PG	ID:ssDNAPipeline1.7_nxf_KBRICK'
 
 //input BAM file
 if (params.bam){
