@@ -125,7 +125,7 @@ if (params.fq2){inputType = 'fastqPE'}
 
 //log.info
 log.info "===================================================================="
-log.info "SSDS (bam) PIPELINE : Align ssDNA"
+log.info "Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align & Parse ssDNA"
 log.info "===================================================================="
 log.info "ref genome         : ${params.genome}"
 log.info "genome fasta       : ${params.genome_fasta}"
@@ -148,6 +148,7 @@ log.info "temp_dir           : ${params.outdir_tmp}"
 log.info "threads            : ${params.threads}"
 log.info "mem                : ${params.mem}"
 log.info "max reads for bwa  : ${params.bwaSplitSz}"
+log.info "genomes to screen  : ${params.genomes2screen}"
 
 process getFQs{
 	scratch '/lscratch/$SLURM_JOBID'
