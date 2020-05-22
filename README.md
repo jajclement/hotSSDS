@@ -1,9 +1,9 @@
-# SSDS nextflow pipeline : 
+# SSDS nextflow pipeline :
 **_Initial paper:_** [Khil et al. Genome Research 2012](https://genome.cshlp.org/content/22/5/957.long)
 
 **_Technical paper:_** [Brick, Pratto et al., Methods in Enzymology 2018](https://www.sciencedirect.com/science/article/pii/S0076687917303750?via%3Dihub)
 
-This nextflow pipeline is configured to work on a SLURM-based HPC with modules. It can be relatively easily configured to run on other systems (see nextflow documentation : https://www.nextflow.io/). 
+This nextflow pipeline is configured to work on a SLURM-based HPC with modules. It can be relatively easily configured to run on other systems (see nextflow documentation : https://www.nextflow.io/).
 
 ## Requirements:
 *Tools / programs :*
@@ -22,18 +22,18 @@ This nextflow pipeline is configured to work on a SLURM-based HPC with modules. 
 - trimgalore	0.4.5
 - ucsc	365
 
-**NOTE:** These are the recommended (and tested) version of each tool, however newer / older versions will work in most cases. One exception is older versions of nextflow, which will not work. 
+**NOTE:** These are the recommended (and tested) version of each tool, however newer / older versions will work in most cases. One exception is older versions of nextflow, which will not work.
 
 *Perl modules:*
 - BioPerl
 - Bio::DB::Sam
 - Getopt::Long
-- Math::Round 
+- Math::Round
 - Statistics::Descriptive
 - Time::HiRes
 
-## Global variables required: 
-$NXF_PIPEDIR   : Path to folder containing SSDSPipeline_1.6.groovy
+## Global variables required:
+$NXF_PIPEDIR   : Path to folder containing SSDSPipeline_1.7.nf
 
 $NXF_GENOMES   : Path to folder containing reference genomes for alignment
                  ** This folder requires a very specific structure (see below) **
@@ -41,7 +41,7 @@ $NXF_GENOMES   : Path to folder containing reference genomes for alignment
 $SLURM_JOBID   : Specifies the temporary subfolder to use  (see Temp folder requirements below)
 
 ### NXF_GENOMES Folder structure
-Each reference genome should be contained in a separate folder (i.e. $NXF_GENOMES/mouse_mm10). The sub-structure within this folder should be as follows: 
+Each reference genome should be contained in a separate folder (i.e. $NXF_GENOMES/mouse_mm10). The sub-structure within this folder should be as follows:
 
 $NXF_GENOMES/\<genome\>/genome.fa                : Genome fasta file
 
@@ -51,7 +51,7 @@ $NXF_GENOMES/\<genome\>/genome.dict              : Sequence dictionary for genom
 
 $NXF_GENOMES/\<genome\>/BWAIndex/version0.7.10/  : BWA 0.7 index files (should also contain soft links to the three files above)
 
-
+** NOTE: The genome files MUST be named genome.XXX - other names will cause errors (i.e. mm10.fa / hg19_genome.fa / etc ...)
 
 ### Temp folder requirements
 The pipeline requires a high-level temporary folder called /lscratch. On a SLURM-based HPC, each job is assigned a global id ($SLURM_JOBID) and this is appended to the temp folder name for each process. This is currently hard-coded. Thus, there is a requirement for :
@@ -63,33 +63,29 @@ SLURM_JOBID global variable for each HPC job.
 
 ### RUN ON LOCAL MACHINE
 ```
-nextflow run -c $NXF_PIPEDIR/nextflow.local.config $NXF_PIPEDIR/SSDSPipeline_1.6.groovy \
+nextflow run -c $NXF_PIPEDIR/nextflow.local.config $NXF_PIPEDIR/SSDSPipeline_1.7.nf \
     --fq1 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R1.fastq \
     --fq2 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R2.fastq \
     --r1Len 36 \
     --r2Len 40 \
     --genome mm10 \
-    --outName testSSDS1.6 \
-    --outdir SSDS1.6_test \
+    --name testSSDS1.7 \
+    --outdir SSDS1.7_test \
     -with-trace -with-timeline
 ```
 
 ### RUN ON SLURM CLUSTER
 ```
-nextflow run -c $NXF_PIPEDIR/nextflow.config $NXF_PIPEDIR/SSDSPipeline_1.6.groovy \
+nextflow run -c $NXF_PIPEDIR/nextflow.config $NXF_PIPEDIR/SSDSPipeline_1.7.nf \
     --fq1 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R1.fastq \
     --fq2 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R2.fastq \
     --r1Len 36 \
     --r2Len 40 \
     --genome mm10 \
-    --outName testSSDS1.6 \
-    --outdir SSDS1.6_test \
+    --name testSSDS1.7 \
+    --outdir SSDS1.7_test \
     -with-trace -with-timeline
 ```
 
 ### TESTS
 The tests/fastq folder contains small fastq files from an SSDS experiment in mouse. The test should take a few minutes on a local machine (64Gb RAM, 16 Cores).
-
-
-
-

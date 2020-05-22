@@ -6,20 +6,14 @@ params.help=""
 if (params.help) {
   log.info " "
   log.info "=========================================================================="
-  log.info "SSDS PIPELINE (Version 1.6_NF)                                "
+  log.info "SSDS PIPELINE (Version 1.7_NF)                                "
   log.info "Author: Kevin Brick                                "
   log.info "=========================================================================="
   log.info " "
   log.info "USAGE: "
   log.info " "
-
-  log.info "The pipeline is run using a parent perl script: \\"
-  log.info "/data/RDCO/code/pipelines/pipeIt \\"
-  log.info " "
-  log.info "/data/RDCO/code/pipelines/pipeIt --h for help \\ "
-  log.info " "
   log.info "-----------------------------------------------------------------------------------------------------------"
-  log.info "nextflow run $NXF_PIPEDIR/SSDSPipeline_1.6.groovy \\"
+  log.info "nextflow run $NXF_PIPEDIR/SSDSPipeline_1.7.nf \\"
   log.info " --bam           <bam file>"
   log.info " --sra           <sra name (SRRXXXXX)>"
   log.info " --obj           <object store regex>"
@@ -29,7 +23,7 @@ if (params.help) {
   log.info " --r2Len         <read2 length>"
   log.info " --genome        <string> \\"
   log.info " --threads       <number of threads: default = 6> \\"
-  log.info " --outName       <string default=bam file stem> \\"
+  log.info " --name          <string default=bam file stem> \\"
   log.info " --outdir        <string: default = outName> \\"
   log.info " --sample_name   <string: default = outName> \\"
   log.info " --platform      <string: default = ILLUMINA > \\"
@@ -39,7 +33,7 @@ if (params.help) {
   log.info " --outdir_tmp    <string>/tmp \\"
   log.info " -with-trace -with-timeline"
   log.info " "
-  log.info "HELP: nextflow run $NXF_PIPEDIR/SSDSPipeline_1.6.groovy --help"
+  log.info "HELP: nextflow run $NXF_PIPEDIR/SSDSPipeline_1.7.nf --help"
   log.info " "
   log.info "==========================================================================================================="
   log.info "Required Arguments:"
@@ -53,7 +47,7 @@ if (params.help) {
   log.info " "
   log.info "Output and Tempory directory Arguments"
   log.info " "
-  log.info "          --outName      STRING        Output BAM file name"
+  log.info "          --name            STRING     Output file name stem"
   log.info "          --outdir          DIR        Output directory"
   log.info "          --outdir_tmp      DIR        Tempory directory"
   log.info " "
@@ -75,7 +69,7 @@ if (params.help) {
   log.info "          --bwa_args        STRING     Optional bwa arguments eg: \"-I 250,50\""
 	log.info "          --genomes2screen  STRING     Comma separated list of genomes to screen reads for contamination"
 	log.info "                                       names must correspond to folders in $NXF_GENOMES"
-	log.info "             default = hg19,hg38,mm10,rn6,saccer3,phix,illuminaadapters,univec,bsub,ecoli,canfam3,mondom"
+	log.info "             default = alignment genome ONLY"
   log.info " "
   log.info "==========================================================================================================="
   exit 1
@@ -83,7 +77,6 @@ if (params.help) {
 }
 
 // Define arg defaults
-
 //number of threads
 params.threads = 16
 
@@ -99,8 +92,6 @@ params.fq2 = ""
 params.r1Len = "36"
 params.r2Len = "40"
 params.name = ""
-params.outName = "${params.name}.SSDS.${params.genome}"
-params.tmpName = "${params.name}.tmpFile.${params.genome}"
 params.rg_id = "${params.name}"
 params.sample_name=""
 params.library=""
@@ -109,13 +100,17 @@ params.platform="ILLUMINA"
 params.platform_unit="HISEQ2500"
 params.mem="16G"
 params.bwaSplitSz = 20000000
-params.genomes2screen = 'hg19,hg38,mm10,rn6,saccer3,phix,illuminaadapters,univec,bsub,ecoli,canfam3,mondom'
+params.genomes2screen = "${params.genome}"
+//params.genomes2screen = 'hg19,hg38,mm10,rn6,saccer3,phix,illuminaadapters,univec,bsub,ecoli,canfam3,mondom'
+
+def outNameStem = "${params.name}.SSDS.${params.genome}"
+def tmpNameStem = "${params.name}.tmpFile.${params.genome}"
 
 //output and tempory directories
 params.outdir = "./${params.outName}"
 params.outdir_tmp = "/tmp"
 
-params.bamPGline = '@PG	ID:ssDNAPipeline1.6_KBRICK	VN:1.6nxf'
+params.bamPGline = '@PG	ID:ssDNAPipeline1.7_KBRICK VN:1.7nxf'
 
 //input BAM file
 if (params.bam){
@@ -147,8 +142,8 @@ log.info "RG:PU              : ${params.platform_unit}"
 log.info "RG:LB              : ${params.library}"
 log.info "RG:ID              : ${params.rg_id}"
 log.info "RG:DT              : ${params.rundate}"
-log.info "outName            : ${params.outName}"
 log.info "outdir             : ${params.outdir}"
+log.info "output name stem   : ${outNameStem}"
 log.info "temp_dir           : ${params.outdir_tmp}"
 log.info "threads            : ${params.threads}"
 log.info "mem                : ${params.mem}"
@@ -176,7 +171,7 @@ process getFQs{
 		output:
 			//file '*.R1.fastq' optional true into initFQ1
 			//file '*.R2.fastq' optional true into initFQ2
-			set val(params.outName),file('*.R1.fastq'),file('*.R2.fastq') into FQx1,FQx1b
+			set val(outNameStem),file('*.R1.fastq'),file('*.R2.fastq') into FQx1,FQx1b
 			file '*.R2.fastq'   optional true into initFQ2
 			file '*fastqc*'     optional true into fastQCOut
 			file '*screen*'     optional true into fastQScreenOut
@@ -185,35 +180,35 @@ process getFQs{
 			switch (inputType) {
         		case 'sra':
 					"""
-					nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.groovy \
+					nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.nf \
 					--genome ${params.genome} --sra ${params.sra} --outdir . --withFQC false
 					"""
 	            	break
 
 				case 'obj':
 					"""
-					nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.groovy \
+					nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.nf \
 					--genome ${params.genome} --obj ${params.obj} --outdir . --withFQC false
 					"""
 					break
 
 				case 'bam':
 					"""
-					nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.groovy \
+					nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.nf \
 					--genome ${params.genome} --bam ${params.bam} --outdir . --withFQC false
 					"""
 					break
 
 				case 'fastqSR':
 					"""
-					nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.groovy \
+					nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.nf \
 					--genome ${params.genome} --fq1 ${params.fq1} --outdir . --withFQC false
 					"""
 					break
 
 				case 'fastqPE':
 					"""
-					nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.groovy \
+					nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.nf \
 					--genome ${params.genome} --fq1 ${params.fq1} --fq2 ${params.fq2} --outdir . --withFQC false
 					"""
 					break
@@ -232,7 +227,7 @@ process runFASTQC {
 	module 'fastqc/0.11.8'
 	module 'bwa/0.7.17'
 
-	tag { params.outName }
+	tag { outNameStem }
 
 	publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*zip"
 	publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*html"
@@ -250,17 +245,17 @@ process runFASTQC {
 
 	script:
 		"""
-		head -n 10000000 ${fqr1} >${params.outName}.R1.fastq
-		head -n 10000000 ${fqr2} >${params.outName}.R2.fastq
+		head -n 10000000 ${fqr1} >${outNameStem}.R1.fastq
+		head -n 10000000 ${fqr2} >${outNameStem}.R2.fastq
 
-		fastqc -t ${params.threads} ${params.outName}.R1.fastq
-		fastqc -t ${params.threads} ${params.outName}.R2.fastq
+		fastqc -t ${params.threads} ${outNameStem}.R1.fastq
+		fastqc -t ${params.threads} ${outNameStem}.R2.fastq
 
 		perl \$NXF_PIPEDIR/accessoryFiles/SSDS/scripts/generateFastQCScreenConfig.pl ${params.genomes2screen} 15 >fastq_screen.conf
 
-		ln -s ${params.outName}.R1.fastq ${params.outName}.fastq
+		ln -s ${outNameStem}.R1.fastq ${outNameStem}.fastq
 	   	\$NXF_PIPEDIR/accessoryFiles/SSDS/fastq_screen_v0.11.4/fastq_screen --threads ${params.threads} --force \
-	    	                                               --aligner bwa ${params.outName}.fastq \
+	    	                                               --aligner bwa ${outNameStem}.fastq \
 	    	                                               --conf fastq_screen.conf
 
 		"""
@@ -276,14 +271,14 @@ process trimFASTQs {
 
 	module 'trimgalore/0.4.5'
 
-	tag { params.outName }
+	tag { outNameStem }
 	publishDir params.outdir,  mode: 'copy', pattern: "*_report.*"
 
 	input:
 	  set val(myNM),file(fqr1),file(fqr2) from FQx1
 
 	output:
-		set val(params.outName),file('*R1.fastq'),file('*R2.fastq') into FQx2, FQx3
+		set val(outNameStem),file('*R1.fastq'),file('*R2.fastq') into FQx2, FQx3
 		file '*trimming_report.txt' into trimGaloreReport
 
 	script:
@@ -294,11 +289,11 @@ process trimFASTQs {
     ## KB 05-30-19: change minimum length from 15->25 ... prevent BWA error
 		trim_galore -q 10 --paired --dont_gzip --stringency 6 --length 25 $fqr1 $fqr2
 
-		mv \$trimFQ1 ${params.outName}.R1.fastq
-		mv \$trimFQ2 ${params.outName}.R2.fastq
+		mv \$trimFQ1 ${outNameStem}.R1.fastq
+		mv \$trimFQ2 ${outNameStem}.R2.fastq
 
-		mv ${fqr1}_trimming_report.txt ${params.outName}.R1_trimgalore_trimming_report.txt
-		mv ${fqr2}_trimming_report.txt ${params.outName}.R2_trimgalore_trimming_report.txt
+		mv ${fqr1}_trimming_report.txt ${outNameStem}.R1_trimgalore_trimming_report.txt
+		mv ${fqr2}_trimming_report.txt ${outNameStem}.R2_trimgalore_trimming_report.txt
 
 		"""
   }
@@ -323,7 +318,7 @@ process bwaAlign {
 	module 'samtools/1.8'
 	//END 180604
 
-	tag { params.outName }
+	tag { outNameStem }
 
 	input:
 	set val(myNM),file(fqR1),file(fqR2) from splitFQ
@@ -337,33 +332,33 @@ process bwaAlign {
   	  def bamOut = 'bar_' + nm + '.bam'
 
 		"""
-		fastx_trimmer -f 1 -l ${params.r1Len} -i $fqR1 -o ${params.tmpName}.R1.fastq
-		fastx_trimmer -f 1 -l ${params.r2Len} -i $fqR2 -o ${params.tmpName}.R2.fastq
+		fastx_trimmer -f 1 -l ${params.r1Len} -i $fqR1 -o ${tmpNameStem}.R1.fastq
+		fastx_trimmer -f 1 -l ${params.r2Len} -i $fqR2 -o ${tmpNameStem}.R2.fastq
 
 		\$NXF_PIPEDIR/accessoryFiles/SSDS/bwa_0.7.12 aln \
 		-t ${task.cpus} \
 		${params.genome_fasta} \
-		${params.tmpName}.R1.fastq >${params.tmpName}.R1.sai
+		${tmpNameStem}.R1.fastq >${tmpNameStem}.R1.sai
 
 		\$NXF_PIPEDIR/accessoryFiles/SSDS/bwa_ra_0.7.12 aln \
 		-t ${task.cpus} \
 		${params.genome_fasta} \
-		${params.tmpName}.R2.fastq >${params.tmpName}.R2.sai
+		${tmpNameStem}.R2.fastq >${tmpNameStem}.R2.sai
 
 		\$NXF_PIPEDIR/accessoryFiles/SSDS/bwa_0.7.12 sampe \
 		${params.genome_fasta} \
-		${params.tmpName}.R1.sai \
-		${params.tmpName}.R2.sai \
-		${params.tmpName}.R1.fastq \
-        ${params.tmpName}.R2.fastq >${params.tmpName}.unsorted.sam
+		${tmpNameStem}.R1.sai \
+		${tmpNameStem}.R2.sai \
+		${tmpNameStem}.R1.fastq \
+        ${tmpNameStem}.R2.fastq >${tmpNameStem}.unsorted.sam
 
 		java -jar \$PICARDJAR SamFormatConverter \
-                   I=${params.tmpName}.unsorted.sam \
-                   O=${params.tmpName}.unsorted.tmpbam \
+                   I=${tmpNameStem}.unsorted.sam \
+                   O=${tmpNameStem}.unsorted.tmpbam \
                    VALIDATION_STRINGENCY=LENIENT 2>pica.err
 
 		java -jar \$PICARDJAR SortSam \
-                   I=${params.tmpName}.unsorted.tmpbam \
+                   I=${tmpNameStem}.unsorted.tmpbam \
                    O=${bamOut} \
                    SO=coordinate \
                    VALIDATION_STRINGENCY=LENIENT 2>pica.err
@@ -371,7 +366,7 @@ process bwaAlign {
 		samtools index ${bamOut}
 		ls -l >list.tab
 		"""
-		//samtools view -Shb /dev/stdin >${params.tmpName}.unsorted.tmpbam
+		//samtools view -Shb /dev/stdin >${tmpNameStem}.unsorted.tmpbam
 		//-R '@RG\\tID:${params.rg_id}\\tSM:${params.sample_name}\\tPU:${params.platform_unit}\\tPL:${params.platform}\\tLB:${params.library}\\tDT:${params.rundate}'
   }
 
@@ -390,7 +385,7 @@ process mergeInitBAMs {
 	module 'picard/2.9.2'
 	module 'samtools/1.8'
 
-	tag { params.outName }
+	tag { outNameStem }
 	publishDir params.outdir,  mode: 'copy', overwrite: false
 
 	input:
@@ -420,29 +415,29 @@ process mergeInitBAMs {
 
 		java -jar \$PICARDJAR MarkDuplicatesWithMateCigar \
                    I=allREADS.ok.bam \
-                   O=${params.outName}.unparsed.bam \
+                   O=${outNameStem}.unparsed.bam \
                    PG=Picard2.9.2_MarkDuplicates \
-                   M=${params.outName}.MDmetrics.txt \
+                   M=${outNameStem}.MDmetrics.txt \
                    MINIMUM_DISTANCE=400 \
 				   CREATE_INDEX=false \
 				   ASSUME_SORT_ORDER=coordinate \
                    VALIDATION_STRINGENCY=LENIENT 2>>pica.err
 
-		samtools index ${params.outName}.unparsed.bam
+		samtools index ${outNameStem}.unparsed.bam
 
     samtools view -f 2048 -hb allREADS.bam >allREADS.supp.bam
 
 		java -jar \$PICARDJAR MarkDuplicatesWithMateCigar \
                    I=allREADS.supp.bam \
-                   O=${params.outName}.unparsed.suppAlignments.bam \
+                   O=${outNameStem}.unparsed.suppAlignments.bam \
                    PG=Picard2.9.2_MarkDuplicates \
-                   M=${params.outName}.suppAlignments.MDmetrics.txt \
+                   M=${outNameStem}.suppAlignments.MDmetrics.txt \
                    MINIMUM_DISTANCE=400 \
 				   CREATE_INDEX=false \
 				   ASSUME_SORT_ORDER=coordinate \
                    VALIDATION_STRINGENCY=LENIENT 2>>pica.err
 
-		samtools index ${params.outName}.unparsed.suppAlignments.bam
+		samtools index ${outNameStem}.unparsed.suppAlignments.bam
 		"""
   }
 
@@ -465,7 +460,7 @@ process parseITRs {
   errorStrategy 'retry'
   maxRetries 2
 
-	tag { params.outName }
+	tag { outNameStem }
 	//publishDir params.outdir,  mode: 'copy', overwrite: false
 
 	input:
@@ -576,15 +571,15 @@ process gatherOutputs {
 
 	script:
 	"""
-  java -jar \$PICARDJAR MergeSamFiles O=${params.outName}.${pType}.US.BAM `ls *${pType}.bam | sed 's/.*\$/I=& /'`
-  java -jar \$PICARDJAR SortSam I=${params.outName}.${pType}.US.BAM   O=${params.outName}.${pType}.S.BAM   SO=coordinate VALIDATION_STRINGENCY=LENIENT
-  java -jar \$PICARDJAR MarkDuplicatesWithMateCigar I=${params.outName}.${pType}.S.BAM  O=${params.outName}.${pType}.bam  PG=Picard2.9.2_MarkDuplicates M=${params.outName}.ssDNA_type1.MDmetrics.txt  CREATE_INDEX=false VALIDATION_STRINGENCY=LENIENT
+  java -jar \$PICARDJAR MergeSamFiles O=${outNameStem}.${pType}.US.BAM `ls *${pType}.bam | sed 's/.*\$/I=& /'`
+  java -jar \$PICARDJAR SortSam I=${outNameStem}.${pType}.US.BAM   O=${outNameStem}.${pType}.S.BAM   SO=coordinate VALIDATION_STRINGENCY=LENIENT
+  java -jar \$PICARDJAR MarkDuplicatesWithMateCigar I=${outNameStem}.${pType}.S.BAM  O=${outNameStem}.${pType}.bam  PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.ssDNA_type1.MDmetrics.txt  CREATE_INDEX=false VALIDATION_STRINGENCY=LENIENT
 
-  samtools index ${params.outName}.${pType}.bam
+  samtools index ${outNameStem}.${pType}.bam
 
-  sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 -m *${pType}.bed  >${params.outName}.${pType}.bed
-  rm -f ${params.outName}.${pType}.US.BAM
-  rm -f ${params.outName}.${pType}.S.BAM
+  sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 -m *${pType}.bed  >${outNameStem}.${pType}.bed
+  rm -f ${outNameStem}.${pType}.US.BAM
+  rm -f ${outNameStem}.${pType}.S.BAM
     """
   }
 
@@ -709,10 +704,8 @@ process makeSSreport {
 
 	module 'python/2.7'
 	module 'bedtools/2.25.0'
-	// KB 2018-06-04: Biowulf Centos7 update (June 04 2018)
-	//module 'samtools/1.5'
 	module 'samtools/1.8'
-	//END 180604
+
 	time '2h'
 
 	tag { bam }
@@ -728,8 +721,8 @@ process makeSSreport {
 
 	script:
 	"""
-	export TMPDIR=/lscratch/$SLURM_JOBID
-	export HOTSPOTS=\$NXF_PIPEDIR/accessoryFiles/SSDS/hotspots
+	export TMPDIR='.'
+  export HOTSPOTS=\$NXF_PIPEDIR/accessoryFiles/SSDS/hotspots
 	perl \$NXF_PIPEDIR/accessoryFiles/SSDS/scripts/makeSSMultiQCReport_nextFlow.pl $bam $ssdsBEDs --g ${params.genome}
 	"""
   }
@@ -745,7 +738,7 @@ process multiQC {
 
 	time '30m'
 
-	tag { params.outName }
+	tag { outNameStem }
 	publishDir params.outdir,  mode: 'copy', overwrite: false
 
 	input:
@@ -758,14 +751,14 @@ process multiQC {
 	script:
 		"""
 			export PYTHONPATH=\$NXF_PIPEDIR/accessoryFiles/SSDS/MultiQC_SSDS_Rev1/lib/python2.7/site-packages/
-      \$NXF_PIPEDIR/accessoryFiles/SSDS/MultiQC_SSDS_Rev1/bin/multiqc -m ssds -f -n ${params.outName}.multiQC .
+      \$NXF_PIPEDIR/accessoryFiles/SSDS/MultiQC_SSDS_Rev1/bin/multiqc -m ssds -f -n ${outNameStem}.multiQC .
 		"""
   }
 
 //Print log message on completion
 workflow.onComplete {
 	if (workflow.success){
-		def newFile = new File("${params.outdir}/${params.outName}.ssds_ok.done")
+		def newFile = new File("${params.outdir}/${outNameStem}.ssds_ok.done")
 		newFile.createNewFile()
 	}
 

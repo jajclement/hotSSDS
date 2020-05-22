@@ -1,6 +1,7 @@
 #!/usr/bin/env nextflow
 
 // Kevin Brick : Rev 1.0 : 06-03-18
+// Kevin Brick : Rev 1.7 : 05-22-20
 // Get FASTQ script
 // set some default params
 params.help=""
@@ -8,7 +9,7 @@ params.help=""
 if (params.help) {
   log.info " "
   log.info "=========================================================================="
-  log.info "getFQ PIPELINE (Version 1.0)                                "
+  log.info "getFQ PIPELINE (Version 1.7)                                "
   log.info "=========================================================================="
   log.info " "
   log.info "USAGE: "
@@ -19,7 +20,7 @@ if (params.help) {
   log.info "/data/RDCO/code/pipelines/pipeIt --h for help \\ "
   log.info " "
   log.info "------------------------------------------------------------------------- "
-  log.info "nextflow run $NXF_PIPEDIR/getFQ.groovy \\"
+  log.info "nextflow run $NXF_PIPEDIR/getFQ.nf \\"
   log.info " --bam               <bam file>"
   log.info " --sra               <sra names (or comma separated list: align as one file)>"
   log.info " --fq1               <Read1 fastq file>"
@@ -36,7 +37,7 @@ if (params.help) {
   log.info " --allowMultiSample  Allow object store regex to \"Get\" multiple samples           <logical: default = true> \\"
   log.info " -with-trace -with-timeline"
   log.info " "
-  log.info "HELP: nextflow run /data/RDCO/code/pipelines/getFQ.groovy --help"
+  log.info "HELP: nextflow run /data/RDCO/code/pipelines/getFQ.nf --help"
   log.info " "
   log.info "================================================================================================================="
   log.info "Required Arguments:"
@@ -110,8 +111,8 @@ if (params.bam){
 }
 
 //genomeAndindex
-params.genome_fasta = "$GENOMES/${params.genome}/BWAIndex/version0.7.10/genome.fa"
-params.genome_faIdx = "$GENOMES/${params.genome}/BWAIndex/version0.7.10/genome.fa.fai"
+params.genome_fasta = "$NXF_GENOMES/${params.genome}/BWAIndex/version0.7.10/genome.fa"
+params.genome_faIdx = "$NXF_GENOMES/${params.genome}/BWAIndex/version0.7.10/genome.fa.fai"
 
 def inputType
 if (params.sra){inputType = 'sra'}
