@@ -24,8 +24,8 @@ if (params.help) {
   log.info " --genome        <string> \\"
   log.info " --threads       <number of threads: default = 6> \\"
   log.info " --name          <string default=bam file stem> \\"
-  log.info " --outdir        <string: default = outName> \\"
-  log.info " --sample_name   <string: default = outName> \\"
+  log.info " --outdir        <string: default = name> \\"
+  log.info " --sample_name   <string: default = name> \\"
   log.info " --platform      <string: default = ILLUMINA > \\"
   log.info " --platform_unit <string: default=HISEQ2500> \\"
   log.info " --library       <string> \\"
@@ -53,7 +53,7 @@ if (params.help) {
   log.info " "
   log.info "SAM Read Group Arguments:"
   log.info " "
-  log.info "          --rg_id           STRING     SAM Read Group Tag RG:ID (defaults to outName)"
+  log.info "          --rg_id           STRING     SAM Read Group Tag RG:ID (defaults to name)"
   log.info "          --sample_name     STRING     SAM Read Group Tag RG:SM"
   log.info "          --platform        STRING     SAM Read Group Tag RG:PL"
   log.info "          --platform_unit   STRING     SAM Read Group Tag RG:PU"
@@ -107,7 +107,7 @@ def outNameStem = "${params.name}.SSDS.${params.genome}"
 def tmpNameStem = "${params.name}.tmpFile.${params.genome}"
 
 //output and tempory directories
-params.outdir = "./${params.outName}"
+params.outdir = "./output_${outNameStem}"
 params.outdir_tmp = "/tmp"
 
 params.bamPGline = '@PG	ID:ssDNAPipeline1.7_KBRICK VN:1.7nxf'
