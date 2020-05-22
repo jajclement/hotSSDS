@@ -1,0 +1,170 @@
+{# #######################
+  toolbox.html
+##########################
+
+This block codes the markup used by the toolbar on the right hand side
+of the report.
+
+#}
+
+<div class="mqc-toolbox collapse">
+  
+  <!-- Toolbar show/hide buttons -->
+  <div class="mqc-toolbox-buttons hidden-xs">
+    <a class="mqc-toolbox-label" href="#mqc_cols" title="Open Toolbox">Toolbox</a>
+    <ul>
+      <li><a href="#mqc_cols" title="Highlight" data-placement="left" data-toggle="tooltip"><span class="glyphicon glyphicon-pushpin"></span></a></li>
+      <li><a href="#mqc_renamesamples" title="Rename" data-placement="left" data-toggle="tooltip"><span class="glyphicon glyphicon-font"></span></a></li>
+      <li><a href="#mqc_hidesamples" title="Hide" data-placement="left" data-toggle="tooltip"><span class="glyphicon glyphicon-eye-close"></span></a></li>
+      <li><a href="#mqc_exportplots" title="Export" data-placement="left" data-toggle="tooltip"><span class="glyphicon glyphicon-download-alt"></span></a></li>
+      <li><a href="#mqc_saveconfig" title="Save" data-placement="left" data-toggle="tooltip"><span class="glyphicon glyphicon-floppy-disk"></span></a></li>
+    </ul>
+  </div>
+  
+  
+  <div class="mqc-toolbox-wrapper">
+    <!-- Header - always visible -->
+    <div class="mqc-toolbox-header hidden-xs">
+      <h3>MultiQC Toolbox</h3>
+    </div>
+    
+    <!-- Highlighting -->
+    <div id="mqc_cols" class="mqc_filter_section">
+      <h4>Highlight Samples</h4>
+      <form class="form-inline" id="mqc_color_form">
+        <input id="mqc_colour_filter" type="text" placeholder="Custom Pattern" class="form-control input-sm">
+        <input id="mqc_colour_filter_color" type="color" value="#e41a1c" class="form-control input-sm">
+        <button type="submit" id="mqc_colour_filter_update" class="btn btn-default btn-sm">+</button>
+      </form>
+      <p class="mqc_regex_mode">Regex mode <span class="off">off</span> <button class="btn btn-sm btn-link" data-toggle="modal" data-target="#regex_help_modal">help</button></p>
+      <ul id="mqc_col_filters" class="mqc_filters"></ul>
+    </div>
+    
+    <!-- Renaming -->
+    <div id="mqc_renamesamples" class="mqc_filter_section">
+      <h4>Rename Samples</h4>
+      <form class="form-inline" id="mqc_renamesamples_form">
+        <input id="mqc_renamesamples_from" type="text" placeholder="From" class="form-control input-sm">
+        <input id="mqc_renamesamples_to" type="text" placeholder="To" class="form-control input-sm">
+        <button type="submit" id="mqc_renamesamples_filter_update" class="btn btn-default btn-sm">+</button>
+      </form>
+      <p><a data-toggle="collapse" href="#mqc_renamesamples_bulk_collapse">Click here for bulk input.</a></p>
+      <div class="collapse" id="mqc_renamesamples_bulk_collapse">
+        <p>Paste two columns of a tab-delimited table here (eg. from Excel).</p>
+        <p>First column should be the old name, second column the new name.</p>
+        <form id="mqc_renamesamples_bulk_form">
+          <textarea class="form-control" rows="5"></textarea>
+          <button type="submit" id="mqc_renamesamples_bulk_update" class="btn btn-default btn-sm">Add</button>
+        </form>
+      </div>
+      <p class="mqc_regex_mode">Regex mode <span class="off">off</span> <button class="btn btn-sm btn-link" data-toggle="modal" data-target="#regex_help_modal">help</button></p>
+      <ul id="mqc_renamesamples_filters" class="mqc_filters"></ul>
+    </div>
+    
+    <!-- Hiding -->
+    <div id="mqc_hidesamples" class="mqc_filter_section">
+      <h4>Show / Hide Samples</h4>
+      <form id="mqc_hidesamples_form">
+        <div class="radio input-sm">
+          <label><input type="radio" name="mqc_hidesamples_showhide" class="mqc_hidesamples_showhide" value="hide" checked> Hide matching samples</label>
+        </div>
+        <div class="radio input-sm">
+          <label><input type="radio" name="mqc_hidesamples_showhide" class="mqc_hidesamples_showhide" value="show"> Show only matching samples</label>
+        </div>
+        <div class="form-inline">
+          <input id="mqc_hidesamples_filter" type="text" placeholder="Custom Pattern" class="form-control input-sm">
+          <button type="submit" id="mqc_hidesamples_filter_update" class="btn btn-default btn-sm">+</button>
+        </div>
+      </form>
+      {% if report.general_stats_html['rows'] | length > 10 %}<p>Warning! This can take a few seconds.</p>{% endif %}
+      <p class="mqc_regex_mode">Regex mode <span class="off">off</span> <button class="btn btn-sm btn-link" data-toggle="modal" data-target="#regex_help_modal">help</button></p>
+      <ul id="mqc_hidesamples_filters" class="mqc_filters"></ul>
+    </div>
+    
+    <!-- Export Plots -->
+    <div id="mqc_exportplots" class="mqc_filter_section">
+      <h4>Export Plots</h4>
+      <p>To download images of plots, use the controls below:</p>
+      <form>
+        <hr>
+        <h5>Image Download Settings</h5>
+        <div class="row">
+          <div class="form-group col-sm-6">
+            <div class="input-group input-group-sm">
+              <input type="text" class="form-control input-sm" id="mqc_exp_width" placeholder="Width" value="1200">
+              <span class="input-group-addon">px</span>
+            </div>
+          </div>
+          <div class="form-group col-sm-6">
+            <div class="input-group input-group-sm">
+              <input type="text" class="form-control input-sm" id="mqc_exp_height" placeholder="Height" value="800">
+              <span class="input-group-addon">px</span>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="form-group col-sm-6 checkbox">
+            <label><input type="checkbox" id="mqc_export_aspratio" checked> Aspect ratio</label>
+          </div>
+          <div class="form-group col-sm-6">
+            <select id="mqc_export_ft" class="form-control input-sm">
+              <option value="image/png">PNG</option>
+              <option value="image/jpeg">JPEG</option>
+              <option value="image/svg+xml">SVG</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-sm-6 checkbox">
+            <label for="mqc_export_scaling">Plot scaling</label>
+          </div>
+          <div class="col-sm-6">
+            <div class="input-group input-group-sm">
+              <input type="text" class="form-control" id="mqc_export_scaling" placeholder="Scale" value="2">
+              <span class="input-group-addon">X</span>
+            </div>
+          </div>
+        </div>
+        
+        <hr>
+        <h5>Choose Plots</h5>
+        <button class="btn btn-sm btn-default" id="mqc_export_sall"><span class="glyphicon glyphicon-check"></span> All</button>
+        <button class="btn btn-sm btn-default" id="mqc_export_snone"><span class="glyphicon glyphicon-unchecked"></span> None</button>
+        <div id="mqc_export_selectplots"></div>
+        
+        <hr>
+        <button type="submit" class="btn btn-block btn-default"><span class="glyphicon glyphicon-download-alt"></span> &nbsp; Download Plots</button>
+        <p class="text-center"><small>If you use plots from MultiQC in a publication or presentation, please cite:<br>
+          <code>MultiQC (http://multiqc.info)</code><br>
+          <em>(publication hopefully coming soon).</em></small></p>
+      </form>
+    </div>
+    
+    <!-- Save Config -->
+    <div id="mqc_saveconfig" class="mqc_filter_section">
+      <h4>Save Settings</h4>
+      <p>You can save the toolbox settings for this report to the browser.</p>
+      <form class="form-inline" id="mqc_saveconfig_form">
+        <input type="text" class="form-control input-sm" placeholder="Config Name">
+        <button type="submit" class="btn btn-sm btn-default"><span class="glyphicon glyphicon-floppy-disk"></span> Save</button>
+      </form>
+      <hr>
+      
+      <h4>Load Settings</h4>
+      <p>Choose a saved report profile from the dropdown box below:</p>
+      <form id="mqc_loadconfig_form">
+        <div class="form-group">
+          <select class="form-control input-sm">
+            <option value="">[ select ]</option>
+          </select>
+        </div>
+        <div class="form-group actions">
+          <button type="submit" class="btn btn-sm btn-default"><span class="glyphicon glyphicon-floppy-open"></span> Load</button>
+          <button class="mqc_config_clear btn btn-sm btn-default"><span class="glyphicon glyphicon-trash"></span> Delete</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <a href="#top" class="mqc-toplink hidden-xs" title="Go to top"><span class="glyphicon glyphicon-chevron-up"></span></a>
+</div>
+<script type="text/javascript">var report_id = '{{ config.report_id }}'; </script>

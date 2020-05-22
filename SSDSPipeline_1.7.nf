@@ -110,7 +110,7 @@ def tmpNameStem = "${params.name}.tmpFile.${params.genome}"
 params.outdir = "./output_${outNameStem}"
 params.outdir_tmp = "/tmp"
 
-params.bamPGline = '@PG	ID:ssDNAPipeline1.7_nxf_KBRICK'
+params.bamPGline = '@PG\\tID:ssDNAPipeline1.7_nxf_KBRICK'
 
 //input BAM file
 if (params.bam){
@@ -501,7 +501,7 @@ process parseITRs {
 		sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${split_bam}.unclassified.bed -o ${split_bam}.unclassified.bed
 
 		samtools view -H ${split_bam}  >header.txt
-		echo ${params.bamPGline}      >>header.txt
+		echo -e "${params.bamPGline}" >>header.txt
 
 		cat header.txt ${split_bam}.ssDNA_type1.sam  >${split_bam}.ssDNA_type1.RH.sam
 		cat header.txt ${split_bam}.ssDNA_type2.sam  >${split_bam}.ssDNA_type2.RH.sam
