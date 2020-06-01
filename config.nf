@@ -11,7 +11,7 @@ profiles {
   slurm {
     process.executor='slurm'
     process.scratch = '/lscratch/$SLURM_JOBID'
-    process.clusterOptions = ' --gres=lscratch:800 --partition=norm'
+    process.clusterOptions = ' --gres=lscratch:800 '
     env{
       TMPDIR='/lscratch/$SLURM_JOBID'
     }
@@ -57,9 +57,7 @@ process {
 	$toFRBigWig.module = ['samtools/1.8','ucsc/365','bedtools/2.25.0','picard/2.9.2']
 	$makeSSreport.module = ['python/2.7','bedtools/2.25.0','samtools/1.8']
 	$multiQC.module = ['python/2.7']
-}
 
-process {
 	project = 'SSDS_alignment_Pipeline'
 
 	// Defaults maxs
@@ -75,8 +73,7 @@ process {
 	errorStrategy = { task.exitStatus == 143 ? 'retry' : 'finish' }
 	maxRetries = 2
 	maxErrors = '-1'
-	scratch = '/lscratch/$SLURM_JOBID'
-	clusterOptions = ' --gres=lscratch:300 '
+
 	echo = true
 
 	//PROCESS-SPECIFIC RESOURCES

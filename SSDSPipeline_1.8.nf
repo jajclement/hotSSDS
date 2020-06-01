@@ -170,35 +170,35 @@ process getFQs{
 		switch (inputType) {
       		case 'sra':
 				"""
-				nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.nf \
+				nextflow run -c \$NXF_PIPEDIR/config.getFQ.nf -profile local \$NXF_PIPEDIR/getFQ.nf \
 				--genome ${params.genome} --sra ${params.sra} --outdir . --withFQC false
 				"""
             	break
 
 			case 'obj':
 				"""
-				nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.nf \
+				nextflow run -c \$NXF_PIPEDIR/config.getFQ.nf -profile local \$NXF_PIPEDIR/getFQ.nf \
 				--genome ${params.genome} --obj ${params.obj} --outdir . --withFQC false
 				"""
 				break
 
 			case 'bam':
 				"""
-				nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.nf \
+				nextflow run -c \$NXF_PIPEDIR/config.getFQ.nf -profile local \$NXF_PIPEDIR/getFQ.nf \
 				--genome ${params.genome} --bam ${params.bam} --outdir . --withFQC false
 				"""
 				break
 
 			case 'fastqSR':
 				"""
-				nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.nf \
+				nextflow run -c \$NXF_PIPEDIR/config.getFQ.nf -profile local \$NXF_PIPEDIR/getFQ.nf \
 				--genome ${params.genome} --fq1 ${params.fq1} --outdir . --withFQC false
 				"""
 				break
 
 			case 'fastqPE':
 				"""
-				nextflow run -c \$NXF_PIPEDIR/nextflow.local.config \$NXF_PIPEDIR/getFQ.nf \
+				nextflow run -c \$NXF_PIPEDIR/config.getFQ.nf -profile local \$NXF_PIPEDIR/getFQ.nf \
 				--genome ${params.genome} --fq1 ${params.fq1} --fq2 ${params.fq2} --outdir . --withFQC false
 				"""
 				break

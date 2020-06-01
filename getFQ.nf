@@ -149,20 +149,6 @@ log.info "allowMultiSample   : ${params.allowMultiSample}"
 switch (inputType) {
   case 'sra':
     process getSRAfiles {
-      scratch '/lscratch/$SLURM_JOBID'
-      clusterOptions ' --gres=lscratch:800 --partition=norm'
-      echo true
-      cpus 2
-      memory '4g'
-      //time '24h'
-
-      time { 24.hour }
-      errorStrategy { 'retry' }
-      maxRetries 4
-
-      module 'samtools/1.8'
-      module 'picard/2.9.2'
-      module 'sratoolkit/2.9.2'
 
       tag { params.sra }
 
@@ -215,21 +201,6 @@ switch (inputType) {
     println('Retreiving from object storage ... ')
 
     process getFromObjectStore {
-      scratch '/lscratch/$SLURM_JOBID'
-      clusterOptions ' --gres=lscratch:800 --partition=norm'
-      echo true
-      cpus 2
-      memory '4g'
-      //time '24h'
-
-      time { 24.hour }
-      errorStrategy { 'retry' }
-      maxRetries 4
-
-      module 'samtools/1.8'
-      module 'picard/2.9.2'
-      module 'sratoolkit/2.9.2'
-
       publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*expttype"
 
       input:
@@ -277,19 +248,6 @@ switch (inputType) {
     inBAM = file(params.bam)
 
     process bamToFastq {
-      scratch '/lscratch/$SLURM_JOBID'
-      clusterOptions ' --gres=lscratch:800 --partition=norm'
-      echo true
-      cpus 2
-      memory '4g'
-      //time '24h'
-
-      time { 24.hour }
-      errorStrategy { 'retry' }
-      maxRetries 4
-
-      module 'samtools/1.8'
-      module 'picard/2.9.2'
 
       tag { bam }
 
@@ -357,19 +315,6 @@ switch (inputType) {
       inFQ2 = file(params.fq2)
 
       process initFQtoFQ_PE {
-        scratch '/lscratch/$SLURM_JOBID'
-        clusterOptions ' --gres=lscratch:800 --partition=norm'
-        echo true
-        cpus 2
-        memory '4g'
-        //time '24h'
-
-        time { 24.hour }
-        errorStrategy { 'retry' }
-        maxRetries 4
-
-        module 'samtools/1.8'
-        module 'picard/2.9.2'
 
         tag { inFQ1 }
 
@@ -405,19 +350,6 @@ switch (inputType) {
       inFQ1 = file(params.fq1)
 
       process initFQtoFQ_SR{
-        scratch '/lscratch/$SLURM_JOBID'
-        clusterOptions ' --gres=lscratch:600 --partition=norm'
-        echo true
-        cpus 2
-        memory '4g'
-        //time '24h'
-
-        time { 24.hour }
-        errorStrategy { 'retry' }
-        maxRetries 4
-
-        module 'samtools/1.8'
-        module 'picard/2.9.2'
 
         tag { inFQ1 }
 
@@ -451,19 +383,6 @@ switch (inputType) {
 
 if (params.withFQC){
   process fastQCall {
-    scratch '/lscratch/$SLURM_JOBID'
-    clusterOptions ' --gres=lscratch:400 --partition=norm'
-    echo true
-    cpus params.threads
-    memory params.mem
-
-    module 'fastqtools/0.8'
-    module 'fastqc/0.11.8'
-    module 'bwa/0.7.17'
-
-    time { 24.hour }
-    errorStrategy { 'retry' }
-    maxRetries 4
 
     tag{$fq}
 
@@ -505,17 +424,6 @@ if (!outName){outName='merge'}
 println(params.merge)
 if (params.merge){
   process mergeFQ {
-    scratch '/lscratch/$SLURM_JOBID'
-    clusterOptions ' --gres=lscratch:800'
-    echo true
-    cpus params.threads
-    memory params.mem
-
-    module 'fastqtools/0.8'
-
-    time { 24.hour }
-    errorStrategy { 'retry' }
-    maxRetries 1
 
     publishDir params.outdir, mode: 'move', overwrite: false
 
@@ -568,15 +476,6 @@ if (params.merge){
   }
 }else{
   process omitFQ {
-    scratch '/lscratch/$SLURM_JOBID'
-    clusterOptions ' --gres=lscratch:60 --partition=norm'
-    echo true
-    cpus params.threads
-    memory params.mem
-
-    time { 4.hour }
-    errorStrategy { 'retry' }
-    maxRetries 4
 
     publishDir params.outdir, mode: 'move', overwrite: false
 
