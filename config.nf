@@ -17,8 +17,13 @@ profiles {
     }
   }
 
-  none {
-    // Add custom configs here
+  standard {
+    process.executor='slurm'
+    process.scratch = '/lscratch/$SLURM_JOBID'
+    process.clusterOptions = ' --gres=lscratch:800 '
+    env{
+      TMPDIR='/lscratch/$SLURM_JOBID'
+    }
   }
 }
 
@@ -47,7 +52,7 @@ process {
 	//MODULE DETAILS
 	$getFQs.module = ['nextflow/0.30.2']
 	$runFASTQC.module = ['fastqtools/0.8','fastqc/0.11.8','bwa/0.7.17']
-	$trimFASTQs.module = ['trimgalore/0.4.5']
+	$trimFASTQs.module = ['trimgalore/0.4.5','cutadapt/2.9']
 	$bwaAlign.module = ['java/1.8.0_92','picard/2.9.2','fastxtoolkit/0.0.14','samtools/1.8']
   $mergeInitBAMs.module = ['java/1.8.0_92','picard/2.9.2','samtools/1.8']
   $parseITRs.module = ['picard/2.9.2','samtools/1.8']

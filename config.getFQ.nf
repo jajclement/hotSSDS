@@ -17,8 +17,13 @@ profiles {
     }
   }
 
-  none {
-    // Add custom configs here
+	standard {
+    process.executor='slurm'
+    process.scratch = '/lscratch/$SLURM_JOBID'
+    process.clusterOptions = ' --gres=lscratch:800 '
+    env{
+      TMPDIR='/lscratch/$SLURM_JOBID'
+    }
   }
 }
 
