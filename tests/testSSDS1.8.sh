@@ -7,5 +7,5 @@ nextflow run -c $NXF_PIPEDIR/config.nf -profile local \
     --r1Len 36 \
     --r2Len 40 \
     --genome mm10 \
-    --outName testSSDS1.8 \
+    --name testSSDS1.8 \
     --outdir SSDS1.8_test 
