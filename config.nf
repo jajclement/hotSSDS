@@ -45,18 +45,18 @@ manifest {
 
 process {
 	//MODULE DETAILS
-	withName:getFQs.module = ['nextflow/0.30.2']
-	withName:runFASTQC.module = ['fastqtools/0.8','fastqc/0.11.8','bwa/0.7.17']
-	withName:trimFASTQs.module = ['trimgalore/0.4.5']
-	withName:bwaAlign.module = ['java/1.8.0_92','picard/2.9.2','fastxtoolkit/0.0.14','samtools/1.8']
-  withName:mergeInitBAMs.module = ['java/1.8.0_92','picard/2.9.2','samtools/1.8']
-  withName:parseITRs.module = ['picard/2.9.2','samtools/1.8']
-  withName:gatherOutputs.module = ['picard/2.9.2','samtools/1.8']
-  withName:makeDeeptoolsBigWig.module = ['samtools/1.8','deeptools/3.0.1','ucsc/365']
-	withName:samStats.module = ['samtools/1.8']
-	withName:toFRBigWig.module = ['samtools/1.8','ucsc/365','bedtools/2.25.0','picard/2.9.2']
-	withName:makeSSreport.module = ['python/2.7','bedtools/2.25.0','samtools/1.8']
-	withName:multiQC.module = ['python/2.7']
+	$getFQs.module = ['nextflow/0.30.2']
+	$runFASTQC.module = ['fastqtools/0.8','fastqc/0.11.8','bwa/0.7.17']
+	$trimFASTQs.module = ['trimgalore/0.4.5']
+	$bwaAlign.module = ['java/1.8.0_92','picard/2.9.2','fastxtoolkit/0.0.14','samtools/1.8']
+  $mergeInitBAMs.module = ['java/1.8.0_92','picard/2.9.2','samtools/1.8']
+  $parseITRs.module = ['picard/2.9.2','samtools/1.8']
+  $gatherOutputs.module = ['picard/2.9.2','samtools/1.8']
+  $makeDeeptoolsBigWig.module = ['samtools/1.8','deeptools/3.0.1','ucsc/365']
+	$samStats.module = ['samtools/1.8']
+	$toFRBigWig.module = ['samtools/1.8','ucsc/365','bedtools/2.25.0','picard/2.9.2']
+	$makeSSreport.module = ['python/2.7','bedtools/2.25.0','samtools/1.8']
+	$multiQC.module = ['python/2.7']
 }
 
 process {
@@ -80,74 +80,74 @@ process {
 	echo = true
 
 	//PROCESS-SPECIFIC RESOURCES
-	withName:getFQs {
+	$getFQs {
 		cpus = { 12 }
 		memory = { 32.GB }
 		time = { 24.hour * task.attempt }
 		clusterOptions = ' --gres=lscratch:800'
 	  }
 
-	withName:runFASTQC {
+	$runFASTQC {
 		cpus = { 16 }
 		memory = { 16.GB }
 		time = { 8.hour * task.attempt }
 	  }
 
-	withName:trimFASTQs {
+	$trimFASTQs {
 		cpus = { 16 }
 		memory = { 4.GB * task.attempt }
 		time = { 8.hour * task.attempt }
 	  }
 
-	withName:bwaAlign.module {
+	$bwaAlign {
 		cpus = { 16 }
 		memory = { 32.GB }
 		time = { 60.hour * task.attempt }
 	  }
 
-  withName:mergeInitBAMs.module {
+  $mergeInitBAMs {
 		cpus = { 8 }
 		memory = { 32.GB }
 		time = { 6.hour * task.attempt }
 	  }
 
-  withName:parseITRs.module {
+  $parseITRs {
 		cpus = { 16 }
 		memory = { 32.GB }
 		time = { 8.hour * task.attempt }
 	  }
 
-  withName:gatherOutputs.module {
+  $gatherOutputs {
 		cpus = { 16 }
 		memory = { 32.GB }
 		time = { 8.hour * task.attempt }
 	  }
 
-  withName:makeDeeptoolsBigWig.module {
+  $makeDeeptoolsBigWig {
 		cpus = { 16 }
 		memory = { 32.GB }
 		time = { 8.hour * task.attempt }
 	  }
 
-	withName:samStats.module {
+	$samStats {
 		cpus = { 2 }
 		memory = { 16.GB }
 		time = { 6.hour * task.attempt }
 	  }
 
-	withName:toFRBigWig.module {
+	$toFRBigWig {
 		cpus = { 2 }
 		memory = { 8.GB * task.attempt }
 		time = { 6.hour * task.attempt }
 	  }
 
-	withName:makeSSreport.module {
+	$makeSSreport {
 		cpus = { 2 }
 		memory = { 8.GB * task.attempt }
 		time = { 6.hour * task.attempt }
 	  }
 
-	withName:multiQC.module {
+	$multiQC {
 		cpus = { 2 }
 		memory = { 8.GB * task.attempt }
 		time = { 2.hour * task.attempt }
