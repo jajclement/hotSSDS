@@ -33,7 +33,7 @@ This nextflow pipeline is configured to work on a SLURM-based HPC with modules. 
 - Time::HiRes
 
 ## Global variables required:
-$NXF_PIPEDIR   : Path to folder containing SSDSPipeline_1.7.nf
+$NXF_PIPEDIR   : Path to folder containing SSDSPipeline_1.8.nf
 
 $NXF_GENOMES   : Path to folder containing reference genomes for alignment
                  ** This folder requires a very specific structure (see below) **
@@ -54,7 +54,7 @@ $NXF_GENOMES/\<genome\>/BWAIndex/version0.7.10/  : BWA 0.7 index files (should a
 ** NOTE: The genome files MUST be named genome.XXX - other names will cause errors (i.e. mm10.fa / hg19_genome.fa / etc ...)
 
 ### Temp folder requirements
-The pipeline requires a high-level temporary folder called /lscratch. On a SLURM-based HPC, each job is assigned a global id ($SLURM_JOBID) and this is appended to the temp folder name for each process. This is currently hard-coded. Thus, there is a requirement for :
+The pipeline requires a high-level temporary folder called /lscratch. On a SLURM-based HPC, each job is assigned a global id ($SLURM_JOBID) and this is appended to the temp folder name for each process. This can be modified in the config.nf file. Thus, there is a requirement for :
 
 /lscratch folder for temporary files
 SLURM_JOBID global variable for each HPC job.
@@ -63,28 +63,28 @@ SLURM_JOBID global variable for each HPC job.
 
 ### RUN ON LOCAL MACHINE
 ```
-nextflow run -c $NXF_PIPEDIR/nextflow.local.config $NXF_PIPEDIR/SSDSPipeline_1.7.nf \
+nextflow run -c $NXF_PIPEDIR/config.nf -profile local \
+    $NXF_PIPEDIR/SSDSPipeline_1.8.nf \
     --fq1 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R1.fastq \
     --fq2 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R2.fastq \
     --r1Len 36 \
     --r2Len 40 \
     --genome mm10 \
-    --name testSSDS1.7 \
-    --outdir SSDS1.7_test \
-    -with-trace -with-timeline
+    --name testSSDS1.8 \
+    --outdir SSDS1.8_test
 ```
 
 ### RUN ON SLURM CLUSTER
 ```
-nextflow run -c $NXF_PIPEDIR/nextflow.config $NXF_PIPEDIR/SSDSPipeline_1.7.nf \
+nextflow run -c $NXF_PIPEDIR/config.nf -profile slurm \
+    $NXF_PIPEDIR/SSDSPipeline_1.8.nf \
     --fq1 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R1.fastq \
     --fq2 $NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R2.fastq \
     --r1Len 36 \
     --r2Len 40 \
     --genome mm10 \
-    --name testSSDS1.7 \
-    --outdir SSDS1.7_test \
-    -with-trace -with-timeline
+    --name testSSDS1.8 \
+    --outdir SSDS1.8_test
 ```
 
 ### TESTS
