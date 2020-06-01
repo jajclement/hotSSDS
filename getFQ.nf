@@ -9,7 +9,7 @@ params.help=""
 if (params.help) {
   log.info " "
   log.info "=========================================================================="
-  log.info "getFQ PIPELINE (Version 1.7)                                "
+  log.info "getFQ PIPELINE (Version 1.8)                                "
   log.info "=========================================================================="
   log.info " "
   log.info "USAGE: "
@@ -150,7 +150,7 @@ switch (inputType) {
   case 'sra':
     process getSRAfiles {
       scratch '/lscratch/$SLURM_JOBID'
-      clusterOptions ' --gres=lscratch:400 --partition=norm'
+      clusterOptions ' --gres=lscratch:800 --partition=norm'
       echo true
       cpus 2
       memory '4g'
@@ -216,7 +216,7 @@ switch (inputType) {
 
     process getFromObjectStore {
       scratch '/lscratch/$SLURM_JOBID'
-      clusterOptions ' --gres=lscratch:600 --partition=norm'
+      clusterOptions ' --gres=lscratch:800 --partition=norm'
       echo true
       cpus 2
       memory '4g'
@@ -278,7 +278,7 @@ switch (inputType) {
 
     process bamToFastq {
       scratch '/lscratch/$SLURM_JOBID'
-      clusterOptions ' --gres=lscratch:600 --partition=norm'
+      clusterOptions ' --gres=lscratch:800 --partition=norm'
       echo true
       cpus 2
       memory '4g'
@@ -358,7 +358,7 @@ switch (inputType) {
 
       process initFQtoFQ_PE {
         scratch '/lscratch/$SLURM_JOBID'
-        clusterOptions ' --gres=lscratch:600 --partition=norm'
+        clusterOptions ' --gres=lscratch:800 --partition=norm'
         echo true
         cpus 2
         memory '4g'
