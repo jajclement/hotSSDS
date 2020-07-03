@@ -10,10 +10,12 @@ profiles {
 
   slurm {
     process.executor='slurm'
-    process.scratch = '/lscratch/$SLURM_JOBID'
-    process.clusterOptions = ' --gres=lscratch:800 '
+//    process.scratch = '/lscratch/$SLURM_JOBID'
+    process.scratch = '$SCRATCH/$SLURM_JOBID'
+//    process.clusterOptions = ' --gres=lscratch:800 '
     env{
-      TMPDIR='/lscratch/$SLURM_JOBID'
+//      TMPDIR='/lscratch/$SLURM_JOBID'
+        TMPDIR='$SCRATCH/$SLURM_JOBID'
     }
   }
 

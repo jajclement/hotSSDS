@@ -67,21 +67,22 @@ if (params.help) {
   log.info "Optional BWA Alignment Arguments:"
   log.info " "
   log.info "          --bwa_args        STRING     Optional bwa arguments eg: \"-I 250,50\""
-	log.info "          --genomes2screen  STRING     Comma separated list of genomes to screen reads for contamination"
-	log.info "                                       names must correspond to folders in $NXF_GENOMES"
-	log.info "             default = alignment genome ONLY"
+  log.info "          --genomes2screen  STRING     Comma separated list of genomes to screen reads for contamination"
+  log.info "                                       names must correspond to folders in $NXF_GENOMES"
+  log.info "             default = alignment genome ONLY"
   log.info " "
   log.info "==========================================================================================================="
   exit 1
 
 }
 
-// Define arg defaults
-//number of threads
+//PARAMETERS
+//General
 params.threads = 16
-
-//genome version
-params.genome_fasta = "$NXF_GENOMES/${params.genome}/BWAIndex/version0.7.10/genome.fa"
+params.outdir = "/work/${USER}/output_${outNameStem}"
+params.outdir_tmp = "/work/${USER}"
+params.genome = "mm10"
+params.genome_fasta = "$NXF_GENOMES/${params.genome}/BWAIndex/version0.7.10/genome.fa" // pourquoi dans le dossier bwa ?
 
 //sample information
 params.bam = ""
@@ -105,10 +106,6 @@ params.genomes2screen = "${params.genome}"
 
 def outNameStem = "${params.name}.SSDS.${params.genome}"
 def tmpNameStem = "${params.name}.tmpFile.${params.genome}"
-
-//output and tempory directories
-params.outdir = "./output_${outNameStem}"
-params.outdir_tmp = "/tmp"
 
 params.bamPGline = '@PG\\tID:ssDNAPipeline1.8_nxf_KBRICK'
 
