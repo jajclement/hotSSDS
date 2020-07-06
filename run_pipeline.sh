@@ -29,7 +29,8 @@ nextflow run -c ${NXF_PIPEDIR}/conf/shenron.config \
     --r2Len ${R2LEN} \
     --genome ${GENOME} \
     --name ${PROJECT_NAME} \
-    --outdir ${WORKING_DIRECTORY}/${PROJECT_NAME}
+    --outdir ${WORKING_DIRECTORY}/${PROJECT_NAME} \
+    -resume
 
 #deactivate conda environment
 conda deactivate

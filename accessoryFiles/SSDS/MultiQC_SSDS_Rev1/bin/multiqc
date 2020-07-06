@@ -1,4 +1,4 @@
-#!/usr/local/bin/python2.7
+#!/home/demassyie/work/SSDSnextflowPipeline/accessoryFiles/SSDS/MultiQC_SSDS_Rev1/lib/python2.7
 # EASY-INSTALL-SCRIPT: 'multiqc==0.7dev','multiqc'
 __requires__ = 'multiqc==0.7dev'
 import pkg_resources

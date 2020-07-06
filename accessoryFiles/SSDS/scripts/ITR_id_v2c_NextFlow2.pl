@@ -281,7 +281,7 @@ sub SAMstrand{
 ################################################################################
 sub generateSAMline{
     my ($nRead,$rln,$itrLen,$iStrand,$numI,$numD,$numS) = @_;
-        
+    if ($itrLen >=0) {    
     my ($Ibefore,$Iafter) = (0,0);
     my ($Dbefore,$Dafter) = (0,0);
     my ($Sbefore,$Safter) = (0,0);
@@ -348,7 +348,8 @@ sub generateSAMline{
     
     chop($retLn);
     
-    return ($retLn,$nI,$nD,$nS);    
+    return ($retLn,$nI,$nD,$nS); 
+ }   
 }
 
 ################################################################################

@@ -305,12 +305,12 @@ process bwaAlign {
 		${tmpNameStem}.R1.fastq \
         ${tmpNameStem}.R2.fastq >${tmpNameStem}.unsorted.sam
 
-		java -jar \$PICARDJAR SamFormatConverter \
+		picard SamFormatConverter \
                    I=${tmpNameStem}.unsorted.sam \
                    O=${tmpNameStem}.unsorted.tmpbam \
                    VALIDATION_STRINGENCY=LENIENT 2>pica.err
 
-		java -jar \$PICARDJAR SortSam \
+		picard SortSam \
                    I=${tmpNameStem}.unsorted.tmpbam \
                    O=${bamOut} \
                    SO=coordinate \
@@ -345,7 +345,7 @@ process mergeInitBAMs {
 	  def input_args = bam_files.collect{ "I=$it" }.join(" ")
 
 		"""
-		java -jar \$PICARDJAR MergeSamFiles \
+		picard MergeSamFiles \
                    $input_args \
                    O=allREADS.bam \
                    AS=true \
@@ -355,7 +355,7 @@ process mergeInitBAMs {
 
     samtools view -F 2048 -hb allREADS.bam >allREADS.ok.bam
 
-		java -jar \$PICARDJAR MarkDuplicatesWithMateCigar \
+		picard MarkDuplicatesWithMateCigar \
                    I=allREADS.ok.bam \
                    O=${outNameStem}.unparsed.bam \
                    PG=Picard2.9.2_MarkDuplicates \
@@ -369,7 +369,7 @@ process mergeInitBAMs {
 
     samtools view -f 2048 -hb allREADS.bam >allREADS.supp.bam
 
-		java -jar \$PICARDJAR MarkDuplicatesWithMateCigar \
+		picard MarkDuplicatesWithMateCigar \
                    I=allREADS.supp.bam \
                    O=${outNameStem}.unparsed.suppAlignments.bam \
                    PG=Picard2.9.2_MarkDuplicates \
@@ -439,11 +439,11 @@ process parseITRs {
 		samtools view -Shb ${split_bam}.dsDNA_strict.RH.sam >${split_bam}.dsDNA_strict.US.bam
 		samtools view -Shb ${split_bam}.unclassified.RH.sam >${split_bam}.unclassified.US.bam
 
-		java -jar \$PICARDJAR SortSam I=${split_bam}.ssDNA_type1.US.bam  O=${split_bam}.ssDNA_type1.bam  SO=coordinate VALIDATION_STRINGENCY=LENIENT
-		java -jar \$PICARDJAR SortSam I=${split_bam}.ssDNA_type2.US.bam  O=${split_bam}.ssDNA_type2.bam  SO=coordinate VALIDATION_STRINGENCY=LENIENT
-		java -jar \$PICARDJAR SortSam I=${split_bam}.dsDNA.US.bam        O=${split_bam}.dsDNA.bam        SO=coordinate VALIDATION_STRINGENCY=LENIENT
-		java -jar \$PICARDJAR SortSam I=${split_bam}.dsDNA_strict.US.bam O=${split_bam}.dsDNA_strict.bam SO=coordinate VALIDATION_STRINGENCY=LENIENT
-		java -jar \$PICARDJAR SortSam I=${split_bam}.unclassified.US.bam O=${split_bam}.unclassified.bam SO=coordinate VALIDATION_STRINGENCY=LENIENT
+		picard SortSam I=${split_bam}.ssDNA_type1.US.bam  O=${split_bam}.ssDNA_type1.bam  SO=coordinate VALIDATION_STRINGENCY=LENIENT
+		picard SortSam I=${split_bam}.ssDNA_type2.US.bam  O=${split_bam}.ssDNA_type2.bam  SO=coordinate VALIDATION_STRINGENCY=LENIENT
+		picard SortSam I=${split_bam}.dsDNA.US.bam        O=${split_bam}.dsDNA.bam        SO=coordinate VALIDATION_STRINGENCY=LENIENT
+		picard SortSam I=${split_bam}.dsDNA_strict.US.bam O=${split_bam}.dsDNA_strict.bam SO=coordinate VALIDATION_STRINGENCY=LENIENT
+		picard SortSam I=${split_bam}.unclassified.US.bam O=${split_bam}.unclassified.bam SO=coordinate VALIDATION_STRINGENCY=LENIENT
 
 		samtools index ${split_bam}.ssDNA_type1.bam
 		samtools index ${split_bam}.ssDNA_type2.bam
@@ -483,9 +483,9 @@ process gatherOutputs {
 
 	script:
 	"""
-  java -jar \$PICARDJAR MergeSamFiles O=${outNameStem}.${pType}.US.BAM `ls *${pType}.bam | sed 's/.*\$/I=& /'`
-  java -jar \$PICARDJAR SortSam I=${outNameStem}.${pType}.US.BAM   O=${outNameStem}.${pType}.S.BAM   SO=coordinate VALIDATION_STRINGENCY=LENIENT
-  java -jar \$PICARDJAR MarkDuplicatesWithMateCigar I=${outNameStem}.${pType}.S.BAM  O=${outNameStem}.${pType}.bam  PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.ssDNA_type1.MDmetrics.txt  CREATE_INDEX=false VALIDATION_STRINGENCY=LENIENT
+  picard MergeSamFiles O=${outNameStem}.${pType}.US.BAM `ls *${pType}.bam | sed 's/.*\$/I=& /'`
+  picard SortSam I=${outNameStem}.${pType}.US.BAM   O=${outNameStem}.${pType}.S.BAM   SO=coordinate VALIDATION_STRINGENCY=LENIENT
+  picard MarkDuplicatesWithMateCigar I=${outNameStem}.${pType}.S.BAM  O=${outNameStem}.${pType}.bam  PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.ssDNA_type1.MDmetrics.txt  CREATE_INDEX=false VALIDATION_STRINGENCY=LENIENT
 
   samtools index ${outNameStem}.${pType}.bam
 
@@ -525,8 +525,7 @@ process makeDeeptoolsBigWig {
 
 //Run sam stats
 process samStats {
-	scratch '/lscratch/$SLURM_JOBID'
-	clusterOptions ' --gres=lscratch:300'
+	scratch '$SCRATCH'
 	echo true
 	cpus 2
 	memory 16
@@ -602,8 +601,7 @@ process makeSSreport {
 
 //Fnal process will make a multiQC report
 process multiQC {
-	scratch '/lscratch/$SLURM_JOBID'
-	clusterOptions ' --gres=lscratch:30 --partition=quick,norm'
+	scratch '$SCRATCH'
 
 	cpus 2
 	memory '4g'
@@ -623,8 +621,7 @@ process multiQC {
 
 	script:
 		"""
-			export PYTHONPATH=\$NXF_PIPEDIR/accessoryFiles/SSDS/MultiQC_SSDS_Rev1/lib/python2.7/site-packages/
-      \$NXF_PIPEDIR/accessoryFiles/SSDS/MultiQC_SSDS_Rev1/bin/multiqc -m ssds -f -n ${outNameStem}.multiQC .
+      		python ${NXF_PIPEDIR}/accessoryFiles/SSDS/MultiQC_SSDS_Rev1/bin/multiqc -m ssds -f -n ${outNameStem}.multiQC .
 		"""
   }
 

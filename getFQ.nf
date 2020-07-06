@@ -269,36 +269,36 @@ switch (inputType) {
         if [ \$n -eq 0 ]; then
           echo 1 >isSR.expttype
 
-          java -jar \$PICARDJAR SortSam \
+          picard SortSam \
                          I=${bam}  \
                          O=querynameSort.bam \
                          SO=queryname \
-                         TMP_DIR=/lscratch/\$SLURM_JOBID \
+                         TMP_DIR=\$SCRATCH \
                          VALIDATION_STRINGENCY=LENIENT 2>b2fq.err
 
-          java -jar \$PICARDJAR SamToFastq I=querynameSort.bam \
+          picard SamToFastq I=querynameSort.bam \
                          F=nxf.R1.fastq \
-                         TMP_DIR=/lscratch/\$SLURM_JOBID \
+                         TMP_DIR=\$SCRATCH \
                          VALIDATION_STRINGENCY=LENIENT
         else
           echo 2 >isPE.expttype
-          java -jar \$PICARDJAR FixMateInformation \
+          picard FixMateInformation \
                          I=${bam} \
                          O=fixMate.bam \
                          SORT_ORDER=queryname \
-                         TMP_DIR=/lscratch/\$SLURM_JOBID \
+                         TMP_DIR=\$SCRATCH \
                          VALIDATION_STRINGENCY=LENIENT
 
-          java -jar \$PICARDJAR SortSam \
+          picard SortSam \
                          I=fixMate.bam  \
                          O=querynameSort.bam \
                          SO=queryname \
-                         TMP_DIR=/lscratch/\$SLURM_JOBID \
+                         TMP_DIR=\$SCRATCH \
                          VALIDATION_STRINGENCY=LENIENT 2>b2fq.err
 
-          java -jar \$PICARDJAR SamToFastq I=querynameSort.bam \
+          picard SamToFastq I=querynameSort.bam \
                          F=nxf.R1.fastq F2=nxf.R2.fastq \
-                         TMP_DIR=/lscratch/\$SLURM_JOBID \
+                         TMP_DIR=\$SCRATCH \
                          VALIDATION_STRINGENCY=LENIENT
           fi
         """
