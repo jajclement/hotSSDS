@@ -79,8 +79,8 @@ if (params.help) {
 //PARAMETERS
 //General
 params.threads = 16
-params.outdir = "/work/${USER}/output_${outNameStem}"
-params.outdir_tmp = "/work/${USER}"
+params.outdir = "/work/${USER}/SSDSnextflowPipeline_output"
+params.outdir_tmp = "${SCRATCH}"
 params.genome = "mm10"
 params.genome_fasta = "$NXF_GENOMES/${params.genome}/BWAIndex/version0.7.10/genome.fa" // pourquoi dans le dossier bwa ?
 
@@ -147,6 +147,7 @@ log.info "mem                : ${params.mem}"
 log.info "max reads for bwa  : ${params.bwaSplitSz}"
 log.info "genomes to screen  : ${params.genomes2screen}"
 
+
 process getFQs{
 
 	//publishDir params.outdir, mode: 'copy', overwrite: false
@@ -167,35 +168,35 @@ process getFQs{
 		switch (inputType) {
       		case 'sra':
 				"""
-				nextflow run -c \$NXF_PIPEDIR/config.getFQ.nf -profile local \$NXF_PIPEDIR/getFQ.nf \
+				nextflow run -c \$NXF_PIPEDIR/conf/config.getFQ.nf \$NXF_PIPEDIR/getFQ.nf \
 				--genome ${params.genome} --sra ${params.sra} --outdir . --withFQC false
 				"""
             	break
 
 			case 'obj':
 				"""
-				nextflow run -c \$NXF_PIPEDIR/config.getFQ.nf -profile local \$NXF_PIPEDIR/getFQ.nf \
+				nextflow run -c \$NXF_PIPEDIR/conf/config.getFQ.nf \$NXF_PIPEDIR/getFQ.nf \
 				--genome ${params.genome} --obj ${params.obj} --outdir . --withFQC false
 				"""
 				break
 
 			case 'bam':
 				"""
-				nextflow run -c \$NXF_PIPEDIR/config.getFQ.nf -profile local \$NXF_PIPEDIR/getFQ.nf \
+				nextflow run -c \$NXF_PIPEDIR/conf/config.getFQ.nf \$NXF_PIPEDIR/getFQ.nf \
 				--genome ${params.genome} --bam ${params.bam} --outdir . --withFQC false
 				"""
 				break
 
 			case 'fastqSR':
 				"""
-				nextflow run -c \$NXF_PIPEDIR/config.getFQ.nf -profile local \$NXF_PIPEDIR/getFQ.nf \
+				nextflow run -c \$NXF_PIPEDIR/conf/config.getFQ.nf  \$NXF_PIPEDIR/getFQ.nf \
 				--genome ${params.genome} --fq1 ${params.fq1} --outdir . --withFQC false
 				"""
 				break
 
 			case 'fastqPE':
 				"""
-				nextflow run -c \$NXF_PIPEDIR/config.getFQ.nf -profile local \$NXF_PIPEDIR/getFQ.nf \
+				nextflow run -c \$NXF_PIPEDIR/conf/config.getFQ.nf  \$NXF_PIPEDIR/getFQ.nf \
 				--genome ${params.genome} --fq1 ${params.fq1} --fq2 ${params.fq2} --outdir . --withFQC false
 				"""
 				break
@@ -216,7 +217,7 @@ process runFASTQC {
 	output:
 		file '*zip'  into fqcZip
 		file '*html' into repHTML
-		file '*png'  into repPNG
+		//file '*png'  into repPNG
 		file '*txt'  into repTXT
 
 	script:

@@ -27,5 +27,5 @@ mkdir -p ${DATA_DIR_PROJECT}
 #ln -s ${GENOMES_DIR_CLUSTER}/genome.fa.fai ${GENOMES_DIR_LOCAL}/genome.fa.fai
 #ln -s ${GENOMES_DIR_CLUSTER}/genome.dict ${GENOMES_DIR_LOCAL}/genome.dict
 #ln -s ${INDEX_DIR_CLUSTER}/* ${INDEX_DIR_LOCAL}/
-ln -s ${DATA_DIR}/* ${DATA_DIR_PROJECT}/
+#ln -s ${DATA_DIR}/* ${DATA_DIR_PROJECT}/
 
