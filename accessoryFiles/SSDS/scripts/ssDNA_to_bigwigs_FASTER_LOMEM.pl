@@ -24,7 +24,7 @@ if (`samtools view $bam |head -n 100 |wc -l` < 100){
 	exit
 }
 
-my $tmpFolder = '/lscratch/'.$ENV{SLURM_JOBID}.'/';
+my $tmpFolder = $ENV{SCRATCH}.'/';
 my $tmpID     = int(rand()*100000000000000000);
 my $tmpFileBase = $tmpFolder.$tmpID;
 

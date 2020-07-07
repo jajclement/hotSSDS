@@ -15,6 +15,7 @@ R1LEN="36"
 R2LEN="40"
 FQ1=$NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R1.fastq
 FQ2=$NXF_PIPEDIR/tests/fastq/ssdsLong.100k.R2.fastq
+DAG=${WORKING_DIRECTORY}/dag.png
 
 #Create working directory if not existing
 mkdir -p ${WORKING_DIRECTORY}/${PROJECT_NAME}
@@ -30,7 +31,8 @@ nextflow run -c ${NXF_PIPEDIR}/conf/shenron.config \
     --genome ${GENOME} \
     --name ${PROJECT_NAME} \
     --outdir ${WORKING_DIRECTORY}/${PROJECT_NAME} \
-    -resume
+    -resume \
+    -with-dag ${DAG}
 
 #deactivate conda environment
 conda deactivate
