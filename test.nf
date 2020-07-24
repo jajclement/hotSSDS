@@ -16,33 +16,32 @@ scratch=params.scratch
 // Channel to get SRA fastq files from SRA ids given in parameters or config file. Currently no check for availability.
 def inputType
 if (params.sra_ids){inputType = 'sra'}
-//if (params.obj){inputType = 'obj'} 
 if (params.bamdir){inputType = 'bam'} 
-//if (params.fq1){inputType = 'fastq'}
+if (params.fqdir){inputType = 'fastq'}
 
 switch (inputType) {
 case 'sra':
     Channel
         .fromSRA(params.sra_ids, apiKey:params.ncbi_api_key)
-        .set { sra_ch }
-
+//        .set { sra_ch }
+          .set { fq_ch }
     // The process will get the SRA fastq files by pairs or not and will get a small subset
-    process getSRAfiles {
+//    process getSRAfiles {
     //    tag { input SRA }
         // this indicates that all output files matching the pattern will be copied into the params.outdir directory.
-        publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.fastq.gz"
+//        publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.fastq.gz"
         // get input from sra channel. sampleId contains the root names of sample(s) ans reads contains the fastq file(s)
-        input:
-            set val(sampleId), file(reads) from sra_ch
-        output:
-            file '*1_head.fastq.gz' into fq1
-            file '*2_head.fastq.gz' optional true into fq2        
-        script:
-        """
-            zcat ${sampleId}_1.fastq.gz | head -10 > ${sampleId}_1_head.fastq.gz
-            zcat ${sampleId}_2.fastq.gz | head -10 > ${sampleId}_2_head.fastq.gz
-        """
-    }   
+//        input:
+//            set val(sampleId), file(reads) from sra_ch
+//        output:
+//            file '*_1.fastq.gz' into fq1
+//            file '*_2.fastq.gz' optional true into fq2        
+//        script:
+//        """
+//            ln -s ${sampleId}_1.fastq.gz ${sampleId}_1.fastq.gz
+//            ln -s ${sampleId}_2.fastq.gz ${sampleId}_2.fastq.gz
+//        """
+//    }   
 break
 case 'bam':
     Channel
@@ -53,8 +52,7 @@ case 'bam':
         input:
             file(bam) from bam_ch
         output:
-            file '*_1.fastq.gz' into fq1                                    
-            file '*_2.fastq.gz' optional true into fq2   
+            set val(${bam.baseName}), file('*_1.fastq.gz'), file('*_2.fastq.gz') into fq_ch                                    
         script:
         """
         n=`samtools view -h ${bam} | head -100000 | samtools view -f 1 -S | wc -l`
@@ -71,16 +69,25 @@ case 'bam':
         fi
         """
     }
-    break
+break
+case 'fastq':
+    Channel
+        .fromFilePairs(params.fqdir, checkIfExists:true)
+        .set { fq_ch }
+break
 }
 
-
-
-
-
-
-
-
-
-
+process fastqc {
+publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.fq"
+    input:
+        set val(sampleId), file(reads) from fq_ch
+    output:
+        file '*1.fq' into fq1
+        file '*2.fq' into fq2
+    script:
+    """
+    zcat ${sampleId}_1.fastq.gz | head -10 > test1.fq
+    zcat ${sampleId}_2.fastq.gz | head -10 > test2.fq 
+    """
+}
 
