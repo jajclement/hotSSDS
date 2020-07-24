@@ -51,7 +51,7 @@ case 'bam':
     process bam2fastq {
         publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.fastq.gz"
         input:
-            set file(bam) from bam_ch
+            file(bam) from bam_ch
         output:
             file '*_1.fastq.gz' into fq1                                    
             file '*_2.fastq.gz' optional true into fq2   
@@ -65,8 +65,8 @@ case 'bam':
         else
             picard FixMateInformation I=${bam} O=fixmate.bam SORT_ORDER=queryname \
                 TMP_DIR=${scratch} VALIDATION_STRINGENCY=LENIENT
-            samtools sort -n fixmate -o sorted.bam
-            bedtools bamtofastq -i sorted.bam -fq ${bam.baseName}_1.fastq -f2 ${bam.baseName}_2.fastq
+            samtools sort -n fixmate.bam -o sorted.bam
+            bedtools bamtofastq -i sorted.bam -fq ${bam.baseName}_1.fastq -fq2 ${bam.baseName}_2.fastq
             gzip ${bam.baseName}_1.fastq ; gzip ${bam.baseName}_2.fastq
         fi
         """
