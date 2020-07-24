@@ -148,15 +148,14 @@ log.info "max reads for bwa  : ${params.bwaSplitSz}"
 log.info "genomes to screen  : ${params.genomes2screen}"
 
 
-process getFQs{
-
+process getFQs {
 	//publishDir params.outdir, mode: 'copy', overwrite: false
 	publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*zip"
 	publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*html"
 	publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*png"
 	publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*txt"
 
-	output:
+    output:
 		//file '*.R1.fastq' optional true into initFQ1
 		//file '*.R2.fastq' optional true into initFQ2
 		set val("${outNameStem}"),file('*.R1.fastq'),file('*.R2.fastq') into FQx1,FQx1b
@@ -164,44 +163,40 @@ process getFQs{
 		file '*fastqc*'     optional true into fastQCOut
 		file '*screen*'     optional true into fastQScreenOut
 
-	script:
-		switch (inputType) {
-      		case 'sra':
-				"""
-				nextflow run -c \$NXF_PIPEDIR/conf/config.getFQ.nf \$NXF_PIPEDIR/getFQ.nf \
+    script:
+        switch (inputType) {
+            case 'sra':
+                """
+                nextflow run -c ${NXF_PIPEDIR}/conf/config.getFQ.nf ${NXF_PIPEDIR}/getFQ.nf \
 				--genome ${params.genome} --sra ${params.sra} --outdir . --withFQC false
-				"""
-            	break
-
-			case 'obj':
-				"""
-				nextflow run -c \$NXF_PIPEDIR/conf/config.getFQ.nf \$NXF_PIPEDIR/getFQ.nf \
+                """
+                break
+            case 'obj':
+                """
+                nextflow run -c ${NXF_PIPEDIR}/conf/config.getFQ.nf ${NXF_PIPEDIR}/getFQ.nf \
 				--genome ${params.genome} --obj ${params.obj} --outdir . --withFQC false
-				"""
-				break
-
-			case 'bam':
-				"""
-				nextflow run -c \$NXF_PIPEDIR/conf/config.getFQ.nf \$NXF_PIPEDIR/getFQ.nf \
+                """
+                break
+            case 'bam':
+                """
+                nextflow run -c ${NXF_PIPEDIR}/conf/config.getFQ.nf ${NXF_PIPEDIR}/getFQ.nf \
 				--genome ${params.genome} --bam ${params.bam} --outdir . --withFQC false
-				"""
-				break
-
-			case 'fastqSR':
-				"""
-				nextflow run -c \$NXF_PIPEDIR/conf/config.getFQ.nf  \$NXF_PIPEDIR/getFQ.nf \
+                """
+		break
+            case 'fastqSR':
+                """
+                nextflow run -c ${NXF_PIPEDIR}/conf/config.getFQ.nf  ${NXF_PIPEDIR}/getFQ.nf \
 				--genome ${params.genome} --fq1 ${params.fq1} --outdir . --withFQC false
-				"""
-				break
-
-			case 'fastqPE':
-				"""
-				nextflow run -c \$NXF_PIPEDIR/conf/config.getFQ.nf  \$NXF_PIPEDIR/getFQ.nf \
+                """
+                break
+            case 'fastqPE':
+                """
+                nextflow run -c ${NXF_PIPEDIR}/conf/config.getFQ.nf  ${NXF_PIPEDIR}/getFQ.nf \
 				--genome ${params.genome} --fq1 ${params.fq1} --fq2 ${params.fq2} --outdir . --withFQC false
-				"""
-				break
-		}
-  }
+                """
+                break
+            }
+}
 
 process runFASTQC {
 	tag { outNameStem }
@@ -217,7 +212,7 @@ process runFASTQC {
 	output:
 		file '*zip'  into fqcZip
 		file '*html' into repHTML
-		//file '*png'  into repPNG
+		file '*png'  into repPNG
 		file '*txt'  into repTXT
 
 	script:
@@ -231,9 +226,7 @@ process runFASTQC {
 		perl \$NXF_PIPEDIR/accessoryFiles/SSDS/scripts/generateFastQCScreenConfig.pl ${params.genomes2screen} 15 >fastq_screen.conf
 
 		ln -s ${outNameStem}.R1.fastq ${outNameStem}.fastq
-	   	\$NXF_PIPEDIR/accessoryFiles/SSDS/fastq_screen_v0.11.4/fastq_screen --threads ${params.threads} --force \
-	    	                                               --aligner bwa ${outNameStem}.fastq \
-	    	                                               --conf fastq_screen.conf
+	   	fastq_screen --threads ${params.threads} --force --aligner bwa ${outNameStem}.fastq --conf fastq_screen.conf
 
 		"""
   }

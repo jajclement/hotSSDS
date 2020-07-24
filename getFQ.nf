@@ -1,5 +1,9 @@
 #!/usr/bin/env nextflow
 
+/*   
+vim: syntax=groovy
+-*- mode: groovy;-*-
+*/
 // Kevin Brick : Rev 1.0 : 06-03-18
 // Kevin Brick : Rev 1.7 : 05-22-20
 // Get FASTQ script
