@@ -4,7 +4,8 @@ use strict;
 
 my $genomes2use  = $ARGV[0];
 my $nThreads     = $ARGV[1]?$ARGV[1]:1;
-my $genomeFolder = $ENV{NXF_GENOMES};
+#my $genomeFolder = $ENV{NXF_GENOMES};
+my $genomeFolder = $ARGV[2];
 
 opendir(DIR,$genomeFolder);
 

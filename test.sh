@@ -8,6 +8,6 @@ CONDA_ENV='SSDSnextflowPipeline'
 eval "$(conda shell.bash hook)"
 conda activate SSDSnextflowPipeline
 
-nextflow run ${SCRIPT} -c ${CONF} -resume 
+nextflow run ${SCRIPT} -c ${CONF} #-resume 
 
 conda deactivate

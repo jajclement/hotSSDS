@@ -10,38 +10,22 @@
  Adapted from version 1.8_NF (Pauline Auffret, 2020)
 ----------------------------------------------------------------------------------------
 */
-//Global parameters
-scratch=params.scratch
-
-// Channel to get SRA fastq files from SRA ids given in parameters or config file. Currently no check for availability.
+// Define global variables
 def inputType
 if (params.sra_ids){inputType = 'sra'}
 if (params.bamdir){inputType = 'bam'} 
 if (params.fqdir){inputType = 'fastq'}
 
+def outNameStem = "${params.name}.SSDS.${params.genome}"
+def tmpNameStem = "${params.name}.tmpFile.${params.genome}"
+def generateFastQCScreenConfig_script = "${params.src}/generateFastQCScreenConfig.pl"
+
+// Get input files according to the input types : sra ; bam or fastq
 switch (inputType) {
 case 'sra':
     Channel
         .fromSRA(params.sra_ids, apiKey:params.ncbi_api_key)
-//        .set { sra_ch }
-          .set { fq_ch }
-    // The process will get the SRA fastq files by pairs or not and will get a small subset
-//    process getSRAfiles {
-    //    tag { input SRA }
-        // this indicates that all output files matching the pattern will be copied into the params.outdir directory.
-//        publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.fastq.gz"
-        // get input from sra channel. sampleId contains the root names of sample(s) ans reads contains the fastq file(s)
-//        input:
-//            set val(sampleId), file(reads) from sra_ch
-//        output:
-//            file '*_1.fastq.gz' into fq1
-//            file '*_2.fastq.gz' optional true into fq2        
-//        script:
-//        """
-//            ln -s ${sampleId}_1.fastq.gz ${sampleId}_1.fastq.gz
-//            ln -s ${sampleId}_2.fastq.gz ${sampleId}_2.fastq.gz
-//        """
-//    }   
+        .set { fq_ch }
 break
 case 'bam':
     Channel
@@ -52,21 +36,14 @@ case 'bam':
         input:
             file(bam) from bam_ch
         output:
-            set val(${bam.baseName}), file('*_1.fastq.gz'), file('*_2.fastq.gz') into fq_ch                                    
+            set val("${bam.baseName}"), file('*.fastq.gz') into fq_ch                                    
         script:
         """
-        n=`samtools view -h ${bam} | head -100000 | samtools view -f 1 -S | wc -l`
-        if [ \$n -eq 0 ]; then    
-            samtools sort -n ${bam} -o sorted.bam
-            bedtools bamtofastq -i sorted.bam -fq ${bam.baseName}.fastq
-            gzip ${bam.baseName}.fastq
-        else
-            picard FixMateInformation I=${bam} O=fixmate.bam SORT_ORDER=queryname \
-                TMP_DIR=${scratch} VALIDATION_STRINGENCY=LENIENT
-            samtools sort -n fixmate.bam -o sorted.bam
-            bedtools bamtofastq -i sorted.bam -fq ${bam.baseName}_1.fastq -fq2 ${bam.baseName}_2.fastq
-            gzip ${bam.baseName}_1.fastq ; gzip ${bam.baseName}_2.fastq
-        fi
+        picard FixMateInformation I=${bam} O=fixmate.bam SORT_ORDER=queryname \
+                    TMP_DIR=${params.scratch} VALIDATION_STRINGENCY=LENIENT
+        samtools sort -n fixmate.bam -o sorted.bam
+        bedtools bamtofastq -i sorted.bam -fq ${bam.baseName}_1.fastq -fq2 ${bam.baseName}_2.fastq
+        gzip ${bam.baseName}_1.fastq ; gzip ${bam.baseName}_2.fastq
         """
     }
 break
@@ -77,17 +54,48 @@ case 'fastq':
 break
 }
 
-process fastqc {
-publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.fq"
+process trimFASTQ {
+    tag { outNameStem } 
+    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*_report.txt"
+    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.html"
+    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.zip"
     input:
         set val(sampleId), file(reads) from fq_ch
     output:
-        file '*1.fq' into fq1
-        file '*2.fq' into fq2
+        set val("${sampleId}_raw"), file(reads) into fqc_ch 
+        set val("${sampleId}_trim"),file('*R1.fastq.gz'),file('*R2.fastq.gz') into trim_ch
+        file '*_report.txt' into trimmomaticReport
+        file '*.html' into trimmedFastqcReport
+        file '*.zip' into trimmedFastqcData
     script:
     """
-    zcat ${sampleId}_1.fastq.gz | head -10 > test1.fq
-    zcat ${sampleId}_2.fastq.gz | head -10 > test2.fq 
+    trimmomatic PE -threads ${task.cpus} ${reads} \
+                ${sampleId}_trim_R1.fastq.gz R1_unpaired.fastq.gz \
+                ${sampleId}_trim_R2.fastq.gz R2_unpaired.fastq.gz \
+                ILLUMINACLIP:${params.adapters}:${params.trim_illuminaclip} SLIDINGWINDOW:${params.trim_slidingwin} MINLEN:${params.trim_minlen} CROP:${params.trim_crop} \
+                >& ${sampleId}_trim_${outNameStem}_trimmomatic_report.txt 2>&1
+    fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz 
+    """
+}
+
+process runFASTQC {
+    tag { outNameStem }
+    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.html"
+    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.zip"
+    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.png"
+    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.txt"
+    input:
+        set val(sampleId), file(reads) from fqc_ch
+    output:
+        file '*zip'  into fqcZip
+        file '*html' into repHTML
+        file '*png'  into repPNG
+        file '*txt'  into repTXT
+    script:
+    """
+    fastqc -t ${task.cpus} ${reads}
+    perl ${generateFastQCScreenConfig_script} ${params.genomes2screen} ${task.cpus} ${params.genomedir} > fastq_screen.conf 
+    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf fastq_screen.conf ${reads}
     """
 }
 
