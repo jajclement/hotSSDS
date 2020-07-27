@@ -99,3 +99,39 @@ process runFASTQC {
     """
 }
 
+trim_ch
+    .splitFastq( by: params.bwaSplitSz, pe:true, file:true)
+    .set { splitFQ_ch }
+
+process bwaAlign {
+    tag { outNameStem }
+    input:
+        set val(sampleId), file(fqR1), file(fqR2) from splitFQ_ch
+    output:
+        file 'bar*bam' into multiBAMaln, multiBAM2merge
+    script:
+    def nm = new Random().with {(1..30).collect {(('a'..'z')).join()[ nextInt((('a'..'z')).join().length())]}.join()} 
+    def bamOut = 'bar_' + nm + '.bam'
+    """
+    if [ ${params.trim_cropR1} != ${params.trim_cropR2} ]
+    then
+        fastx_trimmer -f 1 -l ${params.trim_cropR1} -i ${fqR1} -o ${tmpNameStem}.R1.fastq
+        fastx_trimmer -f 1 -l ${params.trim_cropR2} -i ${fqR2} -o ${tmpNameStem}.R2.fastq
+    else
+        mv ${fqR1} ${tmpNameStem}.R1.fastq
+        mv ${fqR2} ${tmpNameStem}.R2.fastq
+    fi
+    ${params.custom_bwa} aln -t ${task.cpus} ${params.genome_fasta} ${tmpNameStem}.R1.fastq \
+            > ${tmpNameStem}.R1.sai
+    ${params.custom_bwa_ra} aln -t ${task.cpus} ${params.genome_fasta} ${tmpNameStem}.R2.fastq \
+            > ${tmpNameStem}.R2.sai
+    ${params.custom_bwa} sampe ${params.genome_fasta} ${tmpNameStem}.R1.sai ${tmpNameStem}.R2.sai ${tmpNameStem}.R1.fastq \
+            ${tmpNameStem}.R2.fastq >${tmpNameStem}.unsorted.sam
+    picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam VALIDATION_STRINGENCY=LENIENT
+    picard SortSam I=${tmpNameStem}.unsorted.tmpbam O=${bamOut} SO=coordinate VALIDATION_STRINGENCY=LENIENT
+    samtools index ${bamOut}
+    ls -l >list.tab
+    """
+}
+
+
