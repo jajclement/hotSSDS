@@ -3,6 +3,7 @@ use Time::HiRes qw/ time sleep /;
 use Getopt::Long;
 
 GetOptions ('g=s' => \(my $genomeName));
+GetOptions ('h=s' => \(my $hotspots));
 
 my ($initialBAM,@bedFiles) = @ARGV;
 
@@ -209,8 +210,9 @@ sub getFRIPs{
 
 	my %hs; 
 	
-	open my $PIPE, '-|', 'find '.$ENV{'HOTSPOTS'}.' -name "*bed"';
-	
+	#open my $PIPE, '-|', 'find '.$ENV{'HOTSPOTS'}.' -name "*bed"';
+	open my $PIPE, '-|', 'find '.$hotspots.' -name "*bed"';	
+
 	while (<$PIPE>){
 		chomp; 
 		$_ =~ /^.+\/(\S+)\/(\S+)\.bed/;

@@ -7,6 +7,8 @@ use Math::Round;
 GetOptions ('bam=s' 	    => \(my $bam),
 	        'v+'            => \(my $verbose),
             'g=s'           => \(my $g),
+	    'sc=s'	    => \(my $scratch),
+	    'gd=s'          => \(my $genomedir),
             'gIdx=s'        => \(my $gIdx),
             'gw=s'          => \(my $gwFile),
             's=i'           => \(my $step = 100),
@@ -24,14 +26,16 @@ if (`samtools view $bam |head -n 100 |wc -l` < 100){
 	exit
 }
 
-my $tmpFolder = $ENV{SCRATCH}.'/';
+#my $tmpFolder = $ENV{SCRATCH}.'/';
+my $tmpFolder = $scratch.'/';
 my $tmpID     = int(rand()*100000000000000000);
 my $tmpFileBase = $tmpFolder.$tmpID;
 
 my $in = $tmpFileBase.'_1';
 bamToTempBed($bam,$in,$tmpFileBase);
 
-$gIdx = $ENV{NXF_GENOMES}.'/'.$g.'/genome.fa.fai';
+#$gIdx = $ENV{NXF_GENOMES}.'/'.$g.'/genome.fa.fai';
+$gIdx = ${genomedir}.'/'.$g.'/genome.fa.fai';
 
 ## Get or generate genomic windows
 my $newGW    = $tmpFileBase.'_2';
