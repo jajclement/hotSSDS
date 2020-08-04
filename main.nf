@@ -12,17 +12,17 @@
 ----------------------------------------------------------------------------------------
 Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align & Parse ssDNA
 Pipeline overview:
-1. trimFASTQ    Trimmomatic for quality trimming, adapters removal and hard trimming
-2. runFASTQC    FastQC for sequencing reads quality control
+1. trimming    Trimmomatic for quality trimming, adapters removal and hard trimming
+2. fastqc    FastQC for sequencing reads quality control
 3. bwaAlign     Custom BWA alignment against reference genome
-4. mergeInitBAMs
+4. filterBam
 5. parseITRs
 6. gatherOutputs
 7. makeDeeptoolsBigWig
 8. samStats
 9. toFRBigWig
 10. makeSSreport
-11. multiQC
+11. multiqc
 ----------------------------------------------------------------------------------------
 */
 def helpMessage() { 
@@ -72,7 +72,6 @@ Trimming arguments
 
 Bam processing arguments
 
-    --bwaSplitSz	INT	max reads for bwa (default 20000000)
     --bamPGline	STRING	bam header (default '@PG\\tID:ssDNAPipeline1.8_nxf_KBRICK')
                                                                    
 =================================================================================================
@@ -90,8 +89,12 @@ if (params.help){
 // The channel initialization depends on the input data type (fastq, bam or sra IDs)
 def inputType
 if (params.sra_ids){inputType = 'sra'}
-if (params.bamdir){inputType = 'bam'} 
+if (params.bamdir){inputType = 'bam'}
 if (params.fqdir){inputType = 'fastq'}
+
+// Create scratch directory
+scrdir = file("${params.scratch}")
+scrdir.mkdirs()
 
 // Custom variables
 def outNameStem = "${params.name}.SSDS.${params.genome}"
@@ -141,16 +144,16 @@ break
 }
 
 // TRIMMING PROCESS : USE TRIMMOMATIC TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES
-process trimFASTQ {
-    tag { outNameStem } 
+process trimming {
+    tag "$sampleId" 
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*_report.txt"
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.html"
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.zip"
     input:
         set val(sampleId), file(reads) from fq_ch
     output:
-        set val("${sampleId}_raw"), file(reads) into fqc_ch 
-        set val("${sampleId}_trim"),file('*R1.fastq.gz'),file('*R2.fastq.gz') into trim_ch
+        set val("${sampleId}"), file(reads) into fqc_ch 
+        set val("${sampleId}"), file('*R1.fastq.gz'), file('*R2.fastq.gz') into trim_ch
         file '*_report.txt' into trimmomaticReport
         file '*.html' into trimmedFastqcReport
         file '*.zip' into trimmedFastqcData
@@ -166,8 +169,8 @@ process trimFASTQ {
 }
 
 // QUALITY CONTROL PROCESS : RUN FASTQC AND FASTQSCREEN
-process runFASTQC {
-    tag { outNameStem }
+process fastqc {
+    tag "$sampleId"
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.html"
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.zip"
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.png"
@@ -187,22 +190,16 @@ process runFASTQC {
     """
 }
 
-// SPLIT FASTQ FILES
-trim_ch
-    .splitFastq( by: params.bwaSplitSz, pe:true, file:true)
-    .set { splitFQ_ch }
 
 // MAPPING PROCESS : USE CUSTOM BWA TO ALIGN SSDS DATA
 process bwaAlign {
-    tag { outNameStem }
+    tag "$sampleId"
     input:
-        set val(sampleId), file(fqR1), file(fqR2) from splitFQ_ch
+        set val(sampleId), file(fqR1), file(fqR2) from trim_ch
     output:
-        file 'bar*bam' into multiBAMaln, multiBAM2merge
+        file '*.sorted.bam' into sortedbam2filterbam, sortedbam2parseITR
     script:
-    def nm = new Random().with {(1..30).collect {(('a'..'z')).join()[ nextInt((('a'..'z')).join().length())]}.join()} 
-    def bamOut = 'bar_' + nm + '.bam'
-    """
+  """
     if [ ${params.trim_cropR1} != ${params.trim_cropR2} ]
     then
         fastx_trimmer -f 1 -l ${params.trim_cropR1} -i ${fqR1} -o ${tmpNameStem}.R1.fastq
@@ -217,112 +214,111 @@ process bwaAlign {
             > ${tmpNameStem}.R2.sai
     ${params.custom_bwa} sampe ${params.genome_fasta} ${tmpNameStem}.R1.sai ${tmpNameStem}.R2.sai ${tmpNameStem}.R1.fastq \
             ${tmpNameStem}.R2.fastq >${tmpNameStem}.unsorted.sam
-    picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam VALIDATION_STRINGENCY=LENIENT
-    picard SortSam I=${tmpNameStem}.unsorted.tmpbam O=${bamOut} SO=coordinate VALIDATION_STRINGENCY=LENIENT
-    samtools index ${bamOut}
-    ls -l >list.tab
+    picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard SortSam I=${tmpNameStem}.unsorted.tmpbam O=${sampleId}.sorted.bam SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    samtools index ${sampleId}.sorted.bam 
+    
     """
 }
 
-// PROCESS : MERGE BAM FILES
-process mergeInitBAMs {
-    tag { outNameStem }
+// PROCESS : FILTER BAM FILES
+process filterBam {
+    tag "$bam"
     publishDir params.outdir,  mode: 'copy', overwrite: false
     input:
-        file bam_files from multiBAM2merge.collect()
+        file(bam) from sortedbam2filterbam
     output:
-        file '*SSDS*.unparsed.bam' into bamAligned
-        file '*SSDS*.unparsed.bam.bai' into bamIDX 
-        file '*SSDS*.unparsed.suppAlignments.bam' into bamAlignedSupp
-        file '*SSDS*.unparsed.suppAlignments.bam.bai' into bamIDXSupp
+        file '*.unparsed.bam' into bamAligned
+        file '*.unparsed.bam.bai' into bamIDX 
+        file '*.unparsed.suppAlignments.bam' into bamAlignedSupp
+        file '*.unparsed.suppAlignments.bam.bai' into bamIDXSupp
         file '*MDmetrics.txt' into listz
     script:
-    def input_args = bam_files.collect{ "I=$it" }.join(" ")
     """
-    picard MergeSamFiles $input_args O=allREADS.bam AS=true SO=coordinate \
-        VALIDATION_STRINGENCY=LENIENT
-    samtools view -F 2048 -hb allREADS.bam >allREADS.ok.bam
-    picard MarkDuplicatesWithMateCigar I=allREADS.ok.bam O=${outNameStem}.unparsed.bam \
-        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.MDmetrics.txt MINIMUM_DISTANCE=400 \
-        CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=LENIENT
-    samtools index ${outNameStem}.unparsed.bam
-    samtools view -f 2048 -hb allREADS.bam >allREADS.supp.bam
-    picard MarkDuplicatesWithMateCigar I=allREADS.supp.bam O=${outNameStem}.unparsed.suppAlignments.bam \
-        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.suppAlignments.MDmetrics.txt \
+    samtools view -F 2048 -hb ${bam} > ${bam.baseName}.ok.bam
+    picard MarkDuplicatesWithMateCigar I=${bam.baseName}.ok.bam O=${bam.baseName}.unparsed.bam \
+        PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.MDmetrics.txt MINIMUM_DISTANCE=400 \
+        CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    samtools index ${bam.baseName}.unparsed.bam
+    samtools view -f 2048 -hb ${bam} > ${bam.baseName}.supp.bam
+    picard MarkDuplicatesWithMateCigar I=${bam.baseName}.supp.bam O=${bam.baseName}.unparsed.suppAlignments.bam \
+        PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.suppAlignments.MDmetrics.txt \
         MINIMUM_DISTANCE=400 CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate \
-        VALIDATION_STRINGENCY=LENIENT 2>>pica.err 
-    samtools index ${outNameStem}.unparsed.suppAlignments.bam
+        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    samtools index ${bam.baseName}.unparsed.suppAlignments.bam
     """
 }
 
 // PROCESS : PARSE ITRS
 process parseITRs {
-    tag { outNameStem }
+    tag "$bam"
     input:
-        each file(split_bam) from multiBAMaln
-    output:
-        file '*e1.bam'         into bamT1
-        file '*e2.bam'         into bamT2
-        file '*dsDNA.bam'      into bamD
-        file '*strict.bam'     into bamDS
-        file '*ied.bam'        into bamUN
-                                             
-        file '*e1.bam.bai'     into baiT1
-        file '*e2.bam.bai'     into baiT2
-        file '*dsDNA.bam.bai'  into baiD
-        file '*strict.bam.bai' into baiDS
-        file '*ied.bam.bai'    into baiUN
-                                             
-        file '*e1.bed'         into bedT1
-        file '*e2.bed'         into bedT2
-        file '*dsDNA.bed'      into bedD
-        file '*strict.bed'     into bedDS
-        file '*ied.bed'        into bedUN
-        val 'OK'               into ssdsDone
+        file(bam) from sortedbam2parseITR
+    output:                                                                                               
+        file '*.md.*bam'                       into ITRBAM mode flatten
+        file '*.md.*bam.bai'                   into ITRBAMIDX mode flatten
+        file '*bed'                            into ITRBED mode flatten
+        file '*.md.*MDmetrics.txt'             into ITRMD mode flatten
+        set file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
     script:
     """
-    perl ${ITR_id_v2c_NextFlow2_script} ${split_bam} ${params.genome_fasta}
-    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${split_bam}.ssDNA_type1.bed \
-        -o ${split_bam}.ssDNA_type1.bed
-    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${split_bam}.ssDNA_type2.bed \
-        -o ${split_bam}.ssDNA_type2.bed
-    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${split_bam}.dsDNA.bed \
-        -o ${split_bam}.dsDNA.bed
-    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${split_bam}.dsDNA_strict.bed \
-        -o ${split_bam}.dsDNA_strict.bed
-    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${split_bam}.unclassified.bed \
-        -o ${split_bam}.unclassified.bed
-    samtools view -H ${split_bam} > header.txt
+    perl ${ITR_id_v2c_NextFlow2_script} ${bam} ${params.genome_fasta}
+    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${bam}.ssDNA_type1.bed \
+        -o ${bam}.ssDNA_type1.bed
+    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${bam}.ssDNA_type2.bed \
+        -o ${bam}.ssDNA_type2.bed
+    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${bam}.dsDNA.bed \
+        -o ${bam}.dsDNA.bed
+    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${bam}.dsDNA_strict.bed \
+        -o ${bam}.dsDNA_strict.bed
+    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${bam}.unclassified.bed \
+        -o ${bam}.unclassified.bed
+    samtools view -H ${bam} > header.txt
     echo -e "${params.bamPGline}" >>header.txt
-    cat header.txt ${split_bam}.ssDNA_type1.sam  >${split_bam}.ssDNA_type1.RH.sam
-    cat header.txt ${split_bam}.ssDNA_type2.sam  >${split_bam}.ssDNA_type2.RH.sam
-    cat header.txt ${split_bam}.dsDNA.sam        >${split_bam}.dsDNA.RH.sam
-    cat header.txt ${split_bam}.dsDNA_strict.sam >${split_bam}.dsDNA_strict.RH.sam
-    cat header.txt ${split_bam}.unclassified.sam >${split_bam}.unclassified.RH.sam
-    samtools view -Shb ${split_bam}.ssDNA_type1.RH.sam  >${split_bam}.ssDNA_type1.US.bam
-    samtools view -Shb ${split_bam}.ssDNA_type2.RH.sam  >${split_bam}.ssDNA_type2.US.bam
-    samtools view -Shb ${split_bam}.dsDNA.RH.sam        >${split_bam}.dsDNA.US.bam
-    samtools view -Shb ${split_bam}.dsDNA_strict.RH.sam >${split_bam}.dsDNA_strict.US.bam
-    samtools view -Shb ${split_bam}.unclassified.RH.sam >${split_bam}.unclassified.US.bam
-    picard SortSam I=${split_bam}.ssDNA_type1.US.bam  O=${split_bam}.ssDNA_type1.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT
-    picard SortSam I=${split_bam}.ssDNA_type2.US.bam  O=${split_bam}.ssDNA_type2.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT
-    picard SortSam I=${split_bam}.dsDNA.US.bam O=${split_bam}.dsDNA.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT 
-    picard SortSam I=${split_bam}.dsDNA_strict.US.bam O=${split_bam}.dsDNA_strict.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT
-    picard SortSam I=${split_bam}.unclassified.US.bam O=${split_bam}.unclassified.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT 
-    samtools index ${split_bam}.ssDNA_type1.bam
-    samtools index ${split_bam}.ssDNA_type2.bam
-    samtools index ${split_bam}.dsDNA.bam
-    samtools index ${split_bam}.dsDNA_strict.bam
-    samtools index ${split_bam}.unclassified.bam
+    cat header.txt ${bam}.ssDNA_type1.sam  >${bam}.ssDNA_type1.RH.sam
+    cat header.txt ${bam}.ssDNA_type2.sam  >${bam}.ssDNA_type2.RH.sam
+    cat header.txt ${bam}.dsDNA.sam        >${bam}.dsDNA.RH.sam
+    cat header.txt ${bam}.dsDNA_strict.sam >${bam}.dsDNA_strict.RH.sam
+    cat header.txt ${bam}.unclassified.sam >${bam}.unclassified.RH.sam
+    samtools view -Shb ${bam}.ssDNA_type1.RH.sam  >${bam}.ssDNA_type1.US.bam
+    samtools view -Shb ${bam}.ssDNA_type2.RH.sam  >${bam}.ssDNA_type2.US.bam
+    samtools view -Shb ${bam}.dsDNA.RH.sam        >${bam}.dsDNA.US.bam
+    samtools view -Shb ${bam}.dsDNA_strict.RH.sam >${bam}.dsDNA_strict.US.bam
+    samtools view -Shb ${bam}.unclassified.RH.sam >${bam}.unclassified.US.bam
+    picard SortSam I=${bam}.ssDNA_type1.US.bam  O=${bam}.ssDNA_type1.bam \
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard SortSam I=${bam}.ssDNA_type2.US.bam  O=${bam}.ssDNA_type2.bam \
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard SortSam I=${bam}.dsDNA.US.bam O=${bam}.dsDNA.bam \
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard SortSam I=${bam}.dsDNA_strict.US.bam O=${bam}.dsDNA_strict.bam \
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard SortSam I=${bam}.unclassified.US.bam O=${bam}.unclassified.bam \
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard MarkDuplicatesWithMateCigar I=${bam}.ssDNA_type1.bam O=${bam}.md.ssDNA_type1.bam \
+        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.ssDNA_type1.MDmetrics.txt  CREATE_INDEX=false \
+        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard MarkDuplicatesWithMateCigar I=${bam}.ssDNA_type2.bam O=${bam}.md.ssDNA_type2.bam \
+        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.ssDNA_type2.MDmetrics.txt  CREATE_INDEX=false \
+        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard MarkDuplicatesWithMateCigar I=${bam}.dsDNA.bam O=${bam}.md.dsDNA.bam \
+        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.dsDNA.MDmetrics.txt  CREATE_INDEX=false \
+        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard MarkDuplicatesWithMateCigar I=${bam}.dsDNA_strict.bam O=${bam}.md.dsDNA_strict.bam \
+        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.dsDNA_strict.MDmetrics.txt  CREATE_INDEX=false \
+        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard MarkDuplicatesWithMateCigar I=${bam}.unclassified.bam O=${bam}.md.unclassified.bam \
+        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.unclassified.MDmetrics.txt  CREATE_INDEX=false \
+        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    samtools index ${bam}.md.ssDNA_type1.bam
+    samtools index ${bam}.md.ssDNA_type2.bam
+    samtools index ${bam}.md.dsDNA.bam
+    samtools index ${bam}.md.dsDNA_strict.bam
+    samtools index ${bam}.md.unclassified.bam
     """
 }
 
-// MAKE CHANNEL WITH DNA TYPES
+/* MAKE CHANNEL WITH BAM TYPES
 Channel
     .from(["ssDNA_type1","ssDNA_type2","dsDNA","dsDNA_strict","unclassified"])
     .set { parseType }
@@ -364,91 +360,78 @@ process gatherOutputs {
     rm -f ${outNameStem}.${pType}.S.BAM 
     """
 }
+*/
 
 // BIGWIG PROCESS
 process makeDeeptoolsBigWig { 
-    tag { ibam }
+    tag "$bam"
     publishDir params.outdir,  mode: 'copy', overwrite: false
     input:
-        set file(ibam),file(ibamidx) from mergeBAMwithIDXdt
+        set file(bam), file(bamidx) from BAMwithIDXdt
     output:
         file '*deeptools.*' into dtDeepTools
-        val 'OK' into dtDone
-        val 'OK' into bwDone
     shell:
-        bigwig          = ibam.name.replaceAll(/.bam/,'.deeptools.RPKM.bigwig')
-        covPlot         = ibam.name.replaceAll(/.bam/,'.deeptools.coveragePlot.png')
-        fingerprintPlot = ibam.name.replaceAll(/.bam/,'.deeptools.fingerprints.png')
-        fingerprintData = ibam.name.replaceAll(/.bam/,'.deeptools.fingerprints.tab')
+    println(BAMwithIDXdt)
     """
-    touch empty.deeptools.flag
-    bamCoverage --bam $ibam --normalizeUsing RPKM --numberOfProcessors ${task.cpus} -o $bigwig 
-    plotCoverage --bamfiles $ibam --numberOfProcessors ${task.cpus} -o $covPlot
-    plotFingerprint --bamfiles $ibam --labels $ibam --numberOfProcessors ${task.cpus} \
-        --minMappingQuality 30 --skipZeros --plotFile $fingerprintPlot \
-        --outRawCounts $fingerprintData
+    bamCoverage --bam ${bam} --normalizeUsing RPKM --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.RPKM.bigwig 
+    plotCoverage --bamfiles ${bam} --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.coveragePlot.png
+    plotFingerprint --bamfiles ${bam} --labels ${bam} --numberOfProcessors ${task.cpus} \
+        --minMappingQuality 30 --skipZeros --plotFile ${bam.baseName}.deeptools.fingerprints.png \
+        --outRawCounts ${bam.baseName}.deeptools.fingerprints.tab
     """
 }
 
 // BAM STATS PROCESS
 process samStats {
-    tag { ibam }
+    tag "$bam"
     publishDir params.outdir,  mode: 'copy', overwrite: false
     input:
-        set file(ibam),file(ibamidx) from mergeBAMwithIDXss
+        set file(bam),file(bamidx) from BAMwithIDXss
     output:
         file '*stats.tab' into dtSamStat
-        val 'OK' into ssDone
     script:
-        iStat = ibam.name.replaceAll(/.bam/,".idxstats.tab")
-        sStat = ibam.name.replaceAll(/.bam/,".samstats.tab")
         """
-        samtools idxstats $ibam >$iStat
-        samtools stats $ibam >$sStat
+        samtools idxstats ${bam} > ${bam.baseName}.idxstats.tab
+        samtools stats ${bam} > ${bam.baseName}.samstats.tab
         """
 }
 
 // FWD/REV bigwig PROCESS
 process toFRBigWig {
-    tag { ibam }
+    tag "$bam"
     publishDir params.outdir,  mode: 'copy', overwrite: false
     input:
-        set file(ibam),file(ibamidx) from mergeBAMwithIDXfr
+        set file(bam),file(bamidx) from BAMwithIDXfr
     output:
         file '*.bigwig' into frBW
-        val 'OK' into frDone
     script:
-        iName = ibam.name.replaceAll(/.bam/,".out")
         """
-        perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam $ibam --g ${params.genome} --o $iName --s 100 --w 1000 --sc ${params.scratch} --gd ${params.genomedir}   -v
+        perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out--s 100 --w 1000 --sc ${params.scratch} --gd ${params.genomedir}   -v
         """
 }    
 
 // FINAL PROCESS TO MAKE MULTIQC REPORT
 process makeSSreport {
-    tag { bam }
+    tag "$bam"
     publishDir params.outdir,  mode: 'copy', overwrite: false
     input:
-        file ssdsBEDs from mergeITRBED.collect()
-        file bam      from bamAligned.collect()
+        file ssdsBEDs from ITRBED
+        file bam      from bamAligned
     output:
-        file '*SSDSreport*' into SSDSreport
-        val 'OK' into ssRepDone
+        file '*SSDSreport*' into SSDSreport mode flatten
     script:
         """
-        perl ${makeSSMultiQCReport_nextFlow_script} $bam $ssdsBEDs --g ${params.genome} --h ${params.hotspots}
+        perl ${makeSSMultiQCReport_nextFlow_script} ${bam} $ssdsBEDs --g ${params.genome} --h ${params.hotspots}
         """
 }
 
 // MULTIQC PROCESS
-process multiQC {
-    tag {outNameStem }
+process multiqc {
     publishDir params.outdir,  mode: 'copy', overwrite: false
     input:
         file SSDSreport
     output:
         file '*ultiQC*' into multiqcOut
-        val 'OK'        into mqDone
     script:
     """
     python ${params.custom_multiqc} -m ssds -n ${outNameStem}.multiQC .
