@@ -2,8 +2,10 @@ use strict;
 use Time::HiRes qw/ time sleep /;
 use Getopt::Long;
 
-GetOptions ('g=s' => \(my $genomeName));
-GetOptions ('h=s' => \(my $hotspots));
+
+GetOptions ('g=s' => \(my $genomeName),
+	    'h=s' => \(my $hotspots));
+
 
 my ($initialBAM,@bedFiles) = @ARGV;
 
@@ -44,7 +46,7 @@ open OUT, '>', $tmpOut;
 
 ## Get species
 my $species = $genomeName?$genomeName:getSpecies($ssdsFile);
-print $species."\n";
+#print $species."\n";
 
 ## generate overall Stats
 my $t1Sz = printBEDcounts($t1Tmp,$t1Bed,'ssDNA_type1_fragments');

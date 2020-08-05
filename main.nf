@@ -12,17 +12,17 @@
 ----------------------------------------------------------------------------------------
 Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align & Parse ssDNA
 Pipeline overview:
-1. trimming    Trimmomatic for quality trimming, adapters removal and hard trimming
-2. fastqc    FastQC for sequencing reads quality control
-3. bwaAlign     Custom BWA alignment against reference genome
-4. filterBam
-5. parseITRs
-6. gatherOutputs
-7. makeDeeptoolsBigWig
-8. samStats
-9. toFRBigWig
-10. makeSSreport
-11. multiqc
+1. trimming             Runs Trimmomatic for quality trimming, adapters removal and hard trimming
+2. fastqc               Runs FastQC for sequencing reads quality control
+3. bwaAlign             Runs Custom BWA alignment against reference genome
+4. filterBam            Uses PicardTools and Samtools for duplicates marking ; removing supplementary alignements ; bam sorting and indexing
+5. parseITRs            Uses in-house perl script and samtools to parse BAM files into type1 ss dna, type 2 ss dna, ds dna, strict ds dna, unclassfied (5 types bam files)
+6. makeDeeptoolsBigWig  Runs deeptool to make bigwig files for each 5 types bam files
+7. samStats             Runs samtools to make stats on 5 types bam files
+8. toFRBigWig           Uses in-house perl to make FWD bigwig files
+9. makeSSreport         Uses in-house perl script to parse bed files
+10. ssds_multiqc        Runs custom multiqc to edit report on SSDS alignement
+11. general_multiqc     Runs multiqc to edit a general stat report
 ----------------------------------------------------------------------------------------
 */
 def helpMessage() { 
@@ -143,7 +143,7 @@ case 'fastq':
 break
 }
 
-// TRIMMING PROCESS : USE TRIMMOMATIC TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES
+// TRIMMING : USE TRIMMOMATIC TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES
 process trimming {
     tag "$sampleId" 
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*_report.txt"
@@ -168,7 +168,7 @@ process trimming {
     """
 }
 
-// QUALITY CONTROL PROCESS : RUN FASTQC AND FASTQSCREEN
+// QUALITY CONTROL : RUN FASTQC AND FASTQSCREEN
 process fastqc {
     tag "$sampleId"
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.html"
@@ -191,7 +191,7 @@ process fastqc {
 }
 
 
-// MAPPING PROCESS : USE CUSTOM BWA TO ALIGN SSDS DATA
+// MAPPING : USE CUSTOM BWA TO ALIGN SSDS DATA
 process bwaAlign {
     tag "$sampleId"
     input:
@@ -221,7 +221,7 @@ process bwaAlign {
     """
 }
 
-// PROCESS : FILTER BAM FILES
+// BAM FILTERING
 process filterBam {
     tag "$bam"
     publishDir params.outdir,  mode: 'copy', overwrite: false
@@ -249,16 +249,14 @@ process filterBam {
     """
 }
 
-// PROCESS : PARSE ITRS
+// PARSE ITRS
 process parseITRs {
     tag "$bam"
     input:
         file(bam) from sortedbam2parseITR
     output:                                                                                               
-        file '*.md.*bam'                       into ITRBAM mode flatten
-        file '*.md.*bam.bai'                   into ITRBAMIDX mode flatten
-        file '*bed'                            into ITRBED mode flatten
-        file '*.md.*MDmetrics.txt'             into ITRMD mode flatten
+        set file("${bam}"), file('*bed') into ITRBED
+        file '*.md.*MDmetrics.txt' into ITRMD mode flatten
         set file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
     script:
     """
@@ -318,51 +316,7 @@ process parseITRs {
     """
 }
 
-/* MAKE CHANNEL WITH BAM TYPES
-Channel
-    .from(["ssDNA_type1","ssDNA_type2","dsDNA","dsDNA_strict","unclassified"])
-    .set { parseType }
-
-// GATHER BAM OUTPUTS PROCESS
-process gatherOutputs {
-    tag { pType }
-    publishDir params.outdir,  mode: 'copy', overwrite: false 
-    input:
-        val pType  from parseType
-        file T1bam from bamT1.collect()
-        file T2bam from bamT2.collect()
-        file Dbam  from bamD.collect()
-        file DSbam from bamDS.collect()
-        file UNbam from bamUN.collect()
-                                       
-        file T1bed from bedT1.collect()
-        file T2bed from bedT2.collect()
-        file Dbed  from bedD.collect()
-        file DSbed from bedDS.collect()
-        file UNbed from bedUN.collect()
-    output:
-        file '*bam'                       into mergeITRBAM
-        file '*bam.bai'                   into mergeITRBAMIDX
-        file '*bed'                       into mergeITRBED
-        file '*MDmetrics.txt'             into mergeITRMD
-        set file('*bam'),file('*bam.bai') into mergeBAMwithIDXfr, mergeBAMwithIDXss, mergeBAMwithIDXdt
-    script:
-    """
-    picard MergeSamFiles O=${outNameStem}.${pType}.US.BAM `ls *${pType}.bam | sed 's/.*\$/I=& /'`
-    picard SortSam I=${outNameStem}.${pType}.US.BAM   O=${outNameStem}.${pType}.S.BAM \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT
-    picard MarkDuplicatesWithMateCigar I=${outNameStem}.${pType}.S.BAM O=${outNameStem}.${pType}.bam \
-    PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.ssDNA_type1.MDmetrics.txt  CREATE_INDEX=false \
-    VALIDATION_STRINGENCY=LENIENT
-    samtools index ${outNameStem}.${pType}.bam 
-    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 -m *${pType}.bed  >${outNameStem}.${pType}.bed
-    rm -f ${outNameStem}.${pType}.US.BAM
-    rm -f ${outNameStem}.${pType}.S.BAM 
-    """
-}
-*/
-
-// BIGWIG PROCESS
+// MAKE DEEPTOOLS BIGWIG
 process makeDeeptoolsBigWig { 
     tag "$bam"
     publishDir params.outdir,  mode: 'copy', overwrite: false
@@ -371,7 +325,6 @@ process makeDeeptoolsBigWig {
     output:
         file '*deeptools.*' into dtDeepTools
     shell:
-    println(BAMwithIDXdt)
     """
     bamCoverage --bam ${bam} --normalizeUsing RPKM --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.RPKM.bigwig 
     plotCoverage --bamfiles ${bam} --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.coveragePlot.png
@@ -381,12 +334,12 @@ process makeDeeptoolsBigWig {
     """
 }
 
-// BAM STATS PROCESS
+// SAM STATS
 process samStats {
     tag "$bam"
     publishDir params.outdir,  mode: 'copy', overwrite: false
     input:
-        set file(bam),file(bamidx) from BAMwithIDXss
+        set file(bam), file(bamidx) from BAMwithIDXss
     output:
         file '*stats.tab' into dtSamStat
     script:
@@ -396,54 +349,64 @@ process samStats {
         """
 }
 
-// FWD/REV bigwig PROCESS
+// FWD/REV bigwig 
 process toFRBigWig {
     tag "$bam"
     publishDir params.outdir,  mode: 'copy', overwrite: false
     input:
-        set file(bam),file(bamidx) from BAMwithIDXfr
+        set file(bam), file(bamidx) from BAMwithIDXfr
     output:
         file '*.bigwig' into frBW
     script:
         """
-        perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out--s 100 --w 1000 --sc ${params.scratch} --gd ${params.genomedir}   -v
+        perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out--s 100 --w 1000 --sc ${params.scratch} --gd ${params.genomedir} -v
         """
 }    
 
-// FINAL PROCESS TO MAKE MULTIQC REPORT
+// SSDS REPORT
 process makeSSreport {
     tag "$bam"
     publishDir params.outdir,  mode: 'copy', overwrite: false
     input:
-        file ssdsBEDs from ITRBED
-        file bam      from bamAligned
+        set file(bam), file(ssdsBEDs) from ITRBED 
     output:
-        file '*SSDSreport*' into SSDSreport mode flatten
+        set val("${bam.baseName}"), file('*SSDSreport*') into SSDSreport2ssdsmultiqc, SSDSreport2generalmultiqc
     script:
         """
-        perl ${makeSSMultiQCReport_nextFlow_script} ${bam} $ssdsBEDs --g ${params.genome} --h ${params.hotspots}
+        perl ${makeSSMultiQCReport_nextFlow_script} ${bam} ${ssdsBEDs} --g ${params.genome} --h ${params.hotspots}
         """
 }
-
-// MULTIQC PROCESS
-process multiqc {
+// SSDS MULTIQC
+process ssds_multiqc {
+    tag "${sampleId}"
     publishDir params.outdir,  mode: 'copy', overwrite: false
     input:
-        file SSDSreport
+        set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
     output:
         file '*ultiQC*' into multiqcOut
     script:
     """
-    python ${params.custom_multiqc} -m ssds -n ${outNameStem}.multiQC .
+    python ${params.custom_multiqc} -m ssds -n ${sampleId}.multiQC .
+    """
+}
+
+// GENERAL MULTIQC
+process general_multiqc {
+    tag "${outNameStem}"
+    conda 'bioconda::multiqc=1.9'
+    publishDir params.outdir,  mode: 'copy', overwrite: false
+    input:
+        set val(sampleId), file(report) from SSDSreport2generalmultiqc
+    output:
+        file '*ultiQC*' into generalMultiqcOut
+    script:
+    """
+    multiqc -n ${outNameStem}.multiQC ${params.outdir}
     """
 }
 
 // PRINT LOG MESSAGE ON COMPLETION        
 workflow.onComplete {
-    if (workflow.success){
-        def newFile = new File("${params.outdir}/${outNameStem}.ssds_ok.done")
-        newFile.createNewFile()
-    }
     println ( workflow.success ? "Done!" : "Oops .. something went wrong" )
 }
 
