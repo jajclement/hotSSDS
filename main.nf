@@ -12,6 +12,7 @@
 ----------------------------------------------------------------------------------------
 Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align & Parse ssDNA
 Pipeline overview:
+0. makeScreenConfigFile Generate configuration file for fastqscreen in accordance with params.genome2screen
 1. trimming             Runs Trimmomatic for quality trimming, adapters removal and hard trimming
 2. fastqc               Runs FastQC for sequencing reads quality control
 3. bwaAlign             Runs Custom BWA alignment against reference genome
@@ -106,6 +107,17 @@ def ITR_id_v2c_NextFlow2_script = "${params.src}/ITR_id_v2c_NextFlow2.pl"
 def ssDNA_to_bigwigs_FASTER_LOMEM_script = "${params.src}/ssDNA_to_bigwigs_FASTER_LOMEM.pl"
 def makeSSMultiQCReport_nextFlow_script= "${params.src}/makeSSMultiQCReport_nextFlow.pl"
 
+// Check if genome exists in the config file
+if (params.genomes && params.genome && !params.genomes.containsKey(params.genome)) {
+    exit 1, "The provided genome '${params.genome}' is not available in the genome.config file. Currently the available genomes are ${params.genomes.keySet().join(", ")}"
+}
+
+// Genome variables
+params.genome_fasta = params.genome ? params.genomes[ params.genome ].genome_fasta ?: false : false
+params.genomedir = params.genome ? params.genomes[ params.genome ].genomedir ?: false : false
+params.genome_name = params.genome ? params.genomes[ params.genome ].genome_name ?: false : false
+params.fai = params.genome ? params.genomes[ params.genome ].fai ?: false : false
+
 // ******************* //
 // BEGINNING PIPELINE  //
 // ******************* //
@@ -143,6 +155,28 @@ case 'fastq':
 break
 }
 
+// MAKE CONFIGURATION FILE FOR FASTQSCREEN
+process makeScreenConfigFile {
+    tag "${outNameStem}" 
+    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.fqscreen"
+    output:
+        file "conf.fqscreen" into fqscreenconf
+    script:
+        def glist=params.genome2screen
+        File conf  = new File("conf.fqscreen")
+        conf.write "This is a config file for FastQ Screen\n\n"
+        conf << "THREADS ${task.cpus}\n\n"
+        for (item in glist) {
+            println item
+            fasta=params.genomes[ item ].genome_fasta
+            name=params.genomes[ item ].genome_name
+            conf << "DATABASE  ${name}    ${fasta}\n"
+        }
+        """
+        echo "ok"
+        """
+}
+/*
 // TRIMMING : USE TRIMMOMATIC TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES
 process trimming {
     tag "$sampleId" 
@@ -177,6 +211,7 @@ process fastqc {
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.txt"
     input:
         set val(sampleId), file(reads) from fqc_ch
+        file(fqsconf) from fqscreenconf
     output:
         file '*zip'  into fqcZip
         file '*html' into repHTML
@@ -185,8 +220,7 @@ process fastqc {
     script:
     """
     fastqc -t ${task.cpus} ${reads}
-    perl ${generateFastQCScreenConfig_script} ${params.genomes2screen} ${task.cpus} ${params.genomedir} > fastq_screen.conf 
-    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf fastq_screen.conf ${reads}
+    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${fqsconf} ${reads}
     """
 }
 
@@ -359,7 +393,7 @@ process toFRBigWig {
         file '*.bigwig' into frBW
     script:
         """
-        perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out--s 100 --w 1000 --sc ${params.scratch} --gd ${params.genomedir} -v
+        perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out--s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v
         """
 }    
 
@@ -409,4 +443,4 @@ process general_multiqc {
 workflow.onComplete {
     println ( workflow.success ? "Done!" : "Oops .. something went wrong" )
 }
-
+*/

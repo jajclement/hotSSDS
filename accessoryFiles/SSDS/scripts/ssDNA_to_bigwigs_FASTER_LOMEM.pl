@@ -6,10 +6,9 @@ use Math::Round;
 
 GetOptions ('bam=s' 	    => \(my $bam),
 	        'v+'            => \(my $verbose),
-            'g=s'           => \(my $g),
 	    'sc=s'	    => \(my $scratch),
-	    'gd=s'          => \(my $genomedir),
             'gIdx=s'        => \(my $gIdx),
+	    'g=s'	    => \(my $g)
             'gw=s'          => \(my $gwFile),
             's=i'           => \(my $step = 100),
             'w=i'           => \(my $win = 1000),
@@ -34,8 +33,8 @@ my $tmpFileBase = $tmpFolder.$tmpID;
 my $in = $tmpFileBase.'_1';
 bamToTempBed($bam,$in,$tmpFileBase);
 
-#$gIdx = $ENV{NXF_GENOMES}.'/'.$g.'/genome.fa.fai';
-$gIdx = ${genomedir}.'/'.$g.'/genome.fa.fai';
+#$gIdx = $ENV{NXF_GENOMES}.'/'.$g.'/genome.fa.fai';  #initial script KBRICK
+#$gIdx = ${genomedir}.'/'.$g.'/genome.fa.fai';	     #first edit PAUFFRET
 
 ## Get or generate genomic windows
 my $newGW    = $tmpFileBase.'_2';

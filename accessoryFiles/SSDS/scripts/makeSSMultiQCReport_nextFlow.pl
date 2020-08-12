@@ -17,7 +17,8 @@ for my $currentBED(@bedFiles){
 my $ssdsStem = $ssdsFile;
 $ssdsStem =~ s/^(.+)\.\S+\.(ssDNA_type1.bed|ssDNA_type1.bam|ssDNA_type1.final.bam)/$1/;
 
-my $outFile = $ssdsStem.'.v170814.SSDSreport.tab';
+#my $outFile = $ssdsStem.'.v170814.SSDSreport.tab';
+my $outFile = $ssdsStem.'.SSDSreport.tab';
 
 my $t1Bed   = $ssdsStem.'*ssDNA_type1.bed';
 my $t2Bed   = $ssdsStem.'*ssDNA_type2.bed';
