@@ -102,7 +102,6 @@ def outNameStem = "${params.name}.SSDS.${params.genome}"
 def tmpNameStem = "${params.name}.tmpFile.${params.genome}"
 
 // In-house scripts (@Kevin Brick) used in the pipeline
-def generateFastQCScreenConfig_script = "${params.src}/generateFastQCScreenConfig.pl"
 def ITR_id_v2c_NextFlow2_script = "${params.src}/ITR_id_v2c_NextFlow2.pl"
 def ssDNA_to_bigwigs_FASTER_LOMEM_script = "${params.src}/ssDNA_to_bigwigs_FASTER_LOMEM.pl"
 def makeSSMultiQCReport_nextFlow_script= "${params.src}/makeSSMultiQCReport_nextFlow.pl"
@@ -160,23 +159,29 @@ process makeScreenConfigFile {
     tag "${outNameStem}" 
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.fqscreen"
     output:
-        file "conf.fqscreen" into fqscreenconf
+        file "checkfile.ok" into fqscreen_conf_ok
     script:
         def glist=params.genome2screen
-        File conf  = new File("conf.fqscreen")
+        File conf  = new File("${params.outdir}/conf.fqscreen")
         conf.write "This is a config file for FastQ Screen\n\n"
         conf << "THREADS ${task.cpus}\n\n"
         for (item in glist) {
             println item
-            fasta=params.genomes[ item ].genome_fasta
-            name=params.genomes[ item ].genome_name
-            conf << "DATABASE  ${name}    ${fasta}\n"
+	    if (params.genomes.containsKey(item)) {
+            	fasta=params.genomes[ item ].genome_fasta
+            	name=params.genomes[ item ].genome_name
+            	conf << "DATABASE  ${name}    ${fasta}\n"
+	    }
         }
-        """
-        echo "ok"
-        """
+	"""
+	if [ -f "${params.outdir}/conf.fqscreen" ]; then
+    		echo "${params.outdir}/conf.fqscreen exists." > checkfile.ok
+	else
+		exit 1, "The configuration file for fastqscreen could not be generated. Please check your genome2screen paramter."
+	fi
+	"""
 }
-/*
+
 // TRIMMING : USE TRIMMOMATIC TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES
 process trimming {
     tag "$sampleId" 
@@ -211,7 +216,7 @@ process fastqc {
     publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.txt"
     input:
         set val(sampleId), file(reads) from fqc_ch
-        file(fqsconf) from fqscreenconf
+        file(ok) from fqscreen_conf_ok
     output:
         file '*zip'  into fqcZip
         file '*html' into repHTML
@@ -220,10 +225,9 @@ process fastqc {
     script:
     """
     fastqc -t ${task.cpus} ${reads}
-    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${fqsconf} ${reads}
+    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${params.outdir}/conf.fqscreen ${reads}
     """
 }
-
 
 // MAPPING : USE CUSTOM BWA TO ALIGN SSDS DATA
 process bwaAlign {
@@ -236,18 +240,18 @@ process bwaAlign {
   """
     if [ ${params.trim_cropR1} != ${params.trim_cropR2} ]
     then
-        fastx_trimmer -f 1 -l ${params.trim_cropR1} -i ${fqR1} -o ${tmpNameStem}.R1.fastq
-        fastx_trimmer -f 1 -l ${params.trim_cropR2} -i ${fqR2} -o ${tmpNameStem}.R2.fastq
+        zcat ${fqR1} | fastx_trimmer -z -f 1 -l ${params.trim_cropR1} -o ${tmpNameStem}.R1.fastq.gz
+        zcat ${fqR2} | fastx_trimmer -z -f 1 -l ${params.trim_cropR2} -o ${tmpNameStem}.R2.fastq.gz
     else
-        mv ${fqR1} ${tmpNameStem}.R1.fastq
-        mv ${fqR2} ${tmpNameStem}.R2.fastq
+        mv ${fqR1} ${tmpNameStem}.R1.fastq.gz
+        mv ${fqR2} ${tmpNameStem}.R2.fastq.gz
     fi
-    ${params.custom_bwa} aln -t ${task.cpus} ${params.genome_fasta} ${tmpNameStem}.R1.fastq \
+    ${params.custom_bwa} aln -t ${task.cpus} ${params.genome_fasta} ${tmpNameStem}.R1.fastq.gz \
             > ${tmpNameStem}.R1.sai
-    ${params.custom_bwa_ra} aln -t ${task.cpus} ${params.genome_fasta} ${tmpNameStem}.R2.fastq \
+    ${params.custom_bwa_ra} aln -t ${task.cpus} ${params.genome_fasta} ${tmpNameStem}.R2.fastq.gz \
             > ${tmpNameStem}.R2.sai
-    ${params.custom_bwa} sampe ${params.genome_fasta} ${tmpNameStem}.R1.sai ${tmpNameStem}.R2.sai ${tmpNameStem}.R1.fastq \
-            ${tmpNameStem}.R2.fastq >${tmpNameStem}.unsorted.sam
+    ${params.custom_bwa} sampe ${params.genome_fasta} ${tmpNameStem}.R1.sai ${tmpNameStem}.R2.sai ${tmpNameStem}.R1.fastq.gz \
+            ${tmpNameStem}.R2.fastq.gz >${tmpNameStem}.unsorted.sam
     picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
     picard SortSam I=${tmpNameStem}.unsorted.tmpbam O=${sampleId}.sorted.bam SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
     samtools index ${sampleId}.sorted.bam 
@@ -443,4 +447,4 @@ process general_multiqc {
 workflow.onComplete {
     println ( workflow.success ? "Done!" : "Oops .. something went wrong" )
 }
-*/
+

@@ -8,7 +8,7 @@ GetOptions ('bam=s' 	    => \(my $bam),
 	        'v+'            => \(my $verbose),
 	    'sc=s'	    => \(my $scratch),
             'gIdx=s'        => \(my $gIdx),
-	    'g=s'	    => \(my $g)
+	    'g=s'	    => \(my $g),
             'gw=s'          => \(my $gwFile),
             's=i'           => \(my $step = 100),
             'w=i'           => \(my $win = 1000),
