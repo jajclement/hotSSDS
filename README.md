@@ -68,7 +68,8 @@ or use ``run_pipeline.sh`` script : in this case make sure to edit with your par
 ````
 bash run_pipeline.sh
 ````
-
+You can use ``-with-tower`` option to monitor your jobs through [nextflow tower web interface](https://tower.nf/). 
+You first need to sign in to get your key, then add it to your parameters with the ``--tower-token 'yourkey'`` option.
 ### Test data
 You may want to test the installation before going with your own date. 
 
