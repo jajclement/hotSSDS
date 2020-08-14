@@ -39,7 +39,7 @@ The pipeline will only process **paired-end data**.
 Currently 3 input data formats are supported : 
 - fastq(.gz) ````--fqdir input_data/raw_data/*{R1,R2}.fastq.gz````
 - bam ````--bamdir input_data/raw_data/*.bam````
-- SRA identifiers ````--sra_ids=['ERR908507', 'ERR908506']````
+- SRA identifiers ````--sra_ids=['ERR908507', 'ERR908506']```` If you use this option, please consider [getting NCBI API key](https://www.ncbi.nlm.nih.gov/myncbi/) and add it to the parameters with ``--ncbi_api_key 'yourapikey'``
 
 The reference genome should be in the ``/poolzvs/genomes`` directory on IGH cluster. Currently, the available genomes are mm10, hg19, hg38, sacCer2, sacCer3, dm3, dm6.
 
@@ -68,8 +68,10 @@ or use ``run_pipeline.sh`` script : in this case make sure to edit with your par
 ````
 bash run_pipeline.sh
 ````
+**Nextflow Tower**
 You can use ``-with-tower`` option to monitor your jobs through [nextflow tower web interface](https://tower.nf/). 
 You first need to sign in to get your key, then add it to your parameters with the ``--tower-token 'yourkey'`` option.
+
 ### Test data
 You may want to test the installation before going with your own date. 
 
