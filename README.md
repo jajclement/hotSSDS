@@ -62,8 +62,7 @@ You can either run the pipeline directly through the command line :
 ````
 cd /home/${USER}/work/SSDSnextflowPipeline
 conda activate nextflow-dev
-sbatch -p computepart -J SSDSnextflowPiepline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 \
-	--wrap "nextflow run main.nf -c conf/igh.config --fqdir path/to/your/data/*{R1,R2}.fastq.gz --name your_analysis_name --genome mm10"
+sbatch -p computepart -J SSDSnextflowPiepline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --fqdir path/to/your/data/*{R1,R2}.fastq.gz --name your_analysis_name --genome mm10"
 ````
 or use ``run_pipeline.sh`` script : in this case make sure to edit with your parameters, then
 ````
@@ -77,8 +76,7 @@ If so, just use ````--fqdir tests/fastq/*{R1,R2}.fastq"```` e.g.
 ````
 cd /home/${USER}/work/SSDSnextflowPipeline
 conda activate nextflow-dev
-sbatch -p computepart -J SSDSnextflowPiepline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 \
-	--wrap "nextflow run main.nf -c conf/igh.config --fqdir tests/fastq/*{R1,R2}.fastq --name your_analysis_name --genome mm10"
+sbatch -p computepart -J SSDSnextflowPiepline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --fqdir tests/fastq/*{R1,R2}.fastq --name your_analysis_name --genome mm10"
 ````
 or use ``run_pipeline.sh`` script (make sur to edit it with the relevant paramters before use) :
 ````
