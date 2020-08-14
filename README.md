@@ -1,5 +1,5 @@
 ## **SSDS nextflow pipeline version 1.8_NF_pa**
-**/!\ Work in progress /!\**
+**\/!\ Work in progress /!\\**
 ### **Welcome**
 **This is [SSDS pipeline by Kevin Brick](https://github.com/kevbrick/SSDSnextflowPipeline) updated and adapted to IGH cluster.**
 See [initial paper](https://genome.cshlp.org/content/22/5/957.long) and [technical paper](https://www.sciencedirect.com/science/article/pii/S0076687917303750?via%3Dihub).
@@ -20,18 +20,19 @@ cd /home/${USER}/work
 git clone https://gitlab.igh.cnrs.fr/pauline.auffret/SSDSnextflowPipeline.git
 cd SSDSnextflowPipeline
 ````
-Then install pipeline conda environment through sbatch script :
+Then install pipeline conda environments through sbatch script :
 ```` 
 sbatch -p computepart -J "install_conda_env" --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "bash src/install_pipeline.sh"
 ```` 
 This will create 2 conda environments : nextflow-dev and SSDSnextflowPipeline.
 If you have existing conda environments with the same names, you need to edit the install_pipeline.sh
+
 *This is a temporary setting*
 
 ### 2. Pipeline configuration 
 There are currently 2 configuration files :
 - ````./conf/igh.config```` contains cluster resources requirements & reference genomes info. You don't need to edit this file unless you want to custom the requirements for CPU/memory usage and compute queue (see [IGH cluster documentation](https://kojiki.igh.cnrs.fr/doku.php?id=cluster,))
-- ````./nextflow.config```` contains default pipeline parameters. You *can* edit this file but it is recommendend to use ````run_pipeline.sh```` script to use your own parameters (this will overwrite the default configuration), see section 4.
+- ````./nextflow.config```` contains default pipeline parameters. You *can* edit this file but it is recommendend to use ````run_pipeline.sh```` script to use your own parameters (this will overwrite the default configuration).
 
 ### 3. Input data
 The pipeline will only process **paired-end data**.
@@ -41,8 +42,10 @@ Currently 3 input data formats are supported :
 - SRA identifiers ````--sra_ids=['ERR908507', 'ERR908506']````
 
 The reference genome should be in the ``/poolzvs/genomes`` directory on IGH cluster. Currently, the available genomes are mm10, hg19, hg38, sacCer2, sacCer3, dm3, dm6.
-If so, you can use ````-- genome 'mm10'```` et that's it for the genome parameters.
-If you want to use another reference, you will need to set : **not tested**
+
+You can use ````-- genome 'mm10'```` and you won't need to worry about the other genome parameters like fasta path etc.
+
+Bu if you want to use another reference, you will need to set : **not tested**
 - path to genome ````--genomedir /path/to/genome````
 - path to fasta file. Indexes for BWA SHOULD EXIST in the same directory ````--genome_fasta /path/to/genome.fa````
 - the name of the genome ````--genome_name mm11````
@@ -68,8 +71,9 @@ bash run_pipeline.sh
 ````
 
 ### Test data
-You may want to test the installation before going with your own date. If so, just use ````--fqdir tests/fastq/*{R1,R2}.fastq"````
-e.g.
+You may want to test the installation before going with your own date. 
+
+If so, just use ````--fqdir tests/fastq/*{R1,R2}.fastq"```` e.g.
 ````
 cd /home/${USER}/work/SSDSnextflowPipeline
 conda activate nextflow-dev
