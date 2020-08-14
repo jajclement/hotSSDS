@@ -1,4 +1,4 @@
-name: SSDSnextflowPipeline
+name: SSDSnextflowPipeline3
 channels:
   - bioconda/label/cf201901
   - conda-forge
@@ -389,6 +389,4 @@ dependencies:
   - zipp=3.1.0=py_0
   - zlib=1.2.11=h7b6447c_3
   - zstd=1.4.4=h0b5b093_3
-  - pip:
-    - multiqc==0.7.dev0
-prefix: /work/demassyie/bin/miniconda2/envs/SSDSnextflowPipeline
+

@@ -13,7 +13,7 @@
 Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align & Parse ssDNA
 Pipeline overview:
 0. makeScreenConfigFile Generate configuration file for fastqscreen in accordance with params.genome2screen
-1. trimming             Runs Trimmomatic for quality trimming, adapters removal and hard trimming
+1. trimming             Runs Trimmomatic or trim_galore for quality trimming, adapters removal and hard trimming
 2. fastqc               Runs FastQC for sequencing reads quality control
 3. bwaAlign             Runs Custom BWA alignment against reference genome
 4. filterBam            Uses PicardTools and Samtools for duplicates marking ; removing supplementary alignements ; bam sorting and indexing
@@ -33,26 +33,30 @@ def helpMessage() {
 =========================================
     Usage:
 
-    nextflow run main.nf -c conf.nf
+    nextflow run main.nf -c conf/igh.config --fqdir tests/fastq/*{R1,R2}.fastq --name "runtest" --trim_cropR1 36 --trim_cropR1 40 --with_trimgalore -profile conda -resume
+
 
 =============================================================================
 
 Input data Arguments:                  
                               
-    --fqdir     DIR     PATH TO PAIRED-END FASTQ(.GZ) DIRECTORY (i.e. /path/to/fq/*{1,2}.fq.gz)
-OR  --sra_ids   STRING  SRA SAMPLE ID(s) (Comma separated list of SRA IDS, i.e ['ERR908507', 'ERR908506']
-OR  --bamdir    DIR     PATH TO BAM DIRECTORY (i.e. /path/to/bam/*.bam)
-    --genomedir	DIR     PATH TO GENOME DIRECTORY
-    --genome	STRING	REFERENCE GENOME NAME (i.e "mm10", must correspond to a folder in --genomedir)
-    --genome_fasta  FILE	PATH TO FILE GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA
-    --genome2screen STRING	GENOMES TO SCREEN FOR FASTQC SCREENING (Comma separated list of genomes to screen reads for contamination, names must correspond to folders in --genomedir)
-    --adapters  FILE	PATH TO ADAPTERS FILE FOR TRIMMOMATIC (special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
+    --fqdir     	DIR     PATH TO PAIRED-END FASTQ(.GZ) DIRECTORY (e.g. /path/to/fq/*{R1,R2}.fq.gz)
+OR  --sra_ids   	STRING  SRA SAMPLE ID(s) (Comma separated list of SRA IDS, e.g ['ERR908507', 'ERR908506']
+OR  --bamdir    	DIR     PATH TO BAM DIRECTORY (e.g. /path/to/bam/*.bam)
+    --genomebase	DIR	PATH TO REFERENCE GENOMES (e.g. "/poolzfs/genomes")
+    --genome    	STRING  REFERENCE GENOME NAME (e.g "mm10", must correspond to an existing genome in your config file)
+    --genomedir		DIR     PATH TO GENOME DIRECTORY (required if your reference genome is not present in your config file)
+    --genome_name	STRING	REFERENCE GENOME NAME (e.g ".mm10", required if your reference genome is not present in your config file)
+    --genome_fasta  	FILE	PATH TO FILE GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA (required if your reference genome is not present in your config file)
+    --fai		FILE	PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
+    --genome2screen 	STRING	GENOMES TO SCREEN FOR FASTQC SCREENING (Comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
+    --adapters  	FILE	PATH TO ADAPTERS FILE FOR TRIMMOMATIC (special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
                                                                   
 Output and Tempory directory Arguments:                            
                                                                   
-    --name      STRING    RUN NAME       
-    --outdir    DIR       PATH TO OUTPUT DIRECTORY            
-    --scratch   DIR       PATH TO TEMPORARY DIRECTORY
+    --name      	STRING    RUN NAME       
+    --outdir    	DIR       PATH TO OUTPUT DIRECTORY            
+    --scratch   	DIR       PATH TO TEMPORARY DIRECTORY
 
 Pipeline dependencies:
 
@@ -63,7 +67,9 @@ Pipeline dependencies:
     --hotspots	        DIR	PATH TO HOTSPOTS FILES DIRECTORY
 
 Trimming arguments
-
+    --with_trimgalore	BOOL	If you want to trim with trim-galore (default : false)
+    --trimg_quality	INT	trim-galore : minimum quality (default 10)
+    --trimg_stringency	INT	trim-galore : trimming stringency (default 6)
     --trim_minlen	INT	trimmomatic : minimum length of reads after trimming (default 25)
     --trim_crop         INT	trimmomatic : Cut the read to that specified length (default 50, set to initial length of reads if you want a different crop length for R1 and R2)
     --trim_cropR1	INT	fastx : Cut the R1 read to that specified length
@@ -177,7 +183,7 @@ process makeScreenConfigFile {
 	if [ -f "${params.outdir}/conf.fqscreen" ]; then
     		echo "${params.outdir}/conf.fqscreen exists." > checkfile.ok
 	else
-		exit 1, "The configuration file for fastqscreen could not be generated. Please check your genome2screen paramter."
+		exit 1, "The configuration file for fastqscreen could not be generated. Please check your genome2screen parameter."
 	fi
 	"""
 }
@@ -193,18 +199,26 @@ process trimming {
     output:
         set val("${sampleId}"), file(reads) into fqc_ch 
         set val("${sampleId}"), file('*R1.fastq.gz'), file('*R2.fastq.gz') into trim_ch
-        file '*_report.txt' into trimmomaticReport
+        file '*_report.txt' into trimmingReport
         file '*.html' into trimmedFastqcReport
         file '*.zip' into trimmedFastqcData
     script:
-    """
-    trimmomatic PE -threads ${task.cpus} ${reads} \
+    	if (params.with_trimgalore)
+	"""
+	trim_galore -q ${params.trimg_quality} --paired --stringency ${params.trimg_stringency} --length ${params.trim_minlen} --gzip --basename "${sampleId}" ${reads}
+	mv ${sampleId}_R1_val_1.fq.gz ${sampleId}_trim_R1.fastq.gz
+	mv ${sampleId}_R2_val_2.fq.gz ${sampleId}_trim_R2.fastq.gz
+	fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz
+	"""
+	else
+	"""
+    	trimmomatic PE -threads ${task.cpus} ${reads} \
                 ${sampleId}_trim_R1.fastq.gz R1_unpaired.fastq.gz \
                 ${sampleId}_trim_R2.fastq.gz R2_unpaired.fastq.gz \
                 ILLUMINACLIP:${params.adapters}:${params.trim_illuminaclip} SLIDINGWINDOW:${params.trim_slidingwin} MINLEN:${params.trim_minlen} CROP:${params.trim_crop} \
                 >& ${sampleId}_trim_${outNameStem}_trimmomatic_report.txt 2>&1
-    fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz 
-    """
+    	fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz 
+    	"""
 }
 
 // QUALITY CONTROL : RUN FASTQC AND FASTQSCREEN
