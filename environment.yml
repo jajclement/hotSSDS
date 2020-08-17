@@ -1,4 +1,4 @@
-name: SSDSnextflowPipeline3
+name: SSDSnextflowPipeline
 channels:
   - bioconda/label/cf201901
   - conda-forge
