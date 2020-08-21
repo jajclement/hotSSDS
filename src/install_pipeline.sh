@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /home/${USER}/work/SSDSnextflowPipeline
+cd /home/${USER}/work/ssdsnextflowpipeline
 
 eval "$(conda shell.bash hook)"
 
