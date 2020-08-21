@@ -18,7 +18,7 @@ First you need to download the pipeline in your working directory
 ````sh
 cd /home/${USER}/work
 git clone https://gitlab.igh.cnrs.fr/pauline.auffret/SSDSnextflowPipeline.git
-cd SSDSnextflowPipeline
+cd ssdsnextflowpipeline
 ````
 Then install pipeline conda environments through sbatch script :
 ```` 
@@ -54,13 +54,13 @@ Bu if you want to use another reference, you will need to set : **not tested**
 ### 4. Run the pipeline !
 To see all the parameters, please run :
 ````
-cd /home/${USER}/work/SSDSnextflowPipeline
+cd /home/${USER}/work/ssdsnextflowpipeline
 conda activate nextflow-dev
 nextflow run main.nf --help
 ````
 You can either run the pipeline directly through the command line :
 ````
-cd /home/${USER}/work/SSDSnextflowPipeline
+cd /home/${USER}/work/ssdsnextflowpipeline
 conda activate nextflow-dev
 sbatch -p computepart -J SSDSnextflowPiepline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --fqdir path/to/your/data/*{R1,R2}.fastq.gz --name your_analysis_name --genome mm10"
 ````
@@ -77,7 +77,7 @@ You may want to test the installation before going with your own date.
 
 If so, just use ````--fqdir tests/fastq/*{R1,R2}.fastq"```` e.g.
 ````
-cd /home/${USER}/work/SSDSnextflowPipeline
+cd /home/${USER}/work/ssdsnextflowpipeline
 conda activate nextflow-dev
 sbatch -p computepart -J SSDSnextflowPiepline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --fqdir tests/fastq/*{R1,R2}.fastq --name your_analysis_name --genome mm10"
 ````
