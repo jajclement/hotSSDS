@@ -10,10 +10,10 @@ conda activate nextflow-dev
 conda install -c bioconda nextflow=20.04.1
 conda deactivate 
 
-## Create SSDSnextflowPipeline conda environment from yml file
+## Create ssdsnextflowpipeline conda environment from yml file
 eval "$(conda shell.bash hook)"
 conda env create -f environment.yml
-conda activate SSDSnextflowPipeline
+conda activate ssdsnextflowpipeline
 
 ## Install Multiqc_dev python library in the conda env
 cd accessoryFiles/SSDS/MultiQC_SSDS_Rev1

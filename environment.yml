@@ -1,4 +1,4 @@
-name: SSDSnextflowPipeline
+name: ssdsnextflowpipeline
 channels:
   - bioconda/label/cf201901
   - conda-forge
@@ -378,6 +378,7 @@ dependencies:
   - tk=8.6.8=hbc83047_0
   - tktable=2.10=h14c3975_0
   - tornado=6.0.4=py36h7b6447c_1
+  - trim-galore=0.6.6=0
   - trimmomatic=0.39=1
   - ucsc-bedgraphtobigwig=357=1
   - ucsc-bigwigtowig=357=1

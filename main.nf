@@ -15,7 +15,7 @@ Pipeline overview:
 0. makeScreenConfigFile Generate configuration file for fastqscreen in accordance with params.genome2screen
 1. trimming             Runs Trimmomatic or trim_galore for quality trimming, adapters removal and hard trimming
 2. fastqc               Runs FastQC for sequencing reads quality control
-3. bwaAlign             Runs Custom BWA alignment against reference genome
+3. bwaAlign             Runs Custom BWA algorithm (bwa-ra : bwa right align) against reference genome
 4. filterBam            Uses PicardTools and Samtools for duplicates marking ; removing supplementary alignements ; bam sorting and indexing
 5. parseITRs            Uses in-house perl script and samtools to parse BAM files into type1 ss dna, type 2 ss dna, ds dna, strict ds dna, unclassfied (5 types bam files)
 6. makeDeeptoolsBigWig  Runs deeptool to make bigwig files for each 5 types bam files
@@ -138,7 +138,8 @@ case 'bam':
         .fromPath(params.bamdir, checkIfExists:true)
         .set { bam_ch }
     process bam2fastq {
-        publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.fastq.gz"
+	label 'process_low'
+        publishDir "${params.outdir}/preprocess", mode: 'copy', overwrite: false, pattern: "*.fastq.gz"
         input:
             file(bam) from bam_ch
         output:
@@ -163,7 +164,7 @@ break
 // MAKE CONFIGURATION FILE FOR FASTQSCREEN
 process makeScreenConfigFile {
     tag "${outNameStem}" 
-    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.fqscreen"
+    label 'process_basic'
     output:
         file "checkfile.ok" into fqscreen_conf_ok
     script:
@@ -172,7 +173,6 @@ process makeScreenConfigFile {
         conf.write "This is a config file for FastQ Screen\n\n"
         conf << "THREADS ${task.cpus}\n\n"
         for (item in glist) {
-            println item
 	    if (params.genomes.containsKey(item)) {
             	fasta=params.genomes[ item ].genome_fasta
             	name=params.genomes[ item ].genome_name
@@ -182,6 +182,8 @@ process makeScreenConfigFile {
 	"""
 	if [ -f "${params.outdir}/conf.fqscreen" ]; then
     		echo "${params.outdir}/conf.fqscreen exists." > checkfile.ok
+                mkdir -p "${params.outdir}/fastqscreen"
+                mv "${params.outdir}/conf.fqscreen" "${params.outdir}/fastqscreen/"
 	else
 		exit 1, "The configuration file for fastqscreen could not be generated. Please check your genome2screen parameter."
 	fi
@@ -191,9 +193,10 @@ process makeScreenConfigFile {
 // TRIMMING : USE TRIMMOMATIC TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES
 process trimming {
     tag "$sampleId" 
-    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*_report.txt"
-    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.html"
-    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.zip"
+    label 'process_low'
+    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*_report.txt"
+    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*.html"
+    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*.zip"
     input:
         set val(sampleId), file(reads) from fq_ch
     output:
@@ -205,9 +208,9 @@ process trimming {
     script:
     	if (params.with_trimgalore)
 	"""
-	trim_galore -q ${params.trimg_quality} --paired --stringency ${params.trimg_stringency} --length ${params.trim_minlen} --gzip --basename "${sampleId}" ${reads}
-	mv ${sampleId}_R1_val_1.fq.gz ${sampleId}_trim_R1.fastq.gz
-	mv ${sampleId}_R2_val_2.fq.gz ${sampleId}_trim_R2.fastq.gz
+	trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} --cores ${task.cpus} --gzip --paired --basename ${sampleId} ${reads}
+	mv ${sampleId}_val_1.fq.gz ${sampleId}_trim_R1.fastq.gz
+	mv ${sampleId}_val_2.fq.gz ${sampleId}_trim_R2.fastq.gz
 	fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz
 	"""
 	else
@@ -224,10 +227,11 @@ process trimming {
 // QUALITY CONTROL : RUN FASTQC AND FASTQSCREEN
 process fastqc {
     tag "$sampleId"
-    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.html"
-    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.zip"
-    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.png"
-    publishDir params.outdir, mode: 'copy', overwrite: false, pattern: "*.txt"
+    label 'process_low'
+    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*.html"
+    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*.zip"
+    publishDir "${params.outdir}/fastqscreen", mode: 'copy', overwrite: false, pattern: "*.png"
+    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*.txt"
     input:
         set val(sampleId), file(reads) from fqc_ch
         file(ok) from fqscreen_conf_ok
@@ -243,9 +247,10 @@ process fastqc {
     """
 }
 
-// MAPPING : USE CUSTOM BWA TO ALIGN SSDS DATA
+// MAPPING : USE CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA
 process bwaAlign {
     tag "$sampleId"
+    label 'process_high'
     input:
         set val(sampleId), file(fqR1), file(fqR2) from trim_ch
     output:
@@ -276,7 +281,8 @@ process bwaAlign {
 // BAM FILTERING
 process filterBam {
     tag "$bam"
-    publishDir params.outdir,  mode: 'copy', overwrite: false
+    label 'process_medium'
+    publishDir "${params.outdir}/filterbam",  mode: 'copy', overwrite: false, pattern: "*.txt"
     input:
         file(bam) from sortedbam2filterbam
     output:
@@ -304,6 +310,9 @@ process filterBam {
 // PARSE ITRS
 process parseITRs {
     tag "$bam"
+    label 'process_medium'
+    publishDir "${params.outdir}/parseitr",  mode: 'copy', overwrite: false, pattern: "*.txt"
+    publishDir "${params.outdir}/parseitr",  mode: 'copy', overwrite: false, pattern: "*.bed"
     input:
         file(bam) from sortedbam2parseITR
     output:                                                                                               
@@ -371,7 +380,10 @@ process parseITRs {
 // MAKE DEEPTOOLS BIGWIG
 process makeDeeptoolsBigWig { 
     tag "$bam"
-    publishDir params.outdir,  mode: 'copy', overwrite: false
+    label 'process_basic'
+    publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false, pattern: "*.png"
+    publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false, pattern: "*.bigwig"
+    publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false, pattern: "*.tab"
     input:
         set file(bam), file(bamidx) from BAMwithIDXdt
     output:
@@ -389,7 +401,8 @@ process makeDeeptoolsBigWig {
 // SAM STATS
 process samStats {
     tag "$bam"
-    publishDir params.outdir,  mode: 'copy', overwrite: false
+    label 'process_basic'
+    publishDir "${params.outdir}/samstats",  mode: 'copy', overwrite: false, pattern: "*.tab"
     input:
         set file(bam), file(bamidx) from BAMwithIDXss
     output:
@@ -404,7 +417,8 @@ process samStats {
 // FWD/REV bigwig 
 process toFRBigWig {
     tag "$bam"
-    publishDir params.outdir,  mode: 'copy', overwrite: false
+    label 'process_basic'
+    publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false
     input:
         set file(bam), file(bamidx) from BAMwithIDXfr
     output:
@@ -418,7 +432,8 @@ process toFRBigWig {
 // SSDS REPORT
 process makeSSreport {
     tag "$bam"
-    publishDir params.outdir,  mode: 'copy', overwrite: false
+    label 'process_basic'
+    publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
     input:
         set file(bam), file(ssdsBEDs) from ITRBED 
     output:
@@ -431,7 +446,8 @@ process makeSSreport {
 // SSDS MULTIQC
 process ssds_multiqc {
     tag "${sampleId}"
-    publishDir params.outdir,  mode: 'copy', overwrite: false
+    label 'process_basic'
+    publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
     input:
         set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
     output:
@@ -445,8 +461,9 @@ process ssds_multiqc {
 // GENERAL MULTIQC
 process general_multiqc {
     tag "${outNameStem}"
+    label 'process_basic'
     conda 'bioconda::multiqc=1.9'
-    publishDir params.outdir,  mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
     input:
         set val(sampleId), file(report) from SSDSreport2generalmultiqc
     output:

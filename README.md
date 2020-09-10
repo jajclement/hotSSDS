@@ -17,14 +17,14 @@ Get [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/li
 First you need to download the pipeline in your working directory
 ````sh
 cd /home/${USER}/work
-git clone https://gitlab.igh.cnrs.fr/pauline.auffret/SSDSnextflowPipeline.git
+git clone https://gitlab.igh.cnrs.fr/pauline.auffret/ssdsnextflowpipeline.git
 cd ssdsnextflowpipeline
 ````
 Then install pipeline conda environments through sbatch script :
 ```` 
 sbatch -p computepart -J "install_conda_env" --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "bash src/install_pipeline.sh"
 ```` 
-This will create 2 conda environments : **nextflow-dev** and **SSDSnextflowPipeline**.
+This will create 2 conda environments : **nextflow-dev** and **ssdsnextflowpipeline**.
 If you have existing conda environments with the same names, you need to edit the install_pipeline.sh
 
 *This is a temporary setting*
