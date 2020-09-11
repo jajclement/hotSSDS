@@ -203,14 +203,11 @@ process trimming {
     output:
         set val("${sampleId}"), file(reads) into fqc_ch 
         set val("${sampleId}"), file('*R1.fastq.gz'), file('*R2.fastq.gz') into trim_ch
-        file '*_report.txt' into trimmingReport
-        file '*.html' into trimmedFastqcReport
-        file '*.zip' into trimmedFastqcData
         val 'ok_multiqc' into trimming_ok
     script:
     	if (params.with_trimgalore && params.trimgalore_adapters)
 	"""
-	trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} --cores ${task.cpus} --adapter ${params.trimgalore_adapters} --gzip --paired --basename ${sampleId} ${reads}
+	trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} --cores ${task.cpus} --adapter "file:${params.trimgalore_adapters}" --gzip --paired --basename ${sampleId} ${reads}
         mv ${sampleId}_val_1.fq.gz ${sampleId}_trim_R1.fastq.gz
         mv ${sampleId}_val_2.fq.gz ${sampleId}_trim_R2.fastq.gz
         fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz
@@ -245,10 +242,7 @@ process fastqc {
         set val(sampleId), file(reads) from fqc_ch
         file(ok) from fqscreen_conf_ok
     output:
-        file '*zip'  into fqcZip
-        file '*html' into repHTML
-        file '*png'  into repPNG
-        file '*txt'  into repTXT
+	file('*') into fastc_report
         val 'ok' into fastqc_ok
     script:
     """
@@ -301,7 +295,6 @@ process filterBam {
         file '*.unparsed.bam.bai' into bamIDX 
         file '*.unparsed.suppAlignments.bam' into bamAlignedSupp
         file '*.unparsed.suppAlignments.bam.bai' into bamIDXSupp
-        file '*MDmetrics.txt' into listz
         val 'ok' into filterbam_ok
     script:
     """
@@ -329,7 +322,6 @@ process parseITRs {
         file(bam) from sortedbam2parseITR
     output:                                                                                               
         set file("${bam}"), file('*bed') into ITRBED
-        file '*.md.*MDmetrics.txt' into ITRMD mode flatten
         set file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
         val 'ok' into parseitr_ok
     script:
@@ -400,7 +392,7 @@ process makeDeeptoolsBigWig {
     input:
         set file(bam), file(bamidx) from BAMwithIDXdt
     output:
-        file '*deeptools.*' into dtDeepTools
+        file('*') into bigwig
         val 'ok' into bigwig_ok
     shell:
     """
@@ -437,7 +429,7 @@ process toFRBigWig {
     input:
         set file(bam), file(bamidx) from BAMwithIDXfr
     output:
-        file '*.bigwig' into frBW
+        file('*') into frbigwig
 	val 'ok' into frbigwig_ok
     script:
         """
@@ -468,7 +460,7 @@ process makeSSreport {
     input:
         set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
     output:
-        file '*ultiQC*' into multiqcOut
+        file('*multiqc*') into ssdsmultiqc_report
     script:
     """
     python ${params.custom_multiqc} -m ssds -n ${sampleId}.multiQC .
@@ -492,10 +484,10 @@ process general_multiqc {
 	val('frbigwig_ok') from frbigwig_ok.collect()
         val('ssreport_ok') from ssreport_ok.collect()
     output:
-        file '*ultiQC*' into generalMultiqcOut
+	file('*') into generalmultiqc_report
     script:
     """
-    multiqc -n ${outNameStem}.multiQC ${params.outdir}/fastqscreen ${params.outdir}/fastqc ${params.outdir}/filterbam ${params.outdir}/parseitr ${params.outdir}/bigwig ${params.outdir}/samstats ${params.outdir}/multiqc
+    multiqc -n ${outNameStem}.multiQC ${params.outdir}/*/
     """
 }
 
