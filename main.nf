@@ -29,7 +29,7 @@ Pipeline overview:
 def helpMessage() { 
     log.info"""
 =========================================
-  SSDS Pipeline version 1.8_NF
+  SSDS Pipeline version 1.8_NF_pa
 =========================================
     Usage:
 
@@ -50,7 +50,7 @@ OR  --bamdir    	DIR     PATH TO BAM DIRECTORY (e.g. /path/to/bam/*.bam)
     --genome_fasta  	FILE	PATH TO FILE GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA (required if your reference genome is not present in your config file)
     --fai		FILE	PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
     --genome2screen 	STRING	GENOMES TO SCREEN FOR FASTQC SCREENING (Comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
-    --adapters  	FILE	PATH TO ADAPTERS FILE FOR TRIMMOMATIC (special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
+    --trimmomatic_adapters  	FILE	PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
                                                                   
 Output and Tempory directory Arguments:                            
                                                                   
@@ -68,6 +68,7 @@ Pipeline dependencies:
 
 Trimming arguments
     --with_trimgalore	BOOL	If you want to trim with trim-galore (default : false)
+    --trimgalore_adapters	FILE	OPTIONAL : PATH TO ADAPTERS FILE FOR TRIMGALORE (default : none)
     --trimg_quality	INT	trim-galore : minimum quality (default 10)
     --trimg_stringency	INT	trim-galore : trimming stringency (default 6)
     --trim_minlen	INT	trimmomatic : minimum length of reads after trimming (default 25)
@@ -205,10 +206,18 @@ process trimming {
         file '*_report.txt' into trimmingReport
         file '*.html' into trimmedFastqcReport
         file '*.zip' into trimmedFastqcData
+        val 'ok_multiqc' into trimming_ok
     script:
-    	if (params.with_trimgalore)
+    	if (params.with_trimgalore && params.trimgalore_adapters)
 	"""
-	trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} --cores ${task.cpus} --gzip --paired --basename ${sampleId} ${reads}
+	trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} --cores ${task.cpus} --adapter ${params.trimgalore_adapters} --gzip --paired --basename ${sampleId} ${reads}
+        mv ${sampleId}_val_1.fq.gz ${sampleId}_trim_R1.fastq.gz
+        mv ${sampleId}_val_2.fq.gz ${sampleId}_trim_R2.fastq.gz
+        fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz
+        """
+        else if (params.with_trimgalore && !params.trimgalore_adapters)
+        """
+        trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} --cores ${task.cpus} --gzip --paired --basename ${sampleId} ${reads}
 	mv ${sampleId}_val_1.fq.gz ${sampleId}_trim_R1.fastq.gz
 	mv ${sampleId}_val_2.fq.gz ${sampleId}_trim_R2.fastq.gz
 	fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz
@@ -218,7 +227,7 @@ process trimming {
     	trimmomatic PE -threads ${task.cpus} ${reads} \
                 ${sampleId}_trim_R1.fastq.gz R1_unpaired.fastq.gz \
                 ${sampleId}_trim_R2.fastq.gz R2_unpaired.fastq.gz \
-                ILLUMINACLIP:${params.adapters}:${params.trim_illuminaclip} SLIDINGWINDOW:${params.trim_slidingwin} MINLEN:${params.trim_minlen} CROP:${params.trim_crop} \
+                ILLUMINACLIP:${params.trimmomatic_adapters}:${params.trim_illuminaclip} SLIDINGWINDOW:${params.trim_slidingwin} MINLEN:${params.trim_minlen} CROP:${params.trim_crop} \
                 >& ${sampleId}_trim_${outNameStem}_trimmomatic_report.txt 2>&1
     	fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz 
     	"""
@@ -240,10 +249,11 @@ process fastqc {
         file '*html' into repHTML
         file '*png'  into repPNG
         file '*txt'  into repTXT
+        val 'ok' into fastqc_ok
     script:
     """
     fastqc -t ${task.cpus} ${reads}
-    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${params.outdir}/conf.fqscreen ${reads}
+    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${params.outdir}/fastqscreen/conf.fqscreen ${reads}
     """
 }
 
@@ -255,6 +265,7 @@ process bwaAlign {
         set val(sampleId), file(fqR1), file(fqR2) from trim_ch
     output:
         file '*.sorted.bam' into sortedbam2filterbam, sortedbam2parseITR
+        val 'ok' into bwa_ok
     script:
   """
     if [ ${params.trim_cropR1} != ${params.trim_cropR2} ]
@@ -291,6 +302,7 @@ process filterBam {
         file '*.unparsed.suppAlignments.bam' into bamAlignedSupp
         file '*.unparsed.suppAlignments.bam.bai' into bamIDXSupp
         file '*MDmetrics.txt' into listz
+        val 'ok' into filterbam_ok
     script:
     """
     samtools view -F 2048 -hb ${bam} > ${bam.baseName}.ok.bam
@@ -319,6 +331,7 @@ process parseITRs {
         set file("${bam}"), file('*bed') into ITRBED
         file '*.md.*MDmetrics.txt' into ITRMD mode flatten
         set file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
+        val 'ok' into parseitr_ok
     script:
     """
     perl ${ITR_id_v2c_NextFlow2_script} ${bam} ${params.genome_fasta}
@@ -388,6 +401,7 @@ process makeDeeptoolsBigWig {
         set file(bam), file(bamidx) from BAMwithIDXdt
     output:
         file '*deeptools.*' into dtDeepTools
+        val 'ok' into bigwig_ok
     shell:
     """
     bamCoverage --bam ${bam} --normalizeUsing RPKM --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.RPKM.bigwig 
@@ -407,6 +421,7 @@ process samStats {
         set file(bam), file(bamidx) from BAMwithIDXss
     output:
         file '*stats.tab' into dtSamStat
+        val 'ok' into samstats_ok
     script:
         """
         samtools idxstats ${bam} > ${bam.baseName}.idxstats.tab
@@ -423,6 +438,7 @@ process toFRBigWig {
         set file(bam), file(bamidx) from BAMwithIDXfr
     output:
         file '*.bigwig' into frBW
+	val 'ok' into frbigwig_ok
     script:
         """
         perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out--s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v
@@ -437,14 +453,15 @@ process makeSSreport {
     input:
         set file(bam), file(ssdsBEDs) from ITRBED 
     output:
-        set val("${bam.baseName}"), file('*SSDSreport*') into SSDSreport2ssdsmultiqc, SSDSreport2generalmultiqc
+        set val("${bam.baseName}"), file('*SSDSreport*') into SSDSreport2ssdsmultiqc
+        val 'ok' into ssreport_ok
     script:
         """
         perl ${makeSSMultiQCReport_nextFlow_script} ${bam} ${ssdsBEDs} --g ${params.genome} --h ${params.hotspots}
         """
 }
 // SSDS MULTIQC
-process ssds_multiqc {
+/*process ssds_multiqc {
     tag "${sampleId}"
     label 'process_basic'
     publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
@@ -457,7 +474,7 @@ process ssds_multiqc {
     python ${params.custom_multiqc} -m ssds -n ${sampleId}.multiQC .
     """
 }
-
+*/
 // GENERAL MULTIQC
 process general_multiqc {
     tag "${outNameStem}"
@@ -465,12 +482,20 @@ process general_multiqc {
     conda 'bioconda::multiqc=1.9'
     publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
     input:
-        set val(sampleId), file(report) from SSDSreport2generalmultiqc
+        val('trimming_ok') from trimming_ok.collect()
+	val('fastqc_ok') from fastqc_ok.collect()
+	val('bwa_ok') from bwa_ok.collect()
+	val('filterbam') from filterbam_ok.collect()
+	val('parseitr') from parseitr_ok.collect()
+	val('bigwig') from bigwig_ok.collect()
+	val('samstats') from samstats_ok.collect()
+	val('frbigwig_ok') from frbigwig_ok.collect()
+        val('ssreport_ok') from ssreport_ok.collect()
     output:
         file '*ultiQC*' into generalMultiqcOut
     script:
     """
-    multiqc -n ${outNameStem}.multiQC ${params.outdir}
+    multiqc -n ${outNameStem}.multiQC ${params.outdir}/fastqscreen ${params.outdir}/fastqc ${params.outdir}/filterbam ${params.outdir}/parseitr ${params.outdir}/bigwig ${params.outdir}/samstats ${params.outdir}/multiqc
     """
 }
 
