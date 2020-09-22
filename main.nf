@@ -127,7 +127,7 @@ params.fai = params.genome ? params.genomes[ params.genome ].fai ?: false : fals
 // ******************* //
 // BEGINNING PIPELINE  //
 // ******************* //
-// Get input files according to the input types : sra ; bam or fastq
+// Get input files according to the input type : sra ; bam or fastq
 switch (inputType) {
 case 'sra':
     Channel
@@ -319,7 +319,9 @@ process parseITRs {
     publishDir "${params.outdir}/parseitr",  mode: 'copy', overwrite: false, pattern: "*.txt"
     publishDir "${params.outdir}/parseitr",  mode: 'copy', overwrite: false, pattern: "*.bed"
     input:
-        file(bam) from sortedbam2parseITR
+        // file(bam) from sortedbam2parseITR 
+        file(bam) from bamAligned
+        file(bai) from bamIDX
     output:                                                                                               
         set file("${bam}"), file('*bed') into ITRBED
         set file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
@@ -493,6 +495,7 @@ process general_multiqc {
 
 // PRINT LOG MESSAGE ON COMPLETION        
 workflow.onComplete {
+    scrdir.deleteDir()
     println ( workflow.success ? "Done!" : "Oops .. something went wrong" )
 }
 
