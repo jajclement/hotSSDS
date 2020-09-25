@@ -39,7 +39,7 @@ Please use ``bash src/install_pipeline.sh -h`` to see details.
 ### 2. Pipeline configuration 
 There are currently 2 configuration files :
 - ````./conf/igh.config```` contains cluster resources requirements & reference genomes info. You don't need to edit this file unless you want to custom the requirements for CPU/memory usage and compute queue (see [IGH cluster documentation](https://kojiki.igh.cnrs.fr/doku.php?id=cluster,))
-- ````./nextflow.config```` contains default pipeline parameters. You *can* edit this file but it is recommendend to use parameters in nextflow command line through ````run_pipeline.sh```` script to use your own parameters (this will overwrite the default configuration).
+- ````./nextflow.config```` contains default pipeline parameters. You *can* edit this file but it is recommended to use parameters in nextflow command line through ````run_pipeline.sh```` script to use your own parameters (this will overwrite the default configuration).
 
 ### 3. Input data
 The pipeline will only process **paired-end data**.
@@ -80,7 +80,7 @@ You can use ``-with-tower`` option to monitor your jobs through [nextflow tower 
 You first need to sign in to get your key, then add it to your parameters with the ``--tower-token 'yourkey'`` option.
 
 ### Test data
-You may want to test the installation before going with your own date. 
+You may want to test the installation before going with your own data. 
 
 If so, just use ````--fqdir tests/fastq/*{R1,R2}.fastq"```` e.g.
 ````
@@ -92,7 +92,7 @@ or use ``run_pipeline.sh`` script (make sur to edit it with the relevant paramte
 ````
 bash run_pipeline.sh
 ````
-**Note : the default value of ``--with-ssds_multiqc``. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with-ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env** 
+**Note : the default value of ``--with-ssds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with-ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
 
 Features currently under development
 - Better handling of custom Multiqc v0.7.dev0 via conda to let nextflow deal with conda env creation, and/or

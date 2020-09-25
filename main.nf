@@ -53,19 +53,19 @@ OR  --bamdir    		DIR     PATH TO BAM DIRECTORY (e.g. /path/to/bam/*.bam)
                                                                   
 Output and Tempory directory parameters:                            
     --name      		STRING    RUN NAME (default : "SSDS_pipeline")      
-    --outdir    		DIR       PATH TO OUTPUT DIRECTORY (default : ${baseDir}/${params.name}.outdir)           
-    --scratch   		DIR       PATH TO TEMPORARY DIRECTORY (default : ${baseDir}/scratch)
+    --outdir    		DIR       PATH TO OUTPUT DIRECTORY (default : name.outdir)           
+    --scratch   		DIR       PATH TO TEMPORARY DIRECTORY (default : scratch)
 
 Pipeline dependencies:
-    --src	        	DIR	PATH TO SOURCE DIRECTORY (default : ${baseDir}/accessoryFiles/SSDS/scripts ; contains perl scripts)
-    --custom_bwa        	EXE	PATH TO CUSTOM BWA EXEC (default : ${baseDir}/accessoryFiles/SSDS/bwa_0.7.12)
-    --custom_bwa_ra		EXE	PATH TO CUSTOM BWA_SRA EXEC (default : ${baseDir}/accessoryFiles/SSDS/bwa_ra_0.7.12)
-    --custom_multiqc		EXE	PATH TO CUSTOM MULTIQC EXEC (default : ${baseDir}/accessoryFiles/SSDS/MultiQC_SSDS_Rev1/bin/multiqc)
-    --hotspots	        	DIR	PATH TO HOTSPOTS FILES DIRECTORY (default : ${baseDir}/accessoryFiles/SSDS/hotspots)
+    --src	        	DIR	PATH TO SOURCE DIRECTORY (default : accessoryFiles/SSDS/scripts ; contains perl scripts)
+    --custom_bwa        	EXE	PATH TO CUSTOM BWA EXEC (default : accessoryFiles/SSDS/bwa_0.7.12)
+    --custom_bwa_ra		EXE	PATH TO CUSTOM BWA_SRA EXEC (default : accessoryFiles/SSDS/bwa_ra_0.7.12)
+    --custom_multiqc		EXE	PATH TO CUSTOM MULTIQC EXEC (default : accessoryFiles/SSDS/MultiQC_SSDS_Rev1/bin/multiqc)
+    --hotspots	        	DIR	PATH TO HOTSPOTS FILES DIRECTORY (default : accessoryFiles/SSDS/hotspots)
 
 QC parameters
     --with_ssds_multiqc		BOOL	RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
-    --multiqc_dev_conda_env     DIR	PATH TO MULTIQC-DEV CONDA ENVIRONMENT (used when --with_ssds-multiqc is true ; default : $basedir/multiqc_dev)
+    --multiqc_dev_conda_env     DIR	PATH TO MULTIQC-DEV CONDA ENVIRONMENT (used when --with_ssds-multiqc is true ; default : multiqc_dev)
 
 Trimming parameters
     --with_trimgalore		BOOL	If you want to trim with trim-galore (default : false)
