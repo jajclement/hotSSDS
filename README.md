@@ -52,7 +52,7 @@ The reference genome should be in the ``/poolzvs/genomes`` directory on IGH clus
 
 You can use ````-- genome 'mm10'```` and you won't need to worry about the other genome parameters like fasta path etc.
 
-Bu if you want to use another reference, you will need to set : **not tested**
+But if you want to use another reference, you will need to set : 
 - path to genome ````--genomedir /path/to/genome````
 - path to fasta file. Indexes for BWA SHOULD EXIST in the same directory ````--genome_fasta /path/to/genome.fa````
 - the name of the genome ````--genome_name mm11````
