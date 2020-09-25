@@ -33,54 +33,55 @@ def helpMessage() {
 =========================================
     Usage:
 
-    nextflow run main.nf -c conf/igh.config --fqdir tests/fastq/*{R1,R2}.fastq --name "runtest" --trim_cropR1 36 --trim_cropR1 40 --with_trimgalore -profile conda -resume
+    nextflow run main.nf -c conf/igh.config --fqdir tests/fastq/*{R1,R2}.fastq --name "runtest" --trim_cropR1 36 --trim_cropR2 40 --with_trimgalore -profile conda -resume
 
 
 =============================================================================
 
-Input data Arguments:                  
-                              
-    --fqdir     	DIR     PATH TO PAIRED-END FASTQ(.GZ) DIRECTORY (e.g. /path/to/fq/*{R1,R2}.fq.gz)
-OR  --sra_ids   	STRING  SRA SAMPLE ID(s) (Comma separated list of SRA IDS, e.g ['ERR908507', 'ERR908506']
-OR  --bamdir    	DIR     PATH TO BAM DIRECTORY (e.g. /path/to/bam/*.bam)
-    --genomebase	DIR	PATH TO REFERENCE GENOMES (e.g. "/poolzfs/genomes")
-    --genome    	STRING  REFERENCE GENOME NAME (e.g "mm10", must correspond to an existing genome in your config file)
-    --genomedir		DIR     PATH TO GENOME DIRECTORY (required if your reference genome is not present in your config file)
-    --genome_name	STRING	REFERENCE GENOME NAME (e.g ".mm10", required if your reference genome is not present in your config file)
-    --genome_fasta  	FILE	PATH TO FILE GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA (required if your reference genome is not present in your config file)
-    --fai		FILE	PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
-    --genome2screen 	STRING	GENOMES TO SCREEN FOR FASTQC SCREENING (Comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
-    --trimmomatic_adapters  	FILE	PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
+Input data parameters:                  
+    --fqdir     		DIR     PATH TO PAIRED-END FASTQ(.GZ) DIRECTORY (e.g. /path/to/fq/*{R1,R2}.fq.gz)
+OR  --sra_ids   		STRING  SRA SAMPLE ID(s) (Comma separated list of SRA IDS, e.g ['ERR908507', 'ERR908506']
+OR  --bamdir    		DIR     PATH TO BAM DIRECTORY (e.g. /path/to/bam/*.bam)
+    --genomebase		DIR	PATH TO REFERENCE GENOMES (default : "/poolzfs/genomes")
+    --genome    		STRING  REFERENCE GENOME NAME (must correspond to an existing genome in your config file, default : "mm10")
+    --genomedir			DIR     PATH TO GENOME DIRECTORY (required if your reference genome is not present in your config file)
+    --genome_name		STRING	REFERENCE GENOME NAME (e.g ".mm10", required if your reference genome is not present in your config file)
+    --genome_fasta  		FILE	PATH TO FILE GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA (required if your reference genome is not present in your config file)
+    --fai			FILE	PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
+    --genome2screen 		STRING	GENOMES TO SCREEN FOR FASTQC SCREENING (default : ['mm10','hg19','dm3','dm6','hg38','sacCer2','sacCer3'], comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
+    --trimmomatic_adapters  	FILE	PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default ${baseDir}/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
                                                                   
-Output and Tempory directory Arguments:                            
-                                                                  
-    --name      	STRING    RUN NAME       
-    --outdir    	DIR       PATH TO OUTPUT DIRECTORY            
-    --scratch   	DIR       PATH TO TEMPORARY DIRECTORY
+Output and Tempory directory parameters:                            
+    --name      		STRING    RUN NAME (default : "SSDS_pipeline")      
+    --outdir    		DIR       PATH TO OUTPUT DIRECTORY (default : ${baseDir}/${params.name}.outdir)           
+    --scratch   		DIR       PATH TO TEMPORARY DIRECTORY (default : ${baseDir}/scratch)
 
 Pipeline dependencies:
+    --src	        	DIR	PATH TO SOURCE DIRECTORY (default : ${baseDir}/accessoryFiles/SSDS/scripts ; contains perl scripts)
+    --custom_bwa        	EXE	PATH TO CUSTOM BWA EXEC (default : ${baseDir}/accessoryFiles/SSDS/bwa_0.7.12)
+    --custom_bwa_ra		EXE	PATH TO CUSTOM BWA_SRA EXEC (default : ${baseDir}/accessoryFiles/SSDS/bwa_ra_0.7.12)
+    --custom_multiqc		EXE	PATH TO CUSTOM MULTIQC EXEC (default : ${baseDir}/accessoryFiles/SSDS/MultiQC_SSDS_Rev1/bin/multiqc)
+    --hotspots	        	DIR	PATH TO HOTSPOTS FILES DIRECTORY (default : ${baseDir}/accessoryFiles/SSDS/hotspots)
 
-    --src	        DIR	 PATH TO SOURCE DIRECTORY (containing perl scripts)
-    --custom_bwa        EXE	PATH TO CUSTOM BWA EXEC
-    --custom_bwa_ra	EXE	PATH TO CUSTOM BWA_SRA EXEC
-    --custom_multiqc	EXE	PATH TO CUSTOM MULTIQC EXEC
-    --hotspots	        DIR	PATH TO HOTSPOTS FILES DIRECTORY
+QC parameters
+    --with_ssds_multiqc		BOOL	RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
+    --multiqc_dev_conda_env     DIR	PATH TO MULTIQC-DEV CONDA ENVIRONMENT (used when --with_ssds-multiqc is true ; default : $basedir/multiqc_dev)
 
-Trimming arguments
-    --with_trimgalore	BOOL	If you want to trim with trim-galore (default : false)
+Trimming parameters
+    --with_trimgalore		BOOL	If you want to trim with trim-galore (default : false)
     --trimgalore_adapters	FILE	OPTIONAL : PATH TO ADAPTERS FILE FOR TRIMGALORE (default : none)
-    --trimg_quality	INT	trim-galore : minimum quality (default 10)
-    --trimg_stringency	INT	trim-galore : trimming stringency (default 6)
-    --trim_minlen	INT	trimmomatic : minimum length of reads after trimming (default 25)
-    --trim_crop         INT	trimmomatic : Cut the read to that specified length (default 50, set to initial length of reads if you want a different crop length for R1 and R2)
-    --trim_cropR1	INT	fastx : Cut the R1 read to that specified length
-    --trim_cropR2	INT	fastx : Cut the R2 read to that specified length
-    --trim_slidingwin	STRING	trimmomatic : perform a sliding window trimming, cutting once the average quality within the window falls below a threshold (default "4:15")
+    --trimg_quality		INT	trim-galore : minimum quality (default 10)
+    --trimg_stringency		INT	trim-galore : trimming stringency (default 6)
+    --trim_minlen		INT	trimmomatic : minimum length of reads after trimming (default 25)
+    --trim_crop         	INT	trimmomatic : Cut the read to that specified length (default 50, set to initial length of reads if you want a different crop length for R1 and R2)
+    --trim_cropR1		INT	fastx : Cut the R1 read to that specified length (default 50)
+    --trim_cropR2		INT	fastx : Cut the R2 read to that specified length (default 50)
+    --trim_slidingwin		STRING	trimmomatic : perform a sliding window trimming, cutting once the average quality within the window falls below a threshold (default "4:15")
     --trim_illumina_clip	STRING	trimmomatic :  Cut adapter and other illumina-specific sequences from the read (default "2:20:10")
 
-Bam processing arguments
+Bam processing parameters
 
-    --bamPGline	STRING	bam header (default '@PG\\tID:ssDNAPipeline1.8_nxf_KBRICK')
+    --bamPGline			STRING	bam header (default '@PG\\tID:ssDNAPipeline1.8_nxf_KBRICK')
                                                                    
 =================================================================================================
 """.stripIndent()
@@ -191,7 +192,7 @@ process makeScreenConfigFile {
 	"""
 }
 
-// TRIMMING : USE TRIMMOMATIC TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES
+// TRIMMING : USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES
 process trimming {
     tag "$sampleId" 
     label 'process_low'
@@ -454,21 +455,25 @@ process makeSSreport {
         perl ${makeSSMultiQCReport_nextFlow_script} ${bam} ${ssdsBEDs} --g ${params.genome} --h ${params.hotspots}
         """
 }
-// SSDS MULTIQC
-/*process ssds_multiqc {
-    tag "${sampleId}"
-    label 'process_basic'
-    publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
-    input:
-        set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
-    output:
-        file('*multiqc*') into ssdsmultiqc_report
-    script:
-    """
-    python ${params.custom_multiqc} -m ssds -n ${sampleId}.multiQC .
-    """
+
+if (params.with_ssds_multiqc) {
+    // SSDS MULTIQC
+    process ssds_multiqc {
+        tag "${sampleId}"
+    	label 'process_basic'
+    	conda "${params.multiqc_dev_conda_env}" 
+        publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
+        input:
+            set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
+        output:
+            file('*') into ssdsmultiqc_report
+        script:
+        """
+        multiqc -m ssds -n ${sampleId}.multiQC .
+        """
+    }
 }
-*/
+
 // GENERAL MULTIQC
 process general_multiqc {
     tag "${outNameStem}"
