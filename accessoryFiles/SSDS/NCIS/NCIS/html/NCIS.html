@@ -1,0 +1,160 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head><title>R: NCIS</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<link rel="stylesheet" type="text/css" href="R.css">
+</head><body>
+
+<table width="100%" summary="page for NCIS {NCIS}"><tr><td>NCIS {NCIS}</td><td align="right">R Documentation</td></tr></table>
+
+<h2>
+NCIS
+</h2>
+
+<h3>Description</h3>
+
+<p>Estimates normalizing factor between a ChIP sample and a control/input sample</p>
+
+
+<h3>Usage</h3>
+
+<pre>
+NCIS(chip.data, input.data, data.type = c("MCS", "BED", "AlignedRead"), frag.len = 200, min.binsize = 100, max.binsize = 20000, binsize.shift = 100, min.stop.binsize = 100, chr.vec = NULL, chr.len.vec = NULL, quant=0.75)
+</pre>
+
+
+<h3>Arguments</h3>
+
+<table summary="R argblock">
+<tr valign="top"><td><code>chip.data</code></td>
+<td>
+
+<p>ChIP data.
+</p>
+</td></tr>
+<tr valign="top"><td><code>input.data</code></td>
+<td>
+
+<p>control data.
+</p>
+</td></tr>
+<tr valign="top"><td><code>data.type</code></td>
+<td>
+
+<p>&quot;MCS&quot;, &quot;AlignedRead&quot; or &quot;BED&quot;.
+</p>
+</td></tr>
+<tr valign="top"><td><code>frag.len</code></td>
+<td>
+
+<p>average fragment length. Default 200 bp.
+</p>
+</td></tr>
+<tr valign="top"><td><code>min.binsize</code></td>
+<td>
+
+<p>minimum of binsize to search.
+</p>
+</td></tr>
+<tr valign="top"><td><code>max.binsize</code></td>
+<td>
+
+<p>maximum of binsize to search.
+</p>
+</td></tr>
+<tr valign="top"><td><code>binsize.shift</code></td>
+<td>
+
+<p>the threshold of binsize after which the normalization factor is computed as the average of two estimates, one on regular bins and the other on bins shifed half binsize.
+</p>
+</td></tr>
+<tr valign="top"><td><code>min.stop.binsize</code></td>
+<td>
+
+<p>minimum of binsize to use (stop).
+</p>
+</td></tr>
+<tr valign="top"><td><code>chr.vec</code></td>
+<td>
+
+<p>vector of chromosomes in the data. Only reads in chr.vec are considered for normalization purpose.
+</p>
+</td></tr>
+<tr valign="top"><td><code>chr.len.vec</code></td>
+<td>
+
+<p>vector of chromosome lengths corresponding to chr.vec
+</p>
+</td></tr>
+<tr valign="top"><td><code>quant</code></td>
+<td>
+
+<p>quantile to start the searching for total threshold. Default 0.75.
+</p>
+</td></tr>
+</table>
+
+
+<h3>Details</h3>
+
+<p>data.type
+</p>
+
+<ul>
+<li> <p><code>MCS</code> Minimum ChIP-Seq format. data.frame with fields: chr (factor), pos (integer) and strand (factor, &quot;+&quot; and &quot;-&quot;). pos is 5' location. This is different from eland default which use 3' location for reverse strand.
+</p>
+</li>
+<li> <p><code>AlignedRead</code> from Bioconductor ShortRead package (with support of commonly used formats, including Eland, MAQ, Bowtie, SOAP and BAM).
+</p>
+</li>
+<li> <p><code>BED</code> with at least first 6 fields (chrom, start, end, name, score and strand), http://genome.ucsc.edu/FAQ/FAQformat.html#format1.
+</p>
+</li></ul>
+
+
+
+<h3>Value</h3>
+
+<p>A list with following components:
+</p>
+<table summary="R valueblock">
+<tr valign="top"><td><code>est </code></td>
+<td>
+<p>the estimated normalizing factor.</p>
+</td></tr>
+<tr valign="top"><td><code>binsize.est </code></td>
+<td>
+<p>the estimated binsize.</p>
+</td></tr>
+<tr valign="top"><td><code>r.seq.depth</code></td>
+<td>
+<p>sequencing depth ratio.</p>
+</td></tr>
+<tr valign="top"><td><code>pi0</code></td>
+<td>
+<p>the estimated proportion of background reads among ChIP sample.</p>
+</td></tr>
+</table>
+
+
+<h3>Author(s)</h3>
+
+<p>Kun Liang, <a href="mailto:kliang@stat.wisc.edu">kliang@stat.wisc.edu</a>
+</p>
+
+
+<h3>References</h3>
+
+<p>Liang, K and Keles, S (2012). Normalization of ChIP-seq data with control, to appear.
+</p>
+
+
+<h3>Examples</h3>
+
+<pre>
+data("SEG3")
+res &lt;- NCIS(chip.data, input.data, data.type="MCS")
+res
+</pre>
+
+<hr><div align="center">[Package <em>NCIS</em> version 1.0.1 <a href="00Index.html">Index</a>]</div>
+</body></html>
