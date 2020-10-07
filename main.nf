@@ -62,6 +62,8 @@ Pipeline dependencies:
     --custom_bwa_ra		EXE	PATH TO CUSTOM BWA_SRA EXEC (default : accessoryFiles/SSDS/bwa_ra_0.7.12)
     --custom_multiqc		EXE	PATH TO CUSTOM MULTIQC EXEC (default : accessoryFiles/SSDS/MultiQC_SSDS_Rev1/bin/multiqc)
     --hotspots	        	DIR	PATH TO HOTSPOTS FILES DIRECTORY (default : accessoryFiles/SSDS/hotspots)
+    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING (default : accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
+    --NCIS_dir                  DIR     PATH TO NCIS DIRECTORY (default : accessoryFiles/SSDS/NCIS)
 
 QC parameters
     --with_ssds_multiqc		BOOL	RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
@@ -80,9 +82,14 @@ Trimming parameters
     --trim_illumina_clip	STRING	trimmomatic :  Cut adapter and other illumina-specific sequences from the read (default "2:20:10")
 
 Bam processing parameters
-
     --bamPGline			STRING	bam header (default '@PG\\tID:ssDNAPipeline1.8_nxf_KBRICK')
-                                                                   
+
+Peak calling parameters
+    --sctype                    STRING  Saturation curve type (either 'minimal', 'standard' or 'expanded' ; default : 'standard')
+    --reps                      INT     Number of repetitions (default : 3)
+    --macs_bw                   INT     MACS2 bandwidth paramter (default : 1000)
+    --macs_slocal               INT     MACS2 slocal parameter (default : 5000)
+    --shuffle_percent           INT     Default : 50                                                                   
 =================================================================================================
 """.stripIndent()
 }
@@ -109,10 +116,19 @@ scrdir.mkdirs()
 def outNameStem = "${params.name}.SSDS.${params.genome}"
 def tmpNameStem = "${params.name}.tmpFile.${params.genome}"
 
-// In-house scripts (@Kevin Brick) used in the pipeline
-def ITR_id_v2c_NextFlow2_script = "${params.src}/ITR_id_v2c_NextFlow2.pl"
-def ssDNA_to_bigwigs_FASTER_LOMEM_script = "${params.src}/ssDNA_to_bigwigs_FASTER_LOMEM.pl"
-def makeSSMultiQCReport_nextFlow_script= "${params.src}/makeSSMultiQCReport_nextFlow.pl"
+// Scripts used in the pipeline
+def ITR_id_v2c_NextFlow2_script = "${params.src}/ITR_id_v2c_NextFlow2.pl" //Author Kevin Brick
+def ssDNA_to_bigwigs_FASTER_LOMEM_script = "${params.src}/ssDNA_to_bigwigs_FASTER_LOMEM.pl" //Author Kevin Brick
+def makeSSMultiQCReport_nextFlow_script = "${params.src}/makeSSMultiQCReport_nextFlow.pl" //Author Kevin Brick
+def check_design_script = "${params.src}/check_design.py" // From nf-core
+def runNCIS_script = "${params.src}/runNCIS.R" //Author Kevin Brick
+def pickNlines_script = "${params.src}/pickNlines.pl" //Author Kevin Brick
+def satCurveHS_script = "${params.src}/satCurveHS.R" //Author Kevin Brick
+def norm_script = "${params.src}/normalizeStrengthByAdjacentRegions.pl" //Author Kevin Brick
+ 
+
+// Check if input file exists
+if (params.inputcsv) { input_ch = file(params.inputcsv, checkIfExists: true) } else { exit 1, 'Samples design file not specified!' }
 
 // Check if genome exists in the config file
 if (params.genomes && params.genome && !params.genomes.containsKey(params.genome)) {
@@ -125,10 +141,32 @@ params.genomedir = params.genome ? params.genomes[ params.genome ].genomedir ?: 
 params.genome_name = params.genome ? params.genomes[ params.genome ].genome_name ?: false : false
 params.fai = params.genome ? params.genomes[ params.genome ].fai ?: false : false
 
+// Set saturation curve thresholds
+if (params.satcurve){
+  if (params.sctype == 'expanded'){
+    satCurvePCs  = Channel.from(0.025,0.05,0.075,0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90,1.00)
+  }
+  if (params.sctype == 'standard'){
+    satCurvePCs  = Channel.from(0.20,0.40,0.60,0.80,1.00)
+  }
+  if (params.sctype == 'minimal'){
+    satCurvePCs  = Channel.from(0.10,0.50,1.00)
+  }
+  useSatCurve  = true
+  satCurveReps = params.reps-1
+  }
+else{
+    satCurvePCs  = Channel.from(1.00)
+    useSatCurve  = false
+    satCurveReps = 0
+}
+
+
 // ******************* //
 // BEGINNING PIPELINE  //
 // ******************* //
 // Get input files according to the input type : sra ; bam or fastq
+/*
 switch (inputType) {
 case 'sra':
     Channel
@@ -162,6 +200,32 @@ case 'fastq':
         .set { fq_ch }
 break
 }
+*/
+//CHECK INPUT DESIGN FILE
+process CHECK_DESIGN {
+    tag "$design"
+    publishDir "${params.outdir}/pipeline_info", mode: 'copy'
+    input:
+        path design from input_ch 
+    output:
+        path 'design_reads.csv' into ch_design_reads_csv
+        path 'design_controls.csv' into ch_design_controls_csv
+    script:
+    """
+    ${check_design_script} $design design_reads.csv design_controls.csv
+    """
+}
+    
+//CREATE INPUT CHANNEL WITH FASTQ FILES
+ch_design_reads_csv
+    .splitCsv(header:true, sep:',')
+    .map { row -> [ row.sample_id, [ file(row.fastq_1, checkIfExists: true), file(row.fastq_2, checkIfExists: true) ] ] }
+    .set { fq_ch }
+
+ch_design_controls_csv
+    .splitCsv(header:true, sep:',')
+    .map { row -> [ row.sample_id, row.control_id, row.antibody, row.replicatesExist.toBoolean(),row.multipleGroups.toBoolean() ] }
+    .set { ch_design_controls_csv }
 
 // MAKE CONFIGURATION FILE FOR FASTQSCREEN
 process makeScreenConfigFile {
@@ -255,11 +319,11 @@ process fastqc {
 // MAPPING : USE CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA
 process bwaAlign {
     tag "$sampleId"
-    label 'process_high'
+    label 'process_long'
     input:
         set val(sampleId), file(fqR1), file(fqR2) from trim_ch
     output:
-        file '*.sorted.bam' into sortedbam2filterbam, sortedbam2parseITR
+        set val(sampleId), file('*.sorted.bam') into sortedbam2filterbam, sortedbam2parseITR
         val 'ok' into bwa_ok
     script:
   """
@@ -290,12 +354,12 @@ process filterBam {
     label 'process_medium'
     publishDir "${params.outdir}/filterbam",  mode: 'copy', overwrite: false, pattern: "*.txt"
     input:
-        file(bam) from sortedbam2filterbam
+        set val(sampleId), file(bam) from sortedbam2filterbam
     output:
-        file '*.unparsed.bam' into bamAligned
-        file '*.unparsed.bam.bai' into bamIDX 
-        file '*.unparsed.suppAlignments.bam' into bamAlignedSupp
-        file '*.unparsed.suppAlignments.bam.bai' into bamIDXSupp
+        set val(sampleId), file('*.unparsed.bam') into bamAligned
+        set val(sampleId), file('*.unparsed.bam.bai') into bamIDX 
+        set val(sampleId), file('*.unparsed.suppAlignments.bam') into bamAlignedSupp
+        set val(sampleId), file('*.unparsed.suppAlignments.bam.bai') into bamIDXSupp
         val 'ok' into filterbam_ok
     script:
     """
@@ -320,12 +384,13 @@ process parseITRs {
     publishDir "${params.outdir}/parseitr",  mode: 'copy', overwrite: false, pattern: "*.txt"
     publishDir "${params.outdir}/parseitr",  mode: 'copy', overwrite: false, pattern: "*.bed"
     input:
-        // file(bam) from sortedbam2parseITR 
-        file(bam) from bamAligned
-        file(bai) from bamIDX
-    output:                                                                                               
-        set file("${bam}"), file('*bed') into ITRBED
-        set file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
+        set val(sampleId), file(bam) from sortedbam2parseITR 
+        //file(bam) from bamAligned
+        //file(bai) from bamIDX
+    output:
+        set val(sampleId), file("${bam}"), file('*bed') into ITRBED
+        set val(sampleId), file('*ssDNA_type1.bed') into T1BED
+        set val(sampleId), file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
         val 'ok' into parseitr_ok
     script:
     """
@@ -385,6 +450,22 @@ process parseITRs {
     """
 }
 
+// CREATE CHANNEL LINKING IP BAM WITH CONTROL BAM
+T1BED
+    .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1] ] }
+    .groupTuple(by: [0])
+    .map { it ->  [ it[0], it[1].flatten() ] }
+    .into { T1BED ; T1BED2 }
+
+ch_design_controls_csv
+    .combine(T1BED)
+    .combine(T1BED2)
+    .filter { it[0] == it[5] && it[1] == it[7] }
+    .map { it -> it[0,1,6,8].flatten() } 
+    .into { T1BED_shuffle_ch ; T1BED_callpeaks_ch }
+    //.println()
+
+
 // MAKE DEEPTOOLS BIGWIG
 process makeDeeptoolsBigWig { 
     tag "$bam"
@@ -393,13 +474,13 @@ process makeDeeptoolsBigWig {
     publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false, pattern: "*.bigwig"
     publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false, pattern: "*.tab"
     input:
-        set file(bam), file(bamidx) from BAMwithIDXdt
+        set val(sampleId), file(bam), file(bamidx) from BAMwithIDXdt
     output:
         file('*') into bigwig
         val 'ok' into bigwig_ok
     shell:
     """
-    bamCoverage --bam ${bam} --normalizeUsing RPKM --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.RPKM.bigwig 
+    bamCoverage --bam ${bam} --normalizeUsing RPKM --binSize ${params.binsize} --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.RPKM.bigwig 
     plotCoverage --bamfiles ${bam} --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.coveragePlot.png
     plotFingerprint --bamfiles ${bam} --labels ${bam} --numberOfProcessors ${task.cpus} \
         --minMappingQuality 30 --skipZeros --plotFile ${bam.baseName}.deeptools.fingerprints.png \
@@ -413,7 +494,7 @@ process samStats {
     label 'process_basic'
     publishDir "${params.outdir}/samstats",  mode: 'copy', overwrite: false, pattern: "*.tab"
     input:
-        set file(bam), file(bamidx) from BAMwithIDXss
+        set val(sampleId), file(bam), file(bamidx) from BAMwithIDXss
     output:
         file '*stats.tab' into dtSamStat
         val 'ok' into samstats_ok
@@ -430,13 +511,13 @@ process toFRBigWig {
     label 'process_basic'
     publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false
     input:
-        set file(bam), file(bamidx) from BAMwithIDXfr
+        set val(sampleId), file(bam), file(bamidx) from BAMwithIDXfr
     output:
         file('*') into frbigwig
 	val 'ok' into frbigwig_ok
     script:
         """
-        perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out--s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v
+        perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out --s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v
         """
 }    
 
@@ -446,9 +527,9 @@ process makeSSreport {
     label 'process_basic'
     publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
     input:
-        set file(bam), file(ssdsBEDs) from ITRBED 
+        set val(sampleId), file(bam), file(ssdsBEDs) from ITRBED 
     output:
-        set val("${bam.baseName}"), file('*SSDSreport*') into SSDSreport2ssdsmultiqc
+        set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqc
         val 'ok' into ssreport_ok
     script:
         """
@@ -474,6 +555,101 @@ if (params.with_ssds_multiqc) {
     }
 }
 
+process shufBEDs {
+    tag "${id_ip}"
+    label 'process_basic'
+    publishDir "${params.outdir}/bed_shuffle",  mode: 'copy', overwrite: false
+    input:
+        tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from T1BED_shuffle_ch
+    output:
+        tuple val(id_ip), val(id_ct), path("*.IP.sq30.bed"), path("*.CT.sq30.bed") into SQ30BED
+        val 'ok' into shufbed_ok
+    script:
+        def ip_Q30_bed      = ip_bed.name.replaceFirst(".bed",".IP.q30.bed")
+        def ip_Q30_shuf_bed = ip_bed.name.replaceFirst(".bed",".IP.sq30.bed")
+
+        def ct_Q30_bed        = ct_bed.name.replaceFirst(".bed",".CT.q30.bed")
+        def ct_Q30_shuf_bed   = ct_bed.name.replaceFirst(".bed",".CT.sq30.bed")
+        """
+        perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) if (\$Q[0] >= 30 && \$Q[1] >= 30)' ${ip_bed} >${ip_Q30_bed}
+        perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) if (\$Q[0] >= 30 && \$Q[1] >= 30)' ${ct_bed}   >${ct_Q30_bed}
+        shuf ${ip_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ip_Q30_shuf_bed}
+        shuf ${ct_Q30_bed}   |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ct_Q30_shuf_bed}
+        """
+}
+
+//PEAK CALLING WITH MACS2
+process callPeaks {
+    tag "${id_ip}"
+    label 'process_medium'
+    publishDir "${params.outdir}/saturation_curve/peaks", mode: 'copy', overwrite: true, pattern: "*peaks_sc.bed"
+    publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.be*"
+    publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.xls"
+    publishDir "${params.outdir}/model",                  mode: 'copy', overwrite: true, pattern: "*model*"
+    input:
+        tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from T1BED_callpeaks_ch
+    output:
+        path("*peaks_sc.bed") into allbed
+        path("*peaks.xls") optional true into peaks_xls
+        path("*peaks.bed") optional true into peaks_bed
+        path("*peaks.bedgraph") optional true into peaks_bg
+        path("*model.R") optional true into model_R
+        path("*model.pdf") optional true into model_pdf
+
+    script:
+    """
+    nT=`cat ${ip_bed} |wc -l`
+    nPC=`perl -e 'print int('\$nT'*${params.shuffle_percent})'`
+
+    perl ${pickNlines_script} ${ip_bed} \$nPC >\$nPC.tmp
+    sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq >\$nPC.IP.bed
+    
+    ## Just use chrom1: faster with analagous results
+    grep -w chr1 \$nPC.IP.bed >IP.cs1.bed
+    grep -w chr1 ${ct_bed} >CT.cs1.bed
+    Rscript ${runNCIS_script} IP.cs1.bed CT.cs1.bed ${params.NCIS_dir} NCIS.out
+    ratio=`cut -f1 NCIS.out`
+ 
+    ## GET GENOME SIZE - BLACKLIST SIZE
+    tot_sz=`cut -f3 ${fai} |tail -n1`
+    bl_size=`perl -lane '\$tot+=(\$F[2]-\$F[1]); print \$tot' ${params.blacklist} |tail -n1`
+    genome_size=`expr \$tot_sz - \$bl_size`
+    
+    for i in {0..${satCurveReps}}; do
+        thisName=${params.name}'.N'\$nPC'_${params.shuffle_percent}pc.'\$i
+        perl ${pickNlines_script} ${ip_bed} \$nPC >\$nPC.tmp
+    
+        sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq >\$nPC.IP.bed
+
+        macs2 callpeak --ratio \$ratio \\
+            -g \$genome_size \\
+            -t \$nPC.IP.bed \\
+            -c ${ct_bed} \\
+            --bw ${params.macs_bw} \\
+            --keep-dup all \\
+            --slocal ${params.macs_slocal} \\
+            --name \$thisName
+
+        intersectBed -a \$thisName'_peaks.narrowPeak' -b ${params.blacklist} -v >\$thisName'.peaks_sc.noBL'
+        
+        cut -f1-3 \$thisName'.peaks_sc.noBL' |grep -v ^M |grep -v chrM |sort -k1,1 -k2n,2n >\$thisName'_peaks_sc.bed'
+        mv \$thisName'_peaks.xls' \$thisName'_peaks_sc.xls'
+    done
+  
+    sort -k1,1 -k2n,2n -k3n,3n ${params.name}*peaks_sc.bed |mergeBed -i - >${params.name}.${params.shuffle_percent}.peaks_sc.bed
+  
+    if [ ${params.shuffle_percent} == 1.00 ]; then
+        mv ${params.name}.${params.shuffle_percent}.peaks_sc.bed ${params.name}.peaks.bed
+        cat *1.00*.r >${params.name}.model.R
+        R --vanilla <${params.name}.model.R
+        cat *1.00pc.0_peaks_sc.xls >${params.name}.peaks.xls
+        ## Calculate strength
+        perl ${norm_script} --bed ${params.name}.peaks.bed \
+             --in ${ip_bed} --out ${params.name}.peaks.bedgraph --rc
+    fi
+    """
+}
+
 // GENERAL MULTIQC
 process general_multiqc {
     tag "${outNameStem}"
@@ -490,11 +666,12 @@ process general_multiqc {
 	val('samstats') from samstats_ok.collect()
 	val('frbigwig_ok') from frbigwig_ok.collect()
         val('ssreport_ok') from ssreport_ok.collect()
+        val('shufbed_ok') from shufbed_ok.collect()
     output:
 	file('*') into generalmultiqc_report
     script:
     """
-    multiqc -n ${outNameStem}.multiQC ${params.outdir}/*/
+    multiqc -n ${outNameStem}.multiQC ${params.outdir}/
     """
 }
 

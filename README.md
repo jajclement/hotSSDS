@@ -92,7 +92,7 @@ or use ``run_pipeline.sh`` script (make sur to edit it with the relevant paramte
 ````
 bash run_pipeline.sh
 ````
-**Note : the default value of ``--with-ssds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with-ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
+**Note : the default value of ``--with_sds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with_ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
 
 Features currently under development
 - Better handling of custom Multiqc v0.7.dev0 via conda to let nextflow deal with conda env creation, and/or
