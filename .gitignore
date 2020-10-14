@@ -1,0 +1,14 @@
+.nextflow*
+work/
+data/
+results/
+.DS_Store
+tests/
+testing/
+*.pyc
+# deprecated scripts
+*UNUSED
+# output directories
+*.outdir
+# slurm log files
+*.out
