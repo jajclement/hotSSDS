@@ -8,18 +8,19 @@ use ssPipeline_biowulf;
 
 GetOptions ('bed=s' 	=> \(my $inbed),
             'in=s'  	=> \(my $fragFile),
-	    	'input=s'   => \(my $inputFile),
-	    	'NCIS=s'   	=> \(my $NCIS),
-	    	'v+'    	=> \(my $verbose),
-	    	'rc+'  	=> \(my $recenter),
-	    	'nt+'   	=> \(my $noTmp),
-	    	'ac+'   	=> \(my $altCenter),
-	    	'noCheck+'	=> \(my $noCheck),
-			'revFrag+' 	=> \(my $reverseFragments),
-			'SNS+'   	=> \(my $forSNS),
-	    	'h+'    	=> \(my $help),
-	    	'help+' 	=> \(my $helpMe),
-            'out=s' 	=> \(my $out));
+	    'input=s'   => \(my $inputFile),
+	    'NCIS=s'   	=> \(my $NCIS),
+	    'v+'    	=> \(my $verbose),
+	    'rc+'  	=> \(my $recenter),
+	    'nt+'   	=> \(my $noTmp),
+	    'ac+'   	=> \(my $altCenter),
+	    'noCheck+'	=> \(my $noCheck),
+	    'revFrag+' 	=> \(my $reverseFragments),
+	    'SNS+'   	=> \(my $forSNS),
+	    'h+'    	=> \(my $help),
+	    'help+' 	=> \(my $helpMe),
+            'out=s' 	=> \(my $out),
+	    'rev_scr=s' => \(my $revScr));
 
 ## FOR SNS, reverse fragments
 $reverseFragments++ if ($forSNS);
@@ -51,10 +52,12 @@ $fragstmpFile = 'tempFragsFile.bed' if ($noTmp);
 
 ## FOR SNS
 if ($reverseFragments){
-	sysAndPrint('perl '.$ENV{NXF_PIPEDIR}.'/reverseStrandsForOriCalling.pl <'.$fragFile.'>'.$fragstmpFile);
+#	sysAndPrint('perl '.$ENV{NXF_PIPEDIR}.'/reverseStrandsForOriCalling.pl <'.$fragFile.'>'.$fragstmpFile);
+	sysAndPrint('perl '.$revScr.'<'.$fragFile.'>'.$fragstmpFile);
 }else{
 	sysAndPrint("cp $fragFile $fragstmpFile");
 }
+
 
 $fragFile = $fragstmpFile;
 

@@ -125,7 +125,7 @@ def runNCIS_script = "${params.src}/runNCIS.R" //Author Kevin Brick
 def pickNlines_script = "${params.src}/pickNlines.pl" //Author Kevin Brick
 def satCurveHS_script = "${params.src}/satCurveHS.R" //Author Kevin Brick
 def norm_script = "${params.src}/normalizeStrengthByAdjacentRegions.pl" //Author Kevin Brick
- 
+def reverse_script = "${params.src}/reverseStrandsForOriCalling.pl" // MISSING // Author Kevin Brick 
 
 // Check if input file exists
 if (params.inputcsv) { input_ch = file(params.inputcsv, checkIfExists: true) } else { exit 1, 'Samples design file not specified!' }
@@ -390,6 +390,7 @@ process parseITRs {
     output:
         set val(sampleId), file("${bam}"), file('*bed') into ITRBED
         set val(sampleId), file('*ssDNA_type1.bed') into T1BED
+        set val(sampleId), file('*dsDNA.bed') into DSBED
         set val(sampleId), file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
         val 'ok' into parseitr_ok
     script:
@@ -450,16 +451,24 @@ process parseITRs {
     """
 }
 
-// CREATE CHANNEL LINKING IP BAM WITH CONTROL BAM
+// CREATE CHANNEL LINKING IP T1SSDNA BED WITH CONTROL DSDNA BED
 T1BED
     .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1] ] }
     .groupTuple(by: [0])
     .map { it ->  [ it[0], it[1].flatten() ] }
-    .into { T1BED ; T1BED2 }
+    //.into { T1BED ; T1BED2 }
+    .set { T1BED }
+
+DSBED
+    .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1] ] }
+    .groupTuple(by: [0])
+    .map { it ->  [ it[0], it[1].flatten() ] }
+    .set { DSBED }
 
 ch_design_controls_csv
     .combine(T1BED)
-    .combine(T1BED2)
+    //.combine(T1BED2)
+    .combine(DSBED)
     .filter { it[0] == it[5] && it[1] == it[7] }
     .map { it -> it[0,1,6,8].flatten() } 
     .into { T1BED_shuffle_ch ; T1BED_callpeaks_ch }
@@ -562,7 +571,7 @@ process shufBEDs {
     input:
         tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from T1BED_shuffle_ch
     output:
-        tuple val(id_ip), val(id_ct), path("*.IP.sq30.bed"), path("*.CT.sq30.bed") into SQ30BED
+        tuple val(id_ip), val(id_ct), path("*.IP.sq30.bed"), path("*.CT.sq30.bed") into SQ30BED_ch
         val 'ok' into shufbed_ok
     script:
         def ip_Q30_bed      = ip_bed.name.replaceFirst(".bed",".IP.q30.bed")
@@ -572,7 +581,7 @@ process shufBEDs {
         def ct_Q30_shuf_bed   = ct_bed.name.replaceFirst(".bed",".CT.sq30.bed")
         """
         perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) if (\$Q[0] >= 30 && \$Q[1] >= 30)' ${ip_bed} >${ip_Q30_bed}
-        perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) if (\$Q[0] >= 30 && \$Q[1] >= 30)' ${ct_bed}   >${ct_Q30_bed}
+        perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) if (\$Q[0] >= 30 && \$Q[1] >= 30)' ${ct_bed} >${ct_Q30_bed}
         shuf ${ip_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ip_Q30_shuf_bed}
         shuf ${ct_Q30_bed}   |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ct_Q30_shuf_bed}
         """
@@ -581,13 +590,15 @@ process shufBEDs {
 //PEAK CALLING WITH MACS2
 process callPeaks {
     tag "${id_ip}"
-    label 'process_medium'
+    label 'process_basic'
+    conda "${baseDir}/environment_callpeaks3.yml"
     publishDir "${params.outdir}/saturation_curve/peaks", mode: 'copy', overwrite: true, pattern: "*peaks_sc.bed"
     publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.be*"
     publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.xls"
     publishDir "${params.outdir}/model",                  mode: 'copy', overwrite: true, pattern: "*model*"
     input:
-        tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from T1BED_callpeaks_ch
+        //tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from T1BED_callpeaks_ch
+        tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from SQ30BED_ch
     output:
         path("*peaks_sc.bed") into allbed
         path("*peaks.xls") optional true into peaks_xls
@@ -595,7 +606,7 @@ process callPeaks {
         path("*peaks.bedgraph") optional true into peaks_bg
         path("*model.R") optional true into model_R
         path("*model.pdf") optional true into model_pdf
-
+        val 'ok' into callPeaks_ok
     script:
     """
     nT=`cat ${ip_bed} |wc -l`
@@ -607,28 +618,30 @@ process callPeaks {
     ## Just use chrom1: faster with analagous results
     grep -w chr1 \$nPC.IP.bed >IP.cs1.bed
     grep -w chr1 ${ct_bed} >CT.cs1.bed
-    Rscript ${runNCIS_script} IP.cs1.bed CT.cs1.bed ${params.NCIS_dir} NCIS.out
-    ratio=`cut -f1 NCIS.out`
+    #Rscript ${runNCIS_script} IP.cs1.bed CT.cs1.bed ${params.NCIS_dir} NCIS.out
+    #ratio=`cut -f1 NCIS.out`
  
     ## GET GENOME SIZE - BLACKLIST SIZE
-    tot_sz=`cut -f3 ${fai} |tail -n1`
+    tot_sz=`cut -f3 ${params.fai} |tail -n1`
     bl_size=`perl -lane '\$tot+=(\$F[2]-\$F[1]); print \$tot' ${params.blacklist} |tail -n1`
     genome_size=`expr \$tot_sz - \$bl_size`
     
     for i in {0..${satCurveReps}}; do
-        thisName=${params.name}'.N'\$nPC'_${params.shuffle_percent}pc.'\$i
+        thisName=${id_ip}'.N'\$nPC'_${params.shuffle_percent}pc.'\$i
         perl ${pickNlines_script} ${ip_bed} \$nPC >\$nPC.tmp
     
         sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq >\$nPC.IP.bed
 
-        macs2 callpeak --ratio \$ratio \\
+        #macs2 callpeak  --ratio \$ratio \\ 
+	macs2 callpeak \\
             -g \$genome_size \\
             -t \$nPC.IP.bed \\
             -c ${ct_bed} \\
             --bw ${params.macs_bw} \\
             --keep-dup all \\
             --slocal ${params.macs_slocal} \\
-            --name \$thisName
+            --name \$thisName \\
+	    --nomodel
 
         intersectBed -a \$thisName'_peaks.narrowPeak' -b ${params.blacklist} -v >\$thisName'.peaks_sc.noBL'
         
@@ -636,17 +649,57 @@ process callPeaks {
         mv \$thisName'_peaks.xls' \$thisName'_peaks_sc.xls'
     done
   
-    sort -k1,1 -k2n,2n -k3n,3n ${params.name}*peaks_sc.bed |mergeBed -i - >${params.name}.${params.shuffle_percent}.peaks_sc.bed
+    sort -k1,1 -k2n,2n -k3n,3n ${id_ip}*peaks_sc.bed |mergeBed -i - >${id_ip}.${params.shuffle_percent}.peaks_sc.bed
   
     if [ ${params.shuffle_percent} == 1.00 ]; then
-        mv ${params.name}.${params.shuffle_percent}.peaks_sc.bed ${params.name}.peaks.bed
-        cat *1.00*.r >${params.name}.model.R
-        R --vanilla <${params.name}.model.R
-        cat *1.00pc.0_peaks_sc.xls >${params.name}.peaks.xls
+        mv ${id_ip}.${params.shuffle_percent}.peaks_sc.bed ${id_ip}.peaks.bed
+        cat *1.00*.r >${id_ip}.model.R
+        R --vanilla <${id_ip}.model.R
+        cat *1.00pc.0_peaks_sc.xls >${id_ip}.peaks.xls
         ## Calculate strength
-        perl ${norm_script} --bed ${params.name}.peaks.bed \
-             --in ${ip_bed} --out ${params.name}.peaks.bedgraph --rc
+        perl ${norm_script} --bed ${id_ip}.peaks.bed \
+             --in ${ip_bed} --out ${id_ip}.peaks.bedgraph --rc --rev_src ${reverse_script}
     fi
+    """
+}
+
+process makeSatCurve {
+    tag "${id_ip}"
+    label 'process_basic'
+    conda "${baseDir}/environment_callpeaks3.yml"
+    publishDir "${params.outdir}/saturation_curve",  mode: 'copy', overwrite: true
+    input:
+        file(saturation_curve_data) from allbed.collect()
+    output:
+        path("*satCurve.tab", emit: table) into satcurve_table
+        path("*.png", emit: png) into curve
+    script:
+    """
+    #!/usr/bin/perl
+    use strict;
+    my \$tf = "satCurve.tab";
+    open TMP, '>', \$tf;
+    print TMP join("\\t","reads","pc","hs")."\\n";
+    open my \$IN, '-|', 'cd ${params.outdir}/saturation_curve/peaks ; wc -l *peaks_sc.bed |grep -v total |sort -k1n,1n ';
+    while (<\$IN>){
+  	chomp;
+  	next if (\$_ =~ /\\stotal\\s*\$/);
+  	\$_ =~ /^\\s*(\\d+).+\\.N(\\d+)_([\\d\\.]+)pc.+\$/;
+  	my (\$HS,\$N,\$pc) = (\$1,\$2,\$3*100);
+  	print TMP join("\\t",\$N,\$pc,\$HS)."\\n";
+    } 
+    close TMP;
+    close \$IN;
+    my \$R = \$tf.'.R';
+    makeRScript(\$R,"${params.name}.satCurve.tab","${params.name}");
+    system('R --vanilla <'.\$R);
+    sub makeRScript{
+     	my (\$sName,\$data,\$sampleName) = @_;
+  	open RS, '>', \$sName;
+  	print RS 'source("${satCurveHS_script}")'."\\n";
+  	print RS 'satCurveHS(fIN = "'.\$tf.'", sampleName = "'.\$sampleName.'")'."\\n";
+  	close RS;
+    }
     """
 }
 
@@ -667,6 +720,7 @@ process general_multiqc {
 	val('frbigwig_ok') from frbigwig_ok.collect()
         val('ssreport_ok') from ssreport_ok.collect()
         val('shufbed_ok') from shufbed_ok.collect()
+        val('callPeaks_ok') from callPeaks_ok.collect()
     output:
 	file('*') into generalmultiqc_report
     script:
