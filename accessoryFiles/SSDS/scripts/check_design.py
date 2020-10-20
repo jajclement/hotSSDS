@@ -92,8 +92,10 @@ def reformat_design(DesignFile,ReadMappingFile,ControlMappingFile):
                     print("{}: Antibody id contains spaces!\nLine: '{}'".format(ERROR_STR,line.strip()))
                     sys.exit(1)
                 if not control:
-                    print("{}: both Antibody and Control must be specified!\nLine: '{}'".format(ERROR_STR,line.strip()))
-                    sys.exit(1)
+                #    print("{}: both Antibody and Control must be specified!\nLine: '{}'".format(ERROR_STR,line.strip()))
+                    print("Warning : no control provided.")
+                    wcontrol = 0
+                #    sys.exit(1)
             if control:
                 if control.find(' ') != -1:
                     print("{}: Control id contains spaces!\nLine: '{}'".format(ERROR_STR,line.strip()))
@@ -105,7 +107,7 @@ def reformat_design(DesignFile,ReadMappingFile,ControlMappingFile):
             ## CREATE ANTIBODY MAPPING CONTROL DICT
             if antibody and control:
                 antibodyDict[group] = (antibody,control)
-
+                wcontrol = 1
         else:
             fin.close()
             break
@@ -116,9 +118,9 @@ def reformat_design(DesignFile,ReadMappingFile,ControlMappingFile):
         sys.exit(1)
 
     ## CHECK IF ANTIBODY AND CONTROL COLUMNS HAVE BEEN SPECIFIED AT LEAST ONCE
-    if len(antibodyDict) == 0:
-        print("{}: Antibody and Control must be specified at least once!".format(ERROR_STR))
-        sys.exit(1)
+    #if len(antibodyDict) == 0:
+    #    print("{}: Antibody and Control must be specified at least once!".format(ERROR_STR))
+    #    sys.exit(1)
 
     ## WRITE READ MAPPING FILE
     antibodyGroupDict = {}
@@ -159,24 +161,30 @@ def reformat_design(DesignFile,ReadMappingFile,ControlMappingFile):
                         if not antibodyList in antibodyGroupDict[antibody][group]:
                             antibodyGroupDict[antibody][group].append(antibodyList)
                     else:
-                        print("{}: Control id not a valid group\nControl id: {}, Valid Groups: {}".format(ERROR_STR,control,sorted(sampleMappingDict.keys())))
-                        sys.exit(1)
+                        #print("{}: Control id not a valid group\nControl id: {}, Valid Groups: {}".format(ERROR_STR,control,sorted(sampleMappingDict.keys())))
+                        #sys.exit(1)
+                        print("Warning : no control provided.")
     fout.close()
 
     ## WRITE SAMPLE TO CONTROL MAPPING FILE
-    fout = open(ControlMappingFile,'w')
-    fout.write(','.join(['sample_id','control_id','antibody','replicatesExist','multipleGroups']) + '\n')
-    for antibody in sorted(antibodyGroupDict.keys()):
-        repsExist = '0'
-        if max([len(x) for x in antibodyGroupDict[antibody].values()]) > 1:
-            repsExist = '1'
-        multipleGroups = '0'
-        if len(antibodyGroupDict[antibody].keys()) > 1:
-            multipleGroups = '1'
-        for group in sorted(antibodyGroupDict[antibody].keys()):
-            for antibodyList in antibodyGroupDict[antibody][group]:
-                fout.write(','.join(antibodyList+[antibody,repsExist,multipleGroups]) + '\n')
-    fout.close()
+    if wcontrol == 1 : 
+        fout = open(ControlMappingFile,'w')
+        fout.write(','.join(['sample_id','control_id','antibody','replicatesExist','multipleGroups']) + '\n')
+        for antibody in sorted(antibodyGroupDict.keys()):
+            repsExist = '0'
+            if max([len(x) for x in antibodyGroupDict[antibody].values()]) > 1:
+                repsExist = '1'
+            multipleGroups = '0'
+            if len(antibodyGroupDict[antibody].keys()) > 1:
+                multipleGroups = '1'
+            for group in sorted(antibodyGroupDict[antibody].keys()):
+                for antibodyList in antibodyGroupDict[antibody][group]:
+                    fout.write(','.join(antibodyList+[antibody,repsExist,multipleGroups]) + '\n')
+        fout.close()
+    else :
+        fout = open(ControlMappingFile,'w')
+        fout.write(','.join(['sample_id','control_id','antibody','replicatesExist','multipleGroups']) + '\n')
+        fout.close()
 
 ############################################
 ############################################
