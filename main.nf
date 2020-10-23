@@ -126,6 +126,8 @@ def pickNlines_script = "${params.src}/pickNlines.pl" //Author Kevin Brick
 def satCurveHS_script = "${params.src}/satCurveHS.R" //Author Kevin Brick
 def norm_script = "${params.src}/normalizeStrengthByAdjacentRegions.pl" //Author Kevin Brick
 def reverse_script = "${params.src}/reverseStrandsForOriCalling.pl" // MISSING // Author Kevin Brick 
+def getPeaksBedFiles_script = "${params.src}/getPeaksBedFiles.pl" //Author Kevin Brick, script adapted by Pauline Auffret
+def runSatCurve_script = "${params.src}/runSatCurve.R" //Author Pauline Auffret
 
 // Check if input file exists
 if (params.inputcsv) { input_ch = file(params.inputcsv, checkIfExists: true) } else { exit 1, 'Samples design file not specified!' }
@@ -212,7 +214,7 @@ process CHECK_DESIGN {
         path 'design_controls.csv' into ch_design_controls_csv
     script:
     """
-    ${check_design_script} $design design_reads.csv design_controls.csv
+    python ${check_design_script} $design design_reads.csv design_controls.csv
     """
 }
     
@@ -262,9 +264,9 @@ process makeScreenConfigFile {
 process trimming {
     tag "${sampleId}" 
     label 'process_low'
-    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*_report.txt"
-    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*.html"
-    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*.zip"
+    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', overwrite: false, pattern: "*_report.txt"
+    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', overwrite: false, pattern: "*.html"
+    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', overwrite: false, pattern: "*.zip"
     input:
         set val(sampleId), file(reads) from fq_ch
     output:
@@ -301,10 +303,10 @@ process trimming {
 process fastqc {
     tag "${sampleId}"
     label 'process_low'
-    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*.html"
-    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*.zip"
+    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', overwrite: false, pattern: "*.html"
+    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', overwrite: false, pattern: "*.zip"
     publishDir "${params.outdir}/fastqscreen", mode: 'copy', overwrite: false, pattern: "*.png"
-    publishDir "${params.outdir}/fastqc", mode: 'copy', overwrite: false, pattern: "*.txt"
+    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', overwrite: false, pattern: "*.txt"
     input:
         set val(sampleId), file(reads) from fqc_ch
         file(ok) from fqscreen_conf_ok
@@ -577,7 +579,6 @@ if (params.with_control) {
         script:
             def ip_Q30_bed      = ip_bed.name.replaceFirst(".bed",".IP.q30.bed")
             def ip_Q30_shuf_bed = ip_bed.name.replaceFirst(".bed",".IP.sq30.bed")
-
             def ct_Q30_bed        = ct_bed.name.replaceFirst(".bed",".CT.q30.bed")
             def ct_Q30_shuf_bed   = ct_bed.name.replaceFirst(".bed",".CT.sq30.bed")
             """
@@ -592,9 +593,10 @@ if (params.with_control) {
     process callPeaks_ct {
         tag "${id_ip}"
         label 'process_basic'
-        conda "${baseDir}/environment_callpeaks3.yml"
+        conda "${baseDir}/environment_callpeaks.yml"
         publishDir "${params.outdir}/saturation_curve/peaks", mode: 'copy', overwrite: true, pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.be*"
+        publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.xls"
         publishDir "${params.outdir}/model",                  mode: 'copy', overwrite: true, pattern: "*model*"
         input:
@@ -617,7 +619,7 @@ if (params.with_control) {
     
         ## NCIS : Normalization for ChIp-Seq (just use chrom1: faster with analagous results)
         grep -w chr1 \$nPC.IP.bed >IP.cs1.bed
-        grep -w chr1 \$ct_bed >CT.cs1.bed
+        grep -w chr1 ${ct_bed} >CT.cs1.bed
         #Rscript ${runNCIS_script} IP.cs1.bed CT.cs1.bed ${params.NCIS_dir} NCIS.out
         #ratio=`cut -f1 NCIS.out`
  
@@ -704,9 +706,10 @@ if (params.with_control) {
     process callPeaks {
         tag "${id_ip}"
         label 'process_basic'
-        conda "${baseDir}/environment_callpeaks3.yml"
+        conda "${baseDir}/environment_callpeaks.yml"
         publishDir "${params.outdir}/saturation_curve/peaks", mode: 'copy', overwrite: true, pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.be*"
+        publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.xls"
         publishDir "${params.outdir}/model",                  mode: 'copy', overwrite: true, pattern: "*model*"
         input:
@@ -786,7 +789,7 @@ if (params.with_control) {
 process makeSatCurve {
     tag "${id_ip}"
     label 'process_basic'
-    conda "${baseDir}/environment_callpeaks3.yml"
+    conda "${baseDir}/environment_callpeaks.yml"
     publishDir "${params.outdir}/saturation_curve",  mode: 'copy', overwrite: true
     input:
         file(saturation_curve_data) from allbed.collect()
@@ -796,31 +799,12 @@ process makeSatCurve {
         val 'ok' into makeSatCurve_ok
     script:
     """
-    #!/usr/bin/perl
-    use strict;
-    my \$tf = "satCurve.tab";
-    open TMP, '>', \$tf;
-    print TMP join("\\t","reads","pc","hs")."\\n";
-    open my \$IN, '-|', 'cd ${params.outdir}/saturation_curve/peaks ; wc -l *peaks_sc.bed |grep -v total |sort -k1n,1n ';
-    while (<\$IN>){
-  	chomp;
-  	next if (\$_ =~ /\\stotal\\s*\$/);
-  	\$_ =~ /^\\s*(\\d+).+\\.N(\\d+)_([\\d\\.]+)pc.+\$/;
-  	my (\$HS,\$N,\$pc) = (\$1,\$2,\$3*100);
-  	print TMP join("\\t",\$N,\$pc,\$HS)."\\n";
-    } 
-    close TMP;
-    close \$IN;
-    my \$R = \$tf.'.R';
-    makeRScript(\$R,"${params.name}.satCurve.tab","${params.name}");
-    system('R --vanilla <'.\$R);
-    sub makeRScript{
-     	my (\$sName,\$data,\$sampleName) = @_;
-  	open RS, '>', \$sName;
-  	print RS 'source("${satCurveHS_script}")'."\\n";
-  	print RS 'satCurveHS(fIN = "'.\$tf.'", sampleName = "'.\$sampleName.'")'."\\n";
-  	close RS;
-    }
+    #Option 1 : original perl script
+    perl ${getPeaksBedFiles_script} -tf satCurve.tab -dir ${params.outdir}/saturation_curve/peaks
+    #Option 2 : playing with fire & awk
+    #echo "reads pc  hs" > satCurve.tab
+    #wc -l ${params.outdir}/saturation_curve/peaks/*N*_peaks_sc.bed | grep -v "total" | sort -k1n,1n | sed 's/ \\+\\([0-9]\\+\\) .\\+\\.N\\([0-9]\\+\\)_\\([.0-9]\\+\\)pc.\\+/\\1 \\2 \\3/' | awk '{printf "%d %d %d\\n", \$2, \$3*100, \$1}' >> satCurve.tab
+    Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${params.name}    
     """
 }
 
@@ -847,7 +831,7 @@ process general_multiqc {
 	file('*') into generalmultiqc_report
     script:
     """
-    multiqc -n ${outNameStem}.multiQC ${params.outdir}/
+    multiqc -n ${outNameStem}.multiQC ${params.outdir}/raw_fastqc ${params.outdir}/trim_fastqc ${params.outdir}/samstats ${params.outdir}/bigwig 
     """
 }
 

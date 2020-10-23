@@ -75,8 +75,9 @@ def reformat_design(DesignFile,ReadMappingFile,ControlMappingFile):
 
             for fastq in fastQFiles:
                 ## CHECK FASTQ FILE EXTENSION
-                if fastq[-9:] != '.fastq.gz' and fastq[-6:] != '.fq.gz' and fastq[-3:] != '.fq' and fastq[-6:] != '.fastq':
-                    print("{}: FastQ file has incorrect extension (has to be '.fastq.gz', 'fq.gz', 'fq' or 'fastq') - {}\nLine: '{}'".format(ERROR_STR,fastq,line.strip()))
+                # Edit for ssds pipeline : only paired-end reads please.
+                if fastq[-9:] != '.fastq.gz' and fastq[-6:] != '.fq.gz' and fastq[-3:] != '.fq' and fastq[-6:] != '.fastq'  :
+                    print("{}: FastQ file has incorrect extension (has to be '.fastq.gz'  or '.fq.gz'  or '.fastq'  or '.fq' )  {}\nLine: '{}'".format(ERROR_STR,fastq,line.strip()))
                     sys.exit(1)
 
             ## CREATE GROUP MAPPING DICT = {GROUP_ID: {REPLICATE_ID:[[FASTQ_FILES]]}
