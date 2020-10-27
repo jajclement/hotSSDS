@@ -21,7 +21,7 @@ OPTIONS="-profile conda -resume -with-tower"
 while getopts hp:o:c:a:i:n:y: flag
 do
 	case "${flag}" in
-		h) echo ""; echo "Usage: bash `basename $0` [options] "; echo "Options : "; echo "-h display help message"; echo "-i REQUIRED Path to input csv file"; echo "-p Path to ssds nextflow pipeline  base directory (default : ${PIPELINE_DIRECTORY})"; echo "-o Path to output directory (default : ${OUTPUT_DIRECTORY})"; echo "-c Path to IGH cluster configuration file (default : ${CONF})"; echo "-a Path to conda environment for nextflow (default : ${CENV})"; echo "-n Analysis name (default : ${ANALYSIS_NAME})"; echo "-y Optional arguments for the pipeline (default : ${OPTIONS})"; echo ""; exit 0;;
+		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; echo "Options : "; echo "-h display help message"; echo "-i REQUIRED Path to input csv file"; echo "-p Path to ssds nextflow pipeline  base directory (default : ${PIPELINE_DIRECTORY})"; echo "-o Path to output directory (default : ${OUTPUT_DIRECTORY})"; echo "-c Path to IGH cluster configuration file (default : ${CONF})"; echo "-a Path to conda environment for nextflow (default : ${CENV})"; echo "-n Analysis name (default : ${ANALYSIS_NAME})"; echo "-y Optional arguments for the pipeline (default : ${OPTIONS})"; echo ""; exit 0;;
 		p) PIPELINE_DIRECTORY=${OPTARG};if [ ! -d ${PIPELINE_DIRECTORY} ]; then echo "Directory ${PIPELINE_DIRECTORY} not found!" ; exit 0; fi;;
 		o) OUTPUT_DIRECTORY=${OPTARG};;
 		c) CONF=${OPTARG};if [ ! -f ${CONF} ]; then echo "File ${CONF} not found!" ; exit 0; fi;;

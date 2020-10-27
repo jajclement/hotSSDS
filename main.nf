@@ -546,7 +546,7 @@ if (params.with_ssds_multiqc) {
 }
 
 if (params.with_control) {
-    // CREATE CHANNEL LINKING IP T1SSDNA BED WITH CONTROL DSDNA BED
+    // CREATE CHANNEL LINKING IP TYPE 1 SSDNA BED WITH CONTROL DSDNA BED
     T1BED
         .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1] ] }
         .groupTuple(by: [0])
@@ -611,8 +611,10 @@ if (params.with_control) {
             val 'ok' into callPeaks_ok
         script:
         """
-        nT=`cat ${ip_bed} |wc -l`
-        nPC=`perl -e 'print int('\$nT'*${params.shuffle_percent})'`
+        nT=`cat ${ip_bed} | wc -l`
+        nPC=$((${nT}*${{params.shuffle_percent}))
+
+        #nPC=`perl -e 'print int('\$nT'*${params.shuffle_percent})'`
 
         perl ${pickNlines_script} ${ip_bed} \$nPC > \$nPC.tmp
         sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq > \$nPC.IP.bed
