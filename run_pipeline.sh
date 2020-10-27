@@ -42,6 +42,7 @@ if [ "x" == "x$INPUT" ]; then
 fi
 
 #Create output directory if not existing
+OUTPUT_DIRECTORY="/home/${USER}/work/results/${ANALYSIS_NAME}.outdir"
 mkdir -p ${OUTPUT_DIRECTORY}
 cd ${OUTPUT_DIRECTORY}
 

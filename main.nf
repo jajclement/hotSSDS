@@ -94,6 +94,14 @@ Peak calling parameters
 """.stripIndent()
 }
 
+params.version = false
+if (params.version){
+    println("This is $workflow.manifest.name version $workflow.manifest.version")
+    println("$workflow.manifest.description")
+    exit 0
+}
+
+
 //Show help message
 params.help = false 
 if (params.help){
@@ -611,10 +619,10 @@ if (params.with_control) {
             val 'ok' into callPeaks_ok
         script:
         """
-        nT=`cat ${ip_bed} | wc -l`
-        nPC=$((${nT}*${{params.shuffle_percent}))
+        nT=`cat ${ip_bed} |wc -l`
+        #nPC=\$((\$nT*${params.shuffle_percent}))
 
-        #nPC=`perl -e 'print int('\$nT'*${params.shuffle_percent})'`
+        nPC=`perl -e 'print int('\$nT'*${params.shuffle_percent})'`
 
         perl ${pickNlines_script} ${ip_bed} \$nPC > \$nPC.tmp
         sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq > \$nPC.IP.bed
@@ -727,6 +735,8 @@ if (params.with_control) {
         script:
         """
         nT=`cat ${ip_bed} |wc -l`
+        #nPC=\$((\$nT*${params.shuffle_percent}))
+        #nT=`cat \$ip_bed |wc -l`
         nPC=`perl -e 'print int('\$nT'*${params.shuffle_percent})'`
 
         perl ${pickNlines_script} ${ip_bed} \$nPC > \$nPC.tmp
