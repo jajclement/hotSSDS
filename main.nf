@@ -89,7 +89,6 @@ Peak calling parameters
     --reps                      INT     Number of repetitions (default : 3)
     --macs_bw                   INT     MACS2 bandwidth paramter (default : 1000)
     --macs_slocal               INT     MACS2 slocal parameter (default : 5000)
-    --shuffle_percent           INT     Default : 50                                                                   
 =================================================================================================
 """.stripIndent()
 }
@@ -609,6 +608,7 @@ if (params.with_control) {
         publishDir "${params.outdir}/model",                  mode: 'copy', overwrite: true, pattern: "*model*"
         input:
             tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from SQ30BED_ch
+            val(shuffle_percent) from satCurvePCs
         output:
             path("*peaks_sc.bed") into allbed
             path("*peaks.xls") optional true into peaks_xls
@@ -620,9 +620,9 @@ if (params.with_control) {
         script:
         """
         nT=`cat ${ip_bed} |wc -l`
-        #nPC=\$((\$nT*${params.shuffle_percent}))
+        #nPC=\$((\$nT*${shuffle_percent}))
 
-        nPC=`perl -e 'print int('\$nT'*${params.shuffle_percent})'`
+        nPC=`perl -e 'print int('\$nT'*${shuffle_percent})'`
 
         perl ${pickNlines_script} ${ip_bed} \$nPC > \$nPC.tmp
         sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq > \$nPC.IP.bed
@@ -639,7 +639,7 @@ if (params.with_control) {
         genome_size=`expr \$tot_sz - \$bl_size`
     
         for i in {0..${satCurveReps}}; do
-            thisName=${id_ip}'.N'\$nPC'_${params.shuffle_percent}pc.'\$i
+            thisName=${id_ip}'.N'\$nPC'_${shuffle_percent}pc.'\$i
             perl ${pickNlines_script} ${ip_bed} \$nPC >\$nPC.tmp
     
             sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq > \$nPC.IP.bed
@@ -677,10 +677,10 @@ if (params.with_control) {
             mv \$thisName'_peaks.xls' \$thisName'_peaks_sc.xls'
         done
   
-        sort -k1,1 -k2n,2n -k3n,3n ${id_ip}*peaks_sc.bed |mergeBed -i - >${id_ip}.${params.shuffle_percent}.peaks_sc.bed
+        sort -k1,1 -k2n,2n -k3n,3n ${id_ip}*peaks_sc.bed |mergeBed -i - >${id_ip}.${shuffle_percent}.peaks_sc.bed
   
-        if [ ${params.shuffle_percent} == 1.00 ]; then
-            mv ${id_ip}.${params.shuffle_percent}.peaks_sc.bed ${id_ip}.peaks.bed
+        if [ ${shuffle_percent} == 1.00 ]; then
+            mv ${id_ip}.${shuffle_percent}.peaks_sc.bed ${id_ip}.peaks.bed
             cat *1.00*.r >${id_ip}.model.R
             R --vanilla <${id_ip}.model.R
             cat *1.00pc.0_peaks_sc.xls >${id_ip}.peaks.xls
@@ -724,6 +724,7 @@ if (params.with_control) {
         publishDir "${params.outdir}/model",                  mode: 'copy', overwrite: true, pattern: "*model*"
         input:
             tuple val(id_ip), path(ip_bed) from SQ30BED_ch
+            val(shuffle_percent) from satCurvePCs
         output:
             path("*peaks_sc.bed") into allbed
             path("*peaks.xls") optional true into peaks_xls
@@ -735,9 +736,9 @@ if (params.with_control) {
         script:
         """
         nT=`cat ${ip_bed} |wc -l`
-        #nPC=\$((\$nT*${params.shuffle_percent}))
+        #nPC=\$((\$nT*${shuffle_percent}))
         #nT=`cat \$ip_bed |wc -l`
-        nPC=`perl -e 'print int('\$nT'*${params.shuffle_percent})'`
+        nPC=`perl -e 'print int('\$nT'*${shuffle_percent})'`
 
         perl ${pickNlines_script} ${ip_bed} \$nPC > \$nPC.tmp
         sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq > \$nPC.IP.bed
@@ -748,7 +749,7 @@ if (params.with_control) {
         genome_size=`expr \$tot_sz - \$bl_size`
     
         for i in {0..${satCurveReps}}; do
-            thisName=${id_ip}'.N'\$nPC'_${params.shuffle_percent}pc.'\$i
+            thisName=${id_ip}'.N'\$nPC'_${shuffle_percent}pc.'\$i
             perl ${pickNlines_script} ${ip_bed} \$nPC >\$nPC.tmp
     
             sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq > \$nPC.IP.bed
@@ -783,10 +784,10 @@ if (params.with_control) {
             mv \$thisName'_peaks.xls' \$thisName'_peaks_sc.xls'
         done
   
-        sort -k1,1 -k2n,2n -k3n,3n ${id_ip}*peaks_sc.bed |mergeBed -i - >${id_ip}.${params.shuffle_percent}.peaks_sc.bed
+        sort -k1,1 -k2n,2n -k3n,3n ${id_ip}*peaks_sc.bed |mergeBed -i - >${id_ip}.${shuffle_percent}.peaks_sc.bed
   
-        if [ ${params.shuffle_percent} == 1.00 ]; then
-            mv ${id_ip}.${params.shuffle_percent}.peaks_sc.bed ${id_ip}.peaks.bed
+        if [ ${shuffle_percent} == 1.00 ]; then
+            mv ${id_ip}.${shuffle_percent}.peaks_sc.bed ${id_ip}.peaks.bed
             cat *1.00*.r >${id_ip}.model.R
             R --vanilla <${id_ip}.model.R
             cat *1.00pc.0_peaks_sc.xls >${id_ip}.peaks.xls

@@ -13,16 +13,17 @@ GetOptions ('tf=s'	=> \$tf,
 
 open TMP, '>', $tf or die $!;
 
-my $cmd="cd $dir; wc -l *peaks_sc.bed | grep -v total | sort -k1n,1n";
+my $cmd="cd $dir; wc -l *N*pc*peaks_sc.bed | grep -v total | sort -k1n,1n";
 
 print TMP join("\t","reads","pc","hs")."\n"; 	
 open my $IN, '-|', $cmd;
 while (<$IN>){
-    chomp; 
-    next if ($_ =~ /\stotal\s*$/);
+    chomp;
+    next if ($_ =~ /\stotal\s*$/);	
     $_ =~ /^\s*(\d+).+\.N(\d+)_([\d\.]+)pc.+$/;
     my ($HS,$N,$pc) = ($1,$2,$3*100);
     print TMP join("\t",$N,$pc,$HS)."\n";
 }
+
 close TMP;
 close $IN;
