@@ -13,7 +13,8 @@ GetOptions ('tf=s'	=> \$tf,
 
 open TMP, '>', $tf or die $!;
 
-my $cmd="cd $dir; wc -l *N*pc*peaks_sc.bed | grep -v total | sort -k1n,1n";
+#my $cmd="cd $dir; wc -l *peaks_sc.bed | grep -v total | sort -k1n,1n";
+my $cmd="cd $dir; wc -l *N*pc*peaks_sc.bed | grep -v total | sort -k1n,1n"; #add more precise regex 
 
 print TMP join("\t","reads","pc","hs")."\n"; 	
 open my $IN, '-|', $cmd;

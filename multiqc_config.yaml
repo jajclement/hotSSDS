@@ -1,0 +1,53 @@
+fn_clean_exts:
+    - '.gz'
+    - '.fastq'
+    - '.fq'
+
+
+module_order:
+    - fastqc:
+        name: 'FastQC (raw)'
+        anchor: 'fastqc_raw'
+        path_filters:
+            - '*raw*fastqc.zip'
+    - fastq_screen:
+        name: 'Fastq screen'
+        anchor: 'fqscreen'
+        path_filters:
+            - '*screen.txt*'
+    - fastqc:
+        name: 'FastQC (trimmed)'
+        anchor: 'fastqc_trimmed'
+        info: 'This section of the report shows FastQC results after trimming.'
+        target: ''
+        path_filters:
+            - '*trim*fastqc.zip'
+    - samtools:
+        name: 'Samtools idxstats'
+        anchor: 'idxstats'
+        path_filters:
+            - '*idxstats.tab'
+    - samtools:
+        name: 'Samtools samstats'
+        anchor: 'samstats'
+        path_filters:
+            - '*samstats.tab'
+    - deeptools:
+        name: 'Deeptools bigwig'
+        anchor: 'deeptools'
+        path_filters:
+            - '*fingerprints*'
+modules:
+    - fastqc_raw
+    - fqscreen
+    - fastqc_trimmed
+    - idxstats
+    - samstats
+    - deeptools
+
+report_section_order:
+    fastqc_trimmed:
+        before: fastqc_raw
+
+exclude_modules:
+    - cutadapt

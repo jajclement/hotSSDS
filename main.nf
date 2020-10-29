@@ -28,9 +28,9 @@ Pipeline overview:
 */
 def helpMessage() { 
     log.info"""
-=========================================
+=============================================================================
   SSDS Pipeline version 1.8_NF_pa
-=========================================
+=============================================================================
     Usage:
 
     nextflow run main.nf -c conf/igh.config --fqdir tests/fastq/*{R1,R2}.fastq --name "runtest" --trim_cropR1 36 --trim_cropR2 40 --with_trimgalore -profile conda -resume
@@ -99,7 +99,6 @@ if (params.version){
     println("$workflow.manifest.description")
     exit 0
 }
-
 
 //Show help message
 params.help = false 
@@ -210,7 +209,8 @@ case 'fastq':
 break
 }
 */
-//CHECK INPUT DESIGN FILE
+// CHECK INPUT DESIGN FILE
+// This process controls the input csv file (checks if there is the right columns, and the right file extension) and outputs 2 csv files for mapping IP files to corresponding control files if needed.
 process CHECK_DESIGN {
     tag "${design}"
     publishDir "${params.outdir}/pipeline_info", mode: 'copy'
@@ -274,11 +274,13 @@ process trimming {
     publishDir "${params.outdir}/trim_fastqc", mode: 'copy', overwrite: false, pattern: "*_report.txt"
     publishDir "${params.outdir}/trim_fastqc", mode: 'copy', overwrite: false, pattern: "*.html"
     publishDir "${params.outdir}/trim_fastqc", mode: 'copy', overwrite: false, pattern: "*.zip"
+    publishDir "${params.outdir}/trim_fastq", mode: 'copy', overwrite: false, pattern: "*.fastq.gz"
     input:
         set val(sampleId), file(reads) from fq_ch
     output:
-        set val("${sampleId}"), file(reads) into fqc_ch 
+        set val("${sampleId}"), file(reads) into fqc_ch
         set val("${sampleId}"), file('*R1.fastq.gz'), file('*R2.fastq.gz') into trim_ch
+        file('*') into trim_fastc_report
         val 'ok_multiqc' into trimming_ok
     script:
     	if (params.with_trimgalore && params.trimgalore_adapters)
@@ -306,6 +308,11 @@ process trimming {
     	"""
 }
 
+// MAP FASTQC CHANNEL
+fqc_ch
+    .map { it -> it[0,1].flatten() }
+    .set { fqc_tuple }
+
 // QUALITY CONTROL : RUN FASTQC AND FASTQSCREEN
 process fastqc {
     tag "${sampleId}"
@@ -315,19 +322,23 @@ process fastqc {
     publishDir "${params.outdir}/fastqscreen", mode: 'copy', overwrite: false, pattern: "*.png"
     publishDir "${params.outdir}/raw_fastqc", mode: 'copy', overwrite: false, pattern: "*.txt"
     input:
-        set val(sampleId), file(reads) from fqc_ch
+        tuple val(sampleId), file(read1), file(read2) from fqc_tuple 
         file(ok) from fqscreen_conf_ok
     output:
 	file('*') into fastc_report
         val 'ok' into fastqc_ok
     script:
+    ext=("${read1.getExtension()}")
     """
-    fastqc -t ${task.cpus} ${reads}
-    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${params.outdir}/fastqscreen/conf.fqscreen ${reads}
+    if [[ ${ext} == "gz" ]] ; then ext="fastq.gz" ; fi
+    mv ${read1} ${sampleId}_raw_R1.${ext}   
+    mv ${read2} ${sampleId}_raw_R2.${ext}
+    fastqc -t ${task.cpus} *raw* 
+    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${params.outdir}/fastqscreen/conf.fqscreen *raw*
     """
 }
 
-// MAPPING : USE CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA
+// MAPPING : USE BWA aAND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA
 process bwaAlign {
     tag "${sampleId}"
     label 'process_long'
@@ -800,7 +811,7 @@ if (params.with_control) {
 }
 
 process makeSatCurve {
-    tag "${id_ip}"
+    tag "${outNameStem}"
     label 'process_basic'
     conda "${baseDir}/environment_callpeaks.yml"
     publishDir "${params.outdir}/saturation_curve",  mode: 'copy', overwrite: true
@@ -816,8 +827,8 @@ process makeSatCurve {
     perl ${getPeaksBedFiles_script} -tf satCurve.tab -dir ${params.outdir}/saturation_curve/peaks
     #Option 2 : playing with fire & awk
     #echo "reads pc  hs" > satCurve.tab
-    #wc -l ${params.outdir}/saturation_curve/peaks/*N*_peaks_sc.bed | grep -v "total" | sort -k1n,1n | sed 's/ \\+\\([0-9]\\+\\) .\\+\\.N\\([0-9]\\+\\)_\\([.0-9]\\+\\)pc.\\+/\\1 \\2 \\3/' | awk '{printf "%d %d %d\\n", \$2, \$3*100, \$1}' >> satCurve.tab
-    Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${params.name}    
+    #wc -l ${params.outdir}/saturation_curve/peaks/*N*_peaks_sc.bed | grep -v "total" | sort -k1n,1n | sed 's/ \\+\\([0-9]\\+\\) .\\+\\.N\\([0-9]\\+\\)_\\([.0-9]\\+\\)pc.\\+/\\1 \\2 \\3/' | awk '{printf "%d\\t%d\\t%d\\n", \$2, \$3*100, \$1}' >> satCurve.tab
+    Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}    
     """
 }
 
@@ -826,7 +837,7 @@ process general_multiqc {
     tag "${outNameStem}"
     label 'process_basic'
     conda 'bioconda::multiqc=1.9'
-    publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: true
     input:
         val('trimming_ok') from trimming_ok.collect()
 	val('fastqc_ok') from fastqc_ok.collect()
@@ -844,7 +855,7 @@ process general_multiqc {
 	file('*') into generalmultiqc_report
     script:
     """
-    multiqc -n ${outNameStem}.multiQC ${params.outdir}/raw_fastqc ${params.outdir}/trim_fastqc ${params.outdir}/samstats ${params.outdir}/bigwig 
+    multiqc -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC ${params.outdir}/raw_fastqc ${params.outdir}/trim_fastqc ${params.outdir}/samstats ${params.outdir}/bigwig 
     """
 }
 
