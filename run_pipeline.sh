@@ -8,14 +8,14 @@ export NUMEXPR_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 
 #Default parameters
-ANALYSIS_NAME="SSDS_test_data_sans_controle"
+ANALYSIS_NAME="SSDS_test_avec-controle_sans-multimap_bamvide"
 PIPELINE_DIRECTORY="/home/${USER}/work/ssdsnextflowpipeline"
 OUTPUT_DIRECTORY="/home/${USER}/work/results/${ANALYSIS_NAME}.outdir"
 CONF="${PIPELINE_DIRECTORY}/conf/igh.config"
 CENV=/home/${USER}/work/bin/miniconda3/envs/nextflow-dev
 JOBNAME='SSDS_main'
 INPUT=""
-OPTIONS="-profile conda -with-tower"
+OPTIONS="-profile conda" # -with-tower"
 
 #Get command line arguments
 while getopts hp:o:c:a:i:n:y: flag
@@ -54,7 +54,7 @@ conda activate ${CENV}
 echo "Running pipeline nf-core chipseq ${PIPELINE_DIRECTORY##*/} on ${INPUT##*/} data within ${CENV##*/} conda environment. Check output directory ${OUTPUT_DIRECTORY}"
 
 #Cheat line for dev
-OPTIONBASE="--trim_cropR1 50 --trim_cropR2 50 --binsize 25 --with_trimgalore --with_ssds_multiqc --multiqc_dev_conda_env /work/demassyie/bin/miniconda2/envs/SSDSnextflowPipeline "
+OPTIONBASE="--genome hg19 --with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50 --binsize 25  --with_ssds_multiqc --multiqc_dev_conda_env /work/demassyie/bin/miniconda2/envs/SSDSnextflowPipeline"
 
 sbatch -p computepart -J ${JOBNAME} --export=ALL -n 1 --mem 7G -t 5-0:0 --mem-per-cpu=1000 \
 --wrap "export MKL_NUM_THREADS=1 ; export NUMEXPR_NUM_THREADS=1 ; export OMP_NUM_THREADS=1 ; nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} --name ${ANALYSIS_NAME} --outdir ${OUTPUT_DIRECTORY} --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"

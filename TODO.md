@@ -7,19 +7,22 @@
 * **Remove build from conda environment yml files** ok 2020-10-27
 * **Edit manifest section in nextflow.config** ok 2020-10-28
 * Check if output files in processes match publishDir files
-* Genomes paths modified on cluster ?
+* **Genomes paths modified on cluster ?** start 2020-10-29 end 2020-10-30
 * Comment code in main.nf
+* **filename trimming report** 
 
 ## Medium tasks
+* **Correct bug with hard trimming**
 * **Correct shuffle_percent input un callPeaks process (it's satCurvePCs channel)** ok 2020-10-28
 * Implement log.info with parameters or reorder parameters in report
-* Clean macs2 script in callPeaks process
-* Make a changelog file
-* **Reorder multiQC output report ** ok 2020-10-28
+* **Clean macs2 script in callPeaks process** ish 2020-11-05
+* Make a changelog file start 2020-10-29
+* **Reorder multiQC output report** ok 2020-10-28
 * Update README with examples & output description
-* No error when pipeline is launched with option "with-control" without control
+* **No error when pipeline is launched with option "with-control" without control** ok 2020-11-04
+* **No error when empty bam** ok 2020-11-06 
 * Handling of concatenation of SRA files
-* Add multimapper handling process
+* **Add multimapper handling process** ok 2020-11-04
 
 ## Big tasks
 * Implement a Global and pretty QC

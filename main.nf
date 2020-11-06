@@ -1,21 +1,24 @@
 #!/usr/bin/env nextflow
 /*
 ========================================================================================
-                        SSDS Pipeline version 1.8_NF_pa
+                        SSDS Pipeline version 2.0
 			Author : Kevin Brick (version 1.8_NF)
+                        Pauline Auffret (version 2.0)
 ========================================================================================
  SSDS nextflow pipeline
  #### Homepage / Documentation
  https://github.com/kevbrick/SSDSnextflowPipeline
+ https://github.com/kevbrick/callSSDSpeaks
  Adapted from version 1.8_NF (Pauline Auffret, 2020)
+ https://gitlab.igh.cnrs.fr/pauline.auffret/ssdsnextflowpipeline
 ----------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------
-Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align & Parse ssDNA
+Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align, Parse and call Peaks in ssDNA
 Pipeline overview:
-0. makeScreenConfigFile Generate configuration file for fastqscreen in accordance with params.genome2screen
+0. makeScreenConfigFile Generates configuration file for fastqscreen in accordance with params.genome2screen
 1. trimming             Runs Trimmomatic or trim_galore for quality trimming, adapters removal and hard trimming
 2. fastqc               Runs FastQC for sequencing reads quality control
-3. bwaAlign             Runs Custom BWA algorithm (bwa-ra : bwa right align) against reference genome
+3. bwaAlign             Runs BWA and Custom BWA algorithm (bwa-ra : bwa right align) to map reads to reference genome
 4. filterBam            Uses PicardTools and Samtools for duplicates marking ; removing supplementary alignements ; bam sorting and indexing
 5. parseITRs            Uses in-house perl script and samtools to parse BAM files into type1 ss dna, type 2 ss dna, ds dna, strict ds dna, unclassfied (5 types bam files)
 6. makeDeeptoolsBigWig  Runs deeptool to make bigwig files for each 5 types bam files
@@ -23,13 +26,16 @@ Pipeline overview:
 8. toFRBigWig           Uses in-house perl to make FWD bigwig files
 9. makeSSreport         Uses in-house perl script to parse bed files
 10. ssds_multiqc        Runs custom multiqc to edit report on SSDS alignement
-11. general_multiqc     Runs multiqc to edit a general stat report
+11. shufBEDS            Perfoms random shuffling in bed files
+12. callPeaks           Calls peaks in bed files
+13. makeSatCurve        Makes saturation Curve
+14. general_multiqc     Runs multiqc to edit a general stat report
 ----------------------------------------------------------------------------------------
 */
 def helpMessage() { 
     log.info"""
 =============================================================================
-  SSDS Pipeline version 1.8_NF_pa
+  SSDS Pipeline version 2.0
 =============================================================================
     Usage:
 
@@ -127,7 +133,6 @@ def ITR_id_v2c_NextFlow2_script = "${params.src}/ITR_id_v2c_NextFlow2.pl" //Auth
 def ssDNA_to_bigwigs_FASTER_LOMEM_script = "${params.src}/ssDNA_to_bigwigs_FASTER_LOMEM.pl" //Author Kevin Brick
 def makeSSMultiQCReport_nextFlow_script = "${params.src}/makeSSMultiQCReport_nextFlow.pl" //Author Kevin Brick
 def check_design_script = "${params.src}/check_design.py" // From nf-core
-def runNCIS_script = "${params.src}/runNCIS.R" //Author Kevin Brick
 def pickNlines_script = "${params.src}/pickNlines.pl" //Author Kevin Brick
 def satCurveHS_script = "${params.src}/satCurveHS.R" //Author Kevin Brick
 def norm_script = "${params.src}/normalizeStrengthByAdjacentRegions.pl" //Author Kevin Brick
@@ -135,7 +140,7 @@ def reverse_script = "${params.src}/reverseStrandsForOriCalling.pl" // MISSING /
 def getPeaksBedFiles_script = "${params.src}/getPeaksBedFiles.pl" //Author Kevin Brick, script adapted by Pauline Auffret
 def runSatCurve_script = "${params.src}/runSatCurve.R" //Author Pauline Auffret
 
-// Check if input file exists
+// Check if input csv file exists
 if (params.inputcsv) { input_ch = file(params.inputcsv, checkIfExists: true) } else { exit 1, 'Samples design file not specified!' }
 
 // Check if genome exists in the config file
@@ -143,13 +148,13 @@ if (params.genomes && params.genome && !params.genomes.containsKey(params.genome
     exit 1, "The provided genome '${params.genome}' is not available in the genome.config file. Currently the available genomes are ${params.genomes.keySet().join(", ")}"
 }
 
-// Genome variables
+// Define genome variables
 params.genome_fasta = params.genome ? params.genomes[ params.genome ].genome_fasta ?: false : false
 params.genomedir = params.genome ? params.genomes[ params.genome ].genomedir ?: false : false
 params.genome_name = params.genome ? params.genomes[ params.genome ].genome_name ?: false : false
 params.fai = params.genome ? params.genomes[ params.genome ].fai ?: false : false
 
-// Set saturation curve thresholds
+// Set saturation curve thresholds for processes callPeaks and makeSatCurve
 if (params.satcurve){
   if (params.sctype == 'expanded'){
     satCurvePCs  = Channel.from(0.025,0.05,0.075,0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90,1.00)
@@ -210,9 +215,12 @@ break
 }
 */
 // CHECK INPUT DESIGN FILE
-// This process controls the input csv file (checks if there is the right columns, and the right file extension) and outputs 2 csv files for mapping IP files to corresponding control files if needed.
+// This process controls the input csv file (checks if there is the right columns, and valid file extension).
+// It outputs 2 csv files for mapping fastq files to their sample ID and to map chIP files to corresponding control files if needed.
+// This process uses the python script ${check_design_script} adapted from nf-core chipseq pipeline.
 process CHECK_DESIGN {
     tag "${design}"
+    errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
     publishDir "${params.outdir}/pipeline_info", mode: 'copy'
     input:
         path design from input_ch 
@@ -222,16 +230,24 @@ process CHECK_DESIGN {
     script:
     """
     python ${check_design_script} $design design_reads.csv design_controls.csv
+    # Check if the --with_control parameter value is consistent with csv input file
+    nb_line_ctrl_file=`cat design_controls.csv | wc -l`
+    if [[ \$nb_line_ctrl_file == 1 && ${params.with_control} ]]
+    then
+        echo "The option --with_control is set to true but there is no control files. Check the input csv file."
+        exit 1
+    fi
     """
 }
     
-//CREATE INPUT CHANNEL WITH FASTQ FILES
+//CREATE INPUT CHANNEL WITH SAMPLE ID AND FASTQ FILES
 ch_design_reads_csv
     .splitCsv(header:true, sep:',')
     .map { row -> [ row.sample_id, [ file(row.fastq_1, checkIfExists: true), file(row.fastq_2, checkIfExists: true) ] ] }
     .set { fq_ch }
     //.println()
 
+//CREATE INPUT CHANNEL MAPPING chIP SAMPLE ID AND control SAMPLE ID
 ch_design_controls_csv
     .splitCsv(header:true, sep:',')
     .map { row -> [ row.sample_id, row.control_id, row.antibody, row.replicatesExist.toBoolean(),row.multipleGroups.toBoolean() ] }
@@ -239,9 +255,13 @@ ch_design_controls_csv
     //.println()
 
 // MAKE CONFIGURATION FILE FOR FASTQSCREEN
+// This process generates a configuration file for fastqscreen which will contain the list of genomes to be screened during general QC.
+// The list of genomes is defined in the parameter --genome2screen
+// The output is a text file named conf.fqscreen
 process makeScreenConfigFile {
     tag "${outNameStem}" 
     label 'process_basic'
+    errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
     output:
         file "checkfile.ok" into fqscreen_conf_ok
     script:
@@ -262,50 +282,64 @@ process makeScreenConfigFile {
                 mkdir -p "${params.outdir}/fastqscreen"
                 mv "${params.outdir}/conf.fqscreen" "${params.outdir}/fastqscreen/"
 	else
-		exit 1, "The configuration file for fastqscreen could not be generated. Please check your genome2screen parameter."
+                echo "The configuration file for fastqscreen could not be generated. Please check your genome2screen parameter."
+		exit 1
 	fi
 	"""
 }
 
 // TRIMMING : USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES
+// This process runs trimmomatic (default) or Trim Galore (if option --with_trimagalore is set) for adapter & quality trimming.
+// Several parameters can be set for the trimming, see help section.
+// For trimmomatic an adapter file need to be set, and for trim galore the choice is yours.
+// Finally hard trimming is done using fastx-trimmer on trimmed fastq files and QC is done with fastqc.
 process trimming {
     tag "${sampleId}" 
     label 'process_low'
-    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', overwrite: false, pattern: "*_report.txt"
-    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', overwrite: false, pattern: "*.html"
-    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', overwrite: false, pattern: "*.zip"
-    publishDir "${params.outdir}/trim_fastq", mode: 'copy', overwrite: false, pattern: "*.fastq.gz"
+    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', pattern: "*_report.txt"
+    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', pattern: "*.html"
+    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', pattern: "*.zip"
+    publishDir "${params.outdir}/trim_fastq", mode: 'copy', pattern: "*trim_crop_R1.fastq.gz"
+    publishDir "${params.outdir}/trim_fastq", mode: 'copy', pattern: "*trim_crop_R2.fastq.gz"
     input:
         set val(sampleId), file(reads) from fq_ch
     output:
         set val("${sampleId}"), file(reads) into fqc_ch
-        set val("${sampleId}"), file('*R1.fastq.gz'), file('*R2.fastq.gz') into trim_ch
-        file('*') into trim_fastc_report
+        set val("${sampleId}"), file('*crop_R1.fastq.gz'), file('*crop_R2.fastq.gz') into trim_ch
+        file('*') into trim_fastqc_report
         val 'ok_multiqc' into trimming_ok
     script:
     	if (params.with_trimgalore && params.trimgalore_adapters)
 	"""
-	trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} --cores ${task.cpus} --adapter "file:${params.trimgalore_adapters}" --gzip --paired --basename ${sampleId} ${reads}
+	trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} \
+                --cores ${task.cpus} --adapter "file:${params.trimgalore_adapters}" --gzip --paired --basename ${sampleId} ${reads}
         mv ${sampleId}_val_1.fq.gz ${sampleId}_trim_R1.fastq.gz
         mv ${sampleId}_val_2.fq.gz ${sampleId}_trim_R2.fastq.gz
-        fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz
+        zcat ${sampleId}_trim_R1.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR1} -o ${sampleId}_trim_crop_R1.fastq.gz
+        zcat ${sampleId}_trim_R2.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR2} -o ${sampleId}_trim_crop_R2.fastq.gz
+        fastqc -t ${task.cpus} ${sampleId}_trim_crop_R1.fastq.gz ${sampleId}_trim_crop_R2.fastq.gz
         """
         else if (params.with_trimgalore && !params.trimgalore_adapters)
         """
-        trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} --cores ${task.cpus} --gzip --paired --basename ${sampleId} ${reads}
+        trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} \
+                --cores ${task.cpus} --gzip --paired --basename ${sampleId} ${reads}
 	mv ${sampleId}_val_1.fq.gz ${sampleId}_trim_R1.fastq.gz
 	mv ${sampleId}_val_2.fq.gz ${sampleId}_trim_R2.fastq.gz
-	fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz
+        zcat ${sampleId}_trim_R1.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR1} -o ${sampleId}_trim_crop_R1.fastq.gz
+        zcat ${sampleId}_trim_R2.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR2} -o ${sampleId}_trim_crop_R2.fastq.gz
+        fastqc -t ${task.cpus} ${sampleId}_trim_crop_R1.fastq.gz ${sampleId}_trim_crop_R2.fastq.gz
 	"""
 	else
 	"""
     	trimmomatic PE -threads ${task.cpus} ${reads} \
                 ${sampleId}_trim_R1.fastq.gz R1_unpaired.fastq.gz \
                 ${sampleId}_trim_R2.fastq.gz R2_unpaired.fastq.gz \
-                ILLUMINACLIP:${params.trimmomatic_adapters}:${params.trim_illuminaclip} SLIDINGWINDOW:${params.trim_slidingwin} MINLEN:${params.trim_minlen} CROP:${params.trim_crop} \
-                >& ${sampleId}_trim_${outNameStem}_trimmomatic_report.txt 2>&1
-    	fastqc -t ${task.cpus} ${sampleId}_trim_R1.fastq.gz ${sampleId}_trim_R2.fastq.gz 
-    	"""
+                ILLUMINACLIP:${params.trimmomatic_adapters}:${params.trim_illuminaclip} SLIDINGWINDOW:${params.trim_slidingwin} \
+                MINLEN:${params.trim_minlen} >& ${sampleId}_trim_${outNameStem}_trimmomatic_report.txt 2>&1
+        zcat ${sampleId}_trim_R1.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR1} -o ${sampleId}_trim_crop_R1.fastq.gz
+        zcat ${sampleId}_trim_R2.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR2} -o ${sampleId}_trim_crop_R2.fastq.gz
+        fastqc -t ${task.cpus} ${sampleId}_trim_crop_R1.fastq.gz ${sampleId}_trim_crop_R2.fastq.gz
+        """
 }
 
 // MAP FASTQC CHANNEL
@@ -317,10 +351,10 @@ fqc_ch
 process fastqc {
     tag "${sampleId}"
     label 'process_low'
-    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', overwrite: false, pattern: "*.html"
-    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', overwrite: false, pattern: "*.zip"
-    publishDir "${params.outdir}/fastqscreen", mode: 'copy', overwrite: false, pattern: "*.png"
-    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', overwrite: false, pattern: "*.txt"
+    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', pattern: "*.html"
+    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', pattern: "*.zip"
+    publishDir "${params.outdir}/fastqscreen", mode: 'copy', pattern: "*.png"
+    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', pattern: "*.txt"
     input:
         tuple val(sampleId), file(read1), file(read2) from fqc_tuple 
         file(ok) from fqscreen_conf_ok
@@ -342,31 +376,47 @@ process fastqc {
 process bwaAlign {
     tag "${sampleId}"
     label 'process_long'
+    errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
+    publishDir "${params.outdir}/bam",  mode: 'copy', pattern: "*.sorted.bam*"
+    publishDir "${params.outdir}/bam",  mode: 'copy', pattern: "*.flagstat"
     input:
         set val(sampleId), file(fqR1), file(fqR2) from trim_ch
     output:
         set val(sampleId), file('*.sorted.bam') into sortedbam2filterbam, sortedbam2parseITR
+        set file('*.sorted.bam'), file('*.sorted.bam.bai') into sortedAndIndexedBam
+        file('*.flagstat') into flagstat_report_bwa
         val 'ok' into bwa_ok
     script:
-  """
-    if [ ${params.trim_cropR1} != ${params.trim_cropR2} ]
-    then
-        zcat ${fqR1} | fastx_trimmer -z -f 1 -l ${params.trim_cropR1} -o ${tmpNameStem}.R1.fastq.gz
-        zcat ${fqR2} | fastx_trimmer -z -f 1 -l ${params.trim_cropR2} -o ${tmpNameStem}.R2.fastq.gz
-    else
-        mv ${fqR1} ${tmpNameStem}.R1.fastq.gz
-        mv ${fqR2} ${tmpNameStem}.R2.fastq.gz
-    fi
-    ${params.custom_bwa} aln -t ${task.cpus} ${params.genome_fasta} ${tmpNameStem}.R1.fastq.gz \
+    """
+    ${params.custom_bwa} aln -t ${task.cpus} ${params.genome_fasta} ${fqR1} \
             > ${tmpNameStem}.R1.sai
-    ${params.custom_bwa_ra} aln -t ${task.cpus} ${params.genome_fasta} ${tmpNameStem}.R2.fastq.gz \
+    ${params.custom_bwa_ra} aln -t ${task.cpus} ${params.genome_fasta} ${fqR2} \
             > ${tmpNameStem}.R2.sai
-    ${params.custom_bwa} sampe ${params.genome_fasta} ${tmpNameStem}.R1.sai ${tmpNameStem}.R2.sai ${tmpNameStem}.R1.fastq.gz \
-            ${tmpNameStem}.R2.fastq.gz >${tmpNameStem}.unsorted.sam
-    picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
-    picard SortSam I=${tmpNameStem}.unsorted.tmpbam O=${sampleId}.sorted.bam SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    ${params.custom_bwa} sampe ${params.genome_fasta} ${tmpNameStem}.R1.sai ${tmpNameStem}.R2.sai ${fqR1} \
+            ${fqR2} >${tmpNameStem}.unsorted.sam
+    picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam \
+            VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    picard SortSam I=${tmpNameStem}.unsorted.tmpbam O=${sampleId}.sorted.bam SO=coordinate \
+            VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
     samtools index ${sampleId}.sorted.bam 
     
+    ## CHECK IF BAM FILE IS EMPTY AFTER MAPPING
+    samtools flagstat ${sampleId}.sorted.bam > ${sampleId}.sorted.bam.flagstat
+    if grep -q "0 + 0 mapped" ${sampleId}.sorted.bam.flagstat
+    then
+        echo "Bam file ${sampleId}.sorted.bam is empty. Check genome parameter."
+        exit 1
+    fi
+
+    ## REMOVE MULTIMAPPERS IF OPTION --no_multimap IS TRUE
+    ## ! It's important that the final bam files are named *.sorted.bam for the next processes.
+    if [[ ${params.no_multimap} ]]
+    then
+        samtools view -h ${sampleId}.sorted.bam | grep -v -e 'XA:Z:' -e 'SA:Z:' | samtools view -b > ${sampleId}.final.bam
+        samtools index ${sampleId}.final.bam
+        rm ${sampleId}.sorted.bam ; mv ${sampleId}.final.bam ${sampleId}.sorted.bam
+        rm ${sampleId}.sorted.bam.bai ; mv ${sampleId}.final.bam.bai ${sampleId}.sorted.bam.bai
+    fi
     """
 }
 
@@ -374,7 +424,7 @@ process bwaAlign {
 process filterBam {
     tag "${sampleId}"
     label 'process_medium'
-    publishDir "${params.outdir}/filterbam",  mode: 'copy', overwrite: false, pattern: "*.txt"
+    publishDir "${params.outdir}/filterbam",  mode: 'copy', pattern: "*.txt"
     input:
         set val(sampleId), file(bam) from sortedbam2filterbam
     output:
@@ -403,8 +453,15 @@ process filterBam {
 process parseITRs {
     tag "${sampleId}"
     label 'process_medium'
-    publishDir "${params.outdir}/parseitr",  mode: 'copy', overwrite: false, pattern: "*.txt"
-    publishDir "${params.outdir}/parseitr",  mode: 'copy', overwrite: false, pattern: "*.bed"
+    errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
+    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.txt"
+    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.bed"
+    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.md.ssDNA_type1.bam*"
+    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.md.ssDNA_type2.bam*"
+    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.md.dsDNA.bam*"
+    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.md.dsDNA_strict.bam*"
+    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.md.unclassified.bam*"
+    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.flagstat"
     input:
         set val(sampleId), file(bam) from sortedbam2parseITR 
         //file(bam) from bamAligned
@@ -414,6 +471,7 @@ process parseITRs {
         set val(sampleId), file('*ssDNA_type1.bed') into T1BED
         set val(sampleId), file('*dsDNA.bed') into DSBED
         set val(sampleId), file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
+        file ('*.flagstat') into flagstat_report_parseITRs
         val 'ok' into parseitr_ok
     script:
     """
@@ -470,6 +528,14 @@ process parseITRs {
     samtools index ${bam}.md.dsDNA.bam
     samtools index ${bam}.md.dsDNA_strict.bam
     samtools index ${bam}.md.unclassified.bam
+
+    ## CHECK IF TYPE 1 BAM FILE IS EMPTY AFTER PARSING
+    samtools flagstat ${bam}.md.ssDNA_type1.bam > ${bam}.md.ssDNA_type1.bam.flagstat
+    if grep -q "0 + 0 mapped" ${bam}.md.ssDNA_type1.bam.flagstat
+    then
+        echo "Type 1 bam file ${bam}.md.ssDNA_type1.bam is empty. Check genome parameter."
+        exit 1
+    fi
     """
 }
 
@@ -478,9 +544,9 @@ process parseITRs {
 process makeDeeptoolsBigWig { 
     tag "${sampleId}"
     label 'process_basic'
-    publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false, pattern: "*.png"
-    publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false, pattern: "*.bigwig"
-    publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false, pattern: "*.tab"
+    publishDir "${params.outdir}/bigwig",  mode: 'copy', pattern: "*.png"
+    publishDir "${params.outdir}/bigwig",  mode: 'copy', pattern: "*.bigwig"
+    publishDir "${params.outdir}/bigwig",  mode: 'copy', pattern: "*.tab"
     input:
         set val(sampleId), file(bam), file(bamidx) from BAMwithIDXdt
     output:
@@ -488,7 +554,8 @@ process makeDeeptoolsBigWig {
         val 'ok' into bigwig_ok
     shell:
     """
-    bamCoverage --bam ${bam} --normalizeUsing RPKM --binSize ${params.binsize} --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.RPKM.bigwig 
+    bamCoverage --bam ${bam} --normalizeUsing RPKM --binSize ${params.binsize} \
+        --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.RPKM.bigwig 
     plotCoverage --bamfiles ${bam} --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.coveragePlot.png
     plotFingerprint --bamfiles ${bam} --labels ${bam} --numberOfProcessors ${task.cpus} \
         --minMappingQuality 30 --skipZeros --plotFile ${bam.baseName}.deeptools.fingerprints.png \
@@ -500,7 +567,7 @@ process makeDeeptoolsBigWig {
 process samStats {
     tag "${sampleId}"
     label 'process_basic'
-    publishDir "${params.outdir}/samstats",  mode: 'copy', overwrite: false, pattern: "*.tab"
+    publishDir "${params.outdir}/samstats",  mode: 'copy', pattern: "*.tab"
     input:
         set val(sampleId), file(bam), file(bamidx) from BAMwithIDXss
     output:
@@ -517,7 +584,7 @@ process samStats {
 process toFRBigWig {
     tag "${sampleId}"
     label 'process_basic'
-    publishDir "${params.outdir}/bigwig",  mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/bigwig",  mode: 'copy'
     input:
         set val(sampleId), file(bam), file(bamidx) from BAMwithIDXfr
     output:
@@ -525,7 +592,8 @@ process toFRBigWig {
 	val 'ok' into frbigwig_ok
     script:
         """
-        perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out --s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v
+        perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out \
+            --s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v
         """
 }    
 
@@ -533,7 +601,7 @@ process toFRBigWig {
 process makeSSreport {
     tag "${sampleId}"
     label 'process_basic'
-    publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/multiqc",  mode: 'copy'
     input:
         set val(sampleId), file(bam), file(ssdsBEDs) from ITRBED 
     output:
@@ -551,7 +619,7 @@ if (params.with_ssds_multiqc) {
         tag "${sampleId}"
     	label 'process_basic'
     	conda "${params.multiqc_dev_conda_env}" 
-        publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: false
+        publishDir "${params.outdir}/multiqc",  mode: 'copy'
         input:
             set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
         output:
@@ -588,7 +656,7 @@ if (params.with_control) {
     process shufBEDs_ct {
         tag "${id_ip}"
         label 'process_basic'
-        publishDir "${params.outdir}/bed_shuffle",  mode: 'copy', overwrite: false
+        publishDir "${params.outdir}/bed_shuffle",  mode: 'copy'
         input:
             tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from T1BED_shuffle_ch
         output:
@@ -612,11 +680,10 @@ if (params.with_control) {
         tag "${id_ip}"
         label 'process_basic'
         conda "${baseDir}/environment_callpeaks.yml"
-        publishDir "${params.outdir}/saturation_curve/peaks", mode: 'copy', overwrite: true, pattern: "*peaks_sc.bed"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.be*"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks_sc.bed"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.xls"
-        publishDir "${params.outdir}/model",                  mode: 'copy', overwrite: true, pattern: "*model*"
+        publishDir "${params.outdir}/saturation_curve/peaks", mode: 'copy', pattern: "*peaks_sc.bed"
+        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks.be*"
+        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks_sc.bed"
+        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks.xls"
         input:
             tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from SQ30BED_ch
             val(shuffle_percent) from satCurvePCs
@@ -625,61 +692,35 @@ if (params.with_control) {
             path("*peaks.xls") optional true into peaks_xls
             path("*peaks.bed") optional true into peaks_bed
             path("*peaks.bedgraph") optional true into peaks_bg
-            path("*model.R") optional true into model_R
-            path("*model.pdf") optional true into model_pdf
             val 'ok' into callPeaks_ok
         script:
         """
+        ## SELECT N LINES FROM IP BED FILE ACCORDING TO satCurve parameter 
         nT=`cat ${ip_bed} |wc -l`
-        #nPC=\$((\$nT*${shuffle_percent}))
-
         nPC=`perl -e 'print int('\$nT'*${shuffle_percent})'`
-
         perl ${pickNlines_script} ${ip_bed} \$nPC > \$nPC.tmp
         sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq > \$nPC.IP.bed
     
-        ## NCIS : Normalization for ChIp-Seq (just use chrom1: faster with analagous results)
-        grep -w chr1 \$nPC.IP.bed >IP.cs1.bed
-        grep -w chr1 ${ct_bed} >CT.cs1.bed
-        #Rscript ${runNCIS_script} IP.cs1.bed CT.cs1.bed ${params.NCIS_dir} NCIS.out
-        #ratio=`cut -f1 NCIS.out`
- 
         ## GET GENOME SIZE - BLACKLIST SIZE
         tot_sz=`cut -f3 ${params.fai} |tail -n1`
         bl_size=`perl -lane '\$tot+=(\$F[2]-\$F[1]); print \$tot' ${params.blacklist} |tail -n1`
         genome_size=`expr \$tot_sz - \$bl_size`
-    
+        
+        ## CALL PEAKS WITH MACS2 N TIMES ACCORDING TO params.rep parameter 
         for i in {0..${satCurveReps}}; do
             thisName=${id_ip}'.N'\$nPC'_${shuffle_percent}pc.'\$i
             perl ${pickNlines_script} ${ip_bed} \$nPC >\$nPC.tmp
     
             sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq > \$nPC.IP.bed
 
-            #macs2 callpeak  --ratio \$ratio \\ 
 	    if [ ${params.macs_pv} != -1 ]; then
-	        macs2 callpeak \\
-                    -g \$genome_size \\
-                    -t \$nPC.IP.bed \\
-                    -c ${ct_bed} \\
-                    --bw ${params.macs_bw} \\
-                    --keep-dup all \\
-                    --slocal ${params.macs_slocal} \\
-                    --name \$thisName \\
-	            --nomodel \\
-                    --extsize ${params.macs_extsize} \\
-                    --pvalue ${params.macs_pv}
+	        macs2 callpeak -g \$genome_size -t \$nPC.IP.bed -c ${ct_bed} \
+                    --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --pvalue ${params.macs_pv}
             else
-                    macs2 callpeak \\
-                    -g \$genome_size \\
-                    -t \$nPC.IP.bed \\
-                    -c ${ct_bed} \\
-                    --bw ${params.macs_bw} \\
-                    --keep-dup all \\
-                    --slocal ${params.macs_slocal} \\
-                    --name \$thisName \\
-                    --nomodel \\
-                    --extsize ${params.macs_extsize} \\
-                    --qvalue ${params.macs_qv}
+                macs2 callpeak -g \$genome_size -t \$nPC.IP.bed -c ${ct_bed} \
+                    --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize}  --qvalue ${params.macs_qv}
             fi
 
             intersectBed -a \$thisName'_peaks.narrowPeak' -b ${params.blacklist} -v >\$thisName'.peaks_sc.noBL'
@@ -688,12 +729,12 @@ if (params.with_control) {
             mv \$thisName'_peaks.xls' \$thisName'_peaks_sc.xls'
         done
   
+        ##MERGE BED FILES
         sort -k1,1 -k2n,2n -k3n,3n ${id_ip}*peaks_sc.bed |mergeBed -i - >${id_ip}.${shuffle_percent}.peaks_sc.bed
-  
+        
+        ##POSTPROCESS IF params.satcurve IS FALSE 
         if [ ${shuffle_percent} == 1.00 ]; then
             mv ${id_ip}.${shuffle_percent}.peaks_sc.bed ${id_ip}.peaks.bed
-            cat *1.00*.r >${id_ip}.model.R
-            R --vanilla <${id_ip}.model.R
             cat *1.00pc.0_peaks_sc.xls >${id_ip}.peaks.xls
             ## Calculate strength
             perl ${norm_script} --bed ${id_ip}.peaks.bed \
@@ -708,7 +749,7 @@ if (params.with_control) {
     process shufBEDs {
         tag "${id_ip}"
         label 'process_basic'
-        publishDir "${params.outdir}/bed_shuffle",  mode: 'copy', overwrite: false
+        publishDir "${params.outdir}/bed_shuffle",  mode: 'copy'
         input:
             tuple val(id_ip), path(ip_bed) from T1BED
         output:
@@ -728,11 +769,10 @@ if (params.with_control) {
         tag "${id_ip}"
         label 'process_basic'
         conda "${baseDir}/environment_callpeaks.yml"
-        publishDir "${params.outdir}/saturation_curve/peaks", mode: 'copy', overwrite: true, pattern: "*peaks_sc.bed"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.be*"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks_sc.bed"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', overwrite: true, pattern: "*peaks.xls"
-        publishDir "${params.outdir}/model",                  mode: 'copy', overwrite: true, pattern: "*model*"
+        publishDir "${params.outdir}/saturation_curve/peaks", mode: 'copy', pattern: "*peaks_sc.bed"
+        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks.be*"
+        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks_sc.bed"
+        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks.xls"
         input:
             tuple val(id_ip), path(ip_bed) from SQ30BED_ch
             val(shuffle_percent) from satCurvePCs
@@ -741,16 +781,12 @@ if (params.with_control) {
             path("*peaks.xls") optional true into peaks_xls
             path("*peaks.bed") optional true into peaks_bed
             path("*peaks.bedgraph") optional true into peaks_bg
-            path("*model.R") optional true into model_R
-            path("*model.pdf") optional true into model_pdf
             val 'ok' into callPeaks_ok
         script:
         """
+        ## SELECT N LINES FROM IP BED FILE ACCORDING TO satCurve parameter
         nT=`cat ${ip_bed} |wc -l`
-        #nPC=\$((\$nT*${shuffle_percent}))
-        #nT=`cat \$ip_bed |wc -l`
         nPC=`perl -e 'print int('\$nT'*${shuffle_percent})'`
-
         perl ${pickNlines_script} ${ip_bed} \$nPC > \$nPC.tmp
         sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq > \$nPC.IP.bed
     
@@ -759,48 +795,34 @@ if (params.with_control) {
         bl_size=`perl -lane '\$tot+=(\$F[2]-\$F[1]); print \$tot' ${params.blacklist} |tail -n1`
         genome_size=`expr \$tot_sz - \$bl_size`
     
+        ## CALL PEAKS WITH MACS2 N TIMES ACCORDING TO params.rep parameter
         for i in {0..${satCurveReps}}; do
             thisName=${id_ip}'.N'\$nPC'_${shuffle_percent}pc.'\$i
             perl ${pickNlines_script} ${ip_bed} \$nPC >\$nPC.tmp
     
             sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 \$nPC.tmp |uniq > \$nPC.IP.bed
             if [ ${params.macs_pv} != -1 ]; then
-	        macs2 callpeak \\
-                    -g \$genome_size \\
-                    -t \$nPC.IP.bed \\
-                    --bw ${params.macs_bw} \\
-                    --keep-dup all \\
-                    --slocal ${params.macs_slocal} \\
-                    --name \$thisName \\
-	            --nomodel \\
-                    --extsize ${params.macs_extsize} \\
-                    --pvalue ${params.macs_pv}
+	        macs2 callpeak -g \$genome_size -t \$nPC.IP.bed \
+                    --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --pvalue ${params.macs_pv}
             else
-                macs2 callpeak \\
-                -g \$genome_size \\
-                -t \$nPC.IP.bed \\
-                --bw ${params.macs_bw} \\
-                --keep-dup all \\
-                --slocal ${params.macs_slocal} \\
-                --name \$thisName \\
-                --nomodel \\
-                --extsize ${params.macs_extsize} \\
-                --qvalue ${params.macs_qv}
+                macs2 callpeak -g \$genome_size -t \$nPC.IP.bed \
+                    --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv}
             fi
-
 
             intersectBed -a \$thisName'_peaks.narrowPeak' -b ${params.blacklist} -v >\$thisName'.peaks_sc.noBL'
         
             cut -f1-3 \$thisName'.peaks_sc.noBL' |grep -v ^M |grep -v chrM |sort -k1,1 -k2n,2n >\$thisName'_peaks_sc.bed'
             mv \$thisName'_peaks.xls' \$thisName'_peaks_sc.xls'
         done
-  
+ 
+        ##MERGE BED FILES 
         sort -k1,1 -k2n,2n -k3n,3n ${id_ip}*peaks_sc.bed |mergeBed -i - >${id_ip}.${shuffle_percent}.peaks_sc.bed
   
+        ##POSTPROCESS IF params.satcurve IS FALSE
         if [ ${shuffle_percent} == 1.00 ]; then
             mv ${id_ip}.${shuffle_percent}.peaks_sc.bed ${id_ip}.peaks.bed
-            cat *1.00*.r >${id_ip}.model.R
-            R --vanilla <${id_ip}.model.R
             cat *1.00pc.0_peaks_sc.xls >${id_ip}.peaks.xls
             ## Calculate strength
             perl ${norm_script} --bed ${id_ip}.peaks.bed \
@@ -814,7 +836,7 @@ process makeSatCurve {
     tag "${outNameStem}"
     label 'process_basic'
     conda "${baseDir}/environment_callpeaks.yml"
-    publishDir "${params.outdir}/saturation_curve",  mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/saturation_curve",  mode: 'copy'
     input:
         file(saturation_curve_data) from allbed.collect()
     output:
@@ -827,7 +849,10 @@ process makeSatCurve {
     perl ${getPeaksBedFiles_script} -tf satCurve.tab -dir ${params.outdir}/saturation_curve/peaks
     #Option 2 : playing with fire & awk
     #echo "reads pc  hs" > satCurve.tab
-    #wc -l ${params.outdir}/saturation_curve/peaks/*N*_peaks_sc.bed | grep -v "total" | sort -k1n,1n | sed 's/ \\+\\([0-9]\\+\\) .\\+\\.N\\([0-9]\\+\\)_\\([.0-9]\\+\\)pc.\\+/\\1 \\2 \\3/' | awk '{printf "%d\\t%d\\t%d\\n", \$2, \$3*100, \$1}' >> satCurve.tab
+    #wc -l ${params.outdir}/saturation_curve/peaks/*N*_peaks_sc.bed \
+    #    | grep -v "total" | sort -k1n,1n \
+    #    | sed 's/ \\+\\([0-9]\\+\\) .\\+\\.N\\([0-9]\\+\\)_\\([.0-9]\\+\\)pc.\\+/\\1 \\2 \\3/' 
+    #    | awk '{printf "%d\\t%d\\t%d\\n", \$2, \$3*100, \$1}' >> satCurve.tab
     Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}    
     """
 }
@@ -837,7 +862,7 @@ process general_multiqc {
     tag "${outNameStem}"
     label 'process_basic'
     conda 'bioconda::multiqc=1.9'
-    publishDir "${params.outdir}/multiqc",  mode: 'copy', overwrite: true
+    publishDir "${params.outdir}/multiqc",  mode: 'copy'
     input:
         val('trimming_ok') from trimming_ok.collect()
 	val('fastqc_ok') from fastqc_ok.collect()
@@ -855,7 +880,9 @@ process general_multiqc {
 	file('*') into generalmultiqc_report
     script:
     """
-    multiqc -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC ${params.outdir}/raw_fastqc ${params.outdir}/trim_fastqc ${params.outdir}/samstats ${params.outdir}/bigwig 
+    multiqc -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC \
+        ${params.outdir}/raw_fastqc ${params.outdir}/trim_fastqc \
+        ${params.outdir}/samstats ${params.outdir}/bigwig 
     """
 }
 
