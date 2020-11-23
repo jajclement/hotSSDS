@@ -650,7 +650,8 @@ if (params.with_control) {
         .combine(DSBED)
         .filter { it[0] == it[5] && it[1] == it[7] }
         .map { it -> it[0,1,6,8].flatten() } 
-        .set { T1BED_shuffle_ch }
+        .into { T1BED_shuffle_ch ; T1BED_replicate_ch }
+        
 
     //BED SHUFFLING
     process shufBEDs_ct {
@@ -832,6 +833,62 @@ if (params.with_control) {
     }
 }
 
+if (params.with_control && params.with_idr && params.nb_replicates == 2) {
+
+    T1BED_replicate_ch
+        .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1].split('_')[0..-2].join('_'), it[2], it[3] ] }
+        .groupTuple(by: [0])
+        .groupTuple(by: [1])
+        .map { it ->  [ it[0], it[1][0], it[2], it[3] ] }
+        .map { it -> it[0,1,2,3].flatten() }
+        .set { T1BED_replicate_ch }
+
+
+    process createPseudoReplicates {
+        tag "tmp"
+        label 'process_basic'
+        publishDir "${params.outdir}/pseudoreplicates",  mode: 'copy'
+        input:
+            tuple val(id_ip), val(id_ct), file(ip_rep1), file(ip_rep2), file(ct_r1), file(ct_r2) from T1BED_replicate_ch
+        output:
+            tuple val(id_ip), val(id_ct), file(ip_rep1), file(ip_rep2), file('*ct_pool.bed') into TRUEREP
+            tuple val(id_ip), val(id_ct), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed'), file('*ct_pool.bed') into PSREP1
+            tuple val(id_ip), val(id_ct), file('*r2_pseudorep_r1.bed'), file('*r2_pseudorep_r2.bed'), file('*ct_pool.bed') into PSREP2
+            tuple val(id_ip), val(id_ct), file('*pool_r1.bed'), file('*pool_r2.bed'), file('*ct_pool.bed') into PLREP
+        script:
+        """
+        nlines_r1=$((`cat ${ip_rep1} | wc -l`/2)) 
+        nlines_r2=$((`cat ${ip_rep2} | wc -l`/2))
+        shuf ${ip_rep1} | split -d -l ${nlines_r1} ${id_ip}_r1_pseudorep_
+        shuf ${ip_rep2} | split -d -l ${nlines_r2} ${id_ip}_r2_pseudorep_
+        mv ${id_ip}_r1_pseudorep_00 ${id_ip}_r1_pseudorep_r1.bed
+        mv ${id_ip}_r1_pseudorep_01 ${id_ip}_r1_pseudorep_r2.bed
+        mv ${id_ip}_r2_pseudorep_00 ${id_ip}_r2_pseudorep_r1.bed
+        mv ${id_ip}_r2_pseudorep_01 ${id_ip}_r2_pseudorep_r2.bed
+
+        nlines_pool=$((`cat ${ip_rep1} ${ip_rep2} | wc -l`/2))
+        cat ${ip_rep1} ${ip_rep2} > ${id_ip}_pool.bed
+        shuf ${id_ip}_pool.bed | split -d -l ${nlines_pool} ${id_ip}_pool_
+        mv ${id_ip}_pool_00 ${id_ip}_pool_r1.bed
+        mv ${id_ip}_pool_01 ${id_ip}_pool_r2.bed
+
+        cat ${ct_r1} ${ct_r2} > ${id_ct}_ct_pool.bed
+        """
+    }
+}
+else if (!params.with_control && params.with_idr && params.nb_replicates == 2) {
+
+    T1BED_replicate_ch
+        .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1].split('_')[0..-2].join('_'), it[2], it[3] ] }
+        .groupTuple(by: [0])
+        .map { it ->  [ it[0], it[2], it[3] ] }
+        .map { it -> it[0,1,2,3].flatten() }
+        .set { T1BED_replicate_ch }
+
+
+
+}
+
 process makeSatCurve {
     tag "${outNameStem}"
     label 'process_basic'
@@ -885,7 +942,7 @@ process general_multiqc {
         ${params.outdir}/samstats ${params.outdir}/bigwig 
     """
 }
-
+*/
 // PRINT LOG MESSAGE ON COMPLETION        
 workflow.onComplete {
     scrdir.deleteDir()
