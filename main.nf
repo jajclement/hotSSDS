@@ -232,7 +232,7 @@ process CHECK_DESIGN {
     python ${check_design_script} $design design_reads.csv design_controls.csv
     # Check if the --with_control parameter value is consistent with csv input file
     nb_line_ctrl_file=`cat design_controls.csv | wc -l`
-    if [[ \$nb_line_ctrl_file == 1 && ${params.with_control} ]]
+    if [[ \$nb_line_ctrl_file == "1" && ${params.with_control} == "true" ]]
     then
         echo "The option --with_control is set to true but there is no control files. Check the input csv file."
         exit 1
@@ -468,8 +468,8 @@ process parseITRs {
         //file(bai) from bamIDX
     output:
         set val(sampleId), file("${bam}"), file('*bed') into ITRBED
-        set val(sampleId), file('*ssDNA_type1.bed') into T1BED
-        set val(sampleId), file('*dsDNA.bed') into DSBED
+        set val(sampleId), file('*ssDNA_type1.bed') into T1BED, T1BEDrep
+        set val(sampleId), file('*dsDNA.bed') into DSBED, DSBEDrep
         set val(sampleId), file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
         file ('*.flagstat') into flagstat_report_parseITRs
         val 'ok' into parseitr_ok
@@ -833,8 +833,8 @@ if (params.with_control) {
     }
 }
 
-if (params.with_control && params.with_idr && params.nb_replicates == 2) {
-
+if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
+    println ("coucou")
     T1BED_replicate_ch
         .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1].split('_')[0..-2].join('_'), it[2], it[3] ] }
         .groupTuple(by: [0])
@@ -844,7 +844,7 @@ if (params.with_control && params.with_idr && params.nb_replicates == 2) {
         .set { T1BED_replicate_ch }
 
 
-    process createPseudoReplicates {
+    process createPseudoReplicates_ct {
         tag "tmp"
         label 'process_basic'
         publishDir "${params.outdir}/pseudoreplicates",  mode: 'copy'
@@ -857,18 +857,18 @@ if (params.with_control && params.with_idr && params.nb_replicates == 2) {
             tuple val(id_ip), val(id_ct), file('*pool_r1.bed'), file('*pool_r2.bed'), file('*ct_pool.bed') into PLREP
         script:
         """
-        nlines_r1=$((`cat ${ip_rep1} | wc -l`/2)) 
-        nlines_r2=$((`cat ${ip_rep2} | wc -l`/2))
-        shuf ${ip_rep1} | split -d -l ${nlines_r1} ${id_ip}_r1_pseudorep_
-        shuf ${ip_rep2} | split -d -l ${nlines_r2} ${id_ip}_r2_pseudorep_
+        nlines_r1=\$((`cat ${ip_rep1} | wc -l`/2)) 
+        nlines_r2=\$((`cat ${ip_rep2} | wc -l`/2))
+        shuf ${ip_rep1} | split -d -l \$nlines_r1 - ${id_ip}_r1_pseudorep_
+        shuf ${ip_rep2} | split -d -l \$nlines_r2 - ${id_ip}_r2_pseudorep_
         mv ${id_ip}_r1_pseudorep_00 ${id_ip}_r1_pseudorep_r1.bed
         mv ${id_ip}_r1_pseudorep_01 ${id_ip}_r1_pseudorep_r2.bed
         mv ${id_ip}_r2_pseudorep_00 ${id_ip}_r2_pseudorep_r1.bed
         mv ${id_ip}_r2_pseudorep_01 ${id_ip}_r2_pseudorep_r2.bed
 
-        nlines_pool=$((`cat ${ip_rep1} ${ip_rep2} | wc -l`/2))
+        nlines_pool=\$((`cat ${ip_rep1} ${ip_rep2} | wc -l`/2))
         cat ${ip_rep1} ${ip_rep2} > ${id_ip}_pool.bed
-        shuf ${id_ip}_pool.bed | split -d -l ${nlines_pool} ${id_ip}_pool_
+        shuf ${id_ip}_pool.bed | split -d -l \$nlines_pool - ${id_ip}_pool_
         mv ${id_ip}_pool_00 ${id_ip}_pool_r1.bed
         mv ${id_ip}_pool_01 ${id_ip}_pool_r2.bed
 
@@ -876,19 +876,53 @@ if (params.with_control && params.with_idr && params.nb_replicates == 2) {
         """
     }
 }
-else if (!params.with_control && params.with_idr && params.nb_replicates == 2) {
-
-    T1BED_replicate_ch
-        .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1].split('_')[0..-2].join('_'), it[2], it[3] ] }
+else if ( !params.with_control && params.with_idr && params.nb_replicates == "2" ) {
+    T1BEDrep
+        .map { it -> [ it[0].split('_')[0..-4].join('_'), it[1] ] }
         .groupTuple(by: [0])
-        .map { it ->  [ it[0], it[2], it[3] ] }
-        .map { it -> it[0,1,2,3].flatten() }
+        .map { it -> it[0,1].flatten() }
         .set { T1BED_replicate_ch }
+        //.println()   
 
+     process createPseudoReplicates {
+        tag "${id_ip}"
+        label 'process_basic'
+        publishDir "${params.outdir}/pseudoreplicates",  mode: 'copy'
+        input:
+            tuple val(id_ip), file(ip_rep1), file(ip_rep2) from T1BED_replicate_ch
+        output:
+            tuple val("${id_ip}_truerep"), file(ip_rep1), file(ip_rep2) into TRUEREP
+            tuple val("${id_ip}_psrep1"), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed') into PSREP1
+            tuple val("${id_ip}_psrep2"), file('*r2_pseudorep_r1.bed'), file('*r2_pseudorep_r2.bed') into PSREP2
+            tuple val("${id_ip}_plrep"), file('*pool_r1.bed'), file('*pool_r2.bed') into PLREP
+        script:
+        """
+        nlines_r1=\$((`cat ${ip_rep1} | wc -l`/2)) 
+        nlines_r2=\$((`cat ${ip_rep2} | wc -l`/2))
+        shuf ${ip_rep1} | split -d -l \$nlines_r1 - ${id_ip}_r1_pseudorep_
+        shuf ${ip_rep2} | split -d -l \$nlines_r2 - ${id_ip}_r2_pseudorep_
+        mv ${id_ip}_r1_pseudorep_00 ${id_ip}_r1_pseudorep_r1.bed
+        mv ${id_ip}_r1_pseudorep_01 ${id_ip}_r1_pseudorep_r2.bed
+        mv ${id_ip}_r2_pseudorep_00 ${id_ip}_r2_pseudorep_r1.bed
+        mv ${id_ip}_r2_pseudorep_01 ${id_ip}_r2_pseudorep_r2.bed
 
+        nlines_pool=\$((`cat ${ip_rep1} ${ip_rep2} | wc -l`/2))
+        cat ${ip_rep1} ${ip_rep2} > ${id_ip}_pool.bed
+        shuf ${id_ip}_pool.bed | split -d -l \$nlines_pool - ${id_ip}_pool_
+        mv ${id_ip}_pool_00 ${id_ip}_pool_r1.bed
+        mv ${id_ip}_pool_01 ${id_ip}_pool_r2.bed
+        """
+    }
 
-}
+    TRUEREP
+        .concat( PSREP1, PSREP2, PLREP )
+        .println()
+//PSREP1.println()
+//PSREP2.println()
+//PLREP.println()
+}         
 
+/*
 process makeSatCurve {
     tag "${outNameStem}"
     label 'process_basic'
