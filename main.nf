@@ -139,6 +139,7 @@ def norm_script = "${params.src}/normalizeStrengthByAdjacentRegions.pl" //Author
 def reverse_script = "${params.src}/reverseStrandsForOriCalling.pl" // MISSING // Author Kevin Brick 
 def getPeaksBedFiles_script = "${params.src}/getPeaksBedFiles.pl" //Author Kevin Brick, script adapted by Pauline Auffret
 def runSatCurve_script = "${params.src}/runSatCurve.R" //Author Pauline Auffret
+def encode_idr_script= "${params.src}/encode-dcc_chip-seq-pipeline2_src/encode_task_idr.py" //Author Jin Lee from https://github.com/ENCODE-DCC/chip-seq-pipeline2
 
 // Check if input csv file exists
 if (params.inputcsv) { input_ch = file(params.inputcsv, checkIfExists: true) } else { exit 1, 'Samples design file not specified!' }
@@ -454,14 +455,14 @@ process parseITRs {
     tag "${sampleId}"
     label 'process_medium'
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
-    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.txt"
-    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.bed"
-    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.md.ssDNA_type1.bam*"
-    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.md.ssDNA_type2.bam*"
-    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.md.dsDNA.bam*"
-    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.md.dsDNA_strict.bam*"
-    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.md.unclassified.bam*"
-    publishDir "${params.outdir}/parseitr",  mode: 'copy', pattern: "*.flagstat"
+    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.txt"
+    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.bed"
+    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md.ssDNA_type1.bam*"
+    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md.ssDNA_type2.bam*"
+    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md.dsDNA.bam*"
+    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md.dsDNA_strict.bam*"
+    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md.unclassified.bam*"
+    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.flagstat"
     input:
         set val(sampleId), file(bam) from sortedbam2parseITR 
         //file(bam) from bamAligned
@@ -693,6 +694,7 @@ if (params.with_control) {
             path("*peaks.xls") optional true into peaks_xls
             path("*peaks.bed") optional true into peaks_bed
             path("*peaks.bedgraph") optional true into peaks_bg
+            stdout into gsize
             val 'ok' into callPeaks_ok
         script:
         """
@@ -706,6 +708,7 @@ if (params.with_control) {
         tot_sz=`cut -f3 ${params.fai} |tail -n1`
         bl_size=`perl -lane '\$tot+=(\$F[2]-\$F[1]); print \$tot' ${params.blacklist} |tail -n1`
         genome_size=`expr \$tot_sz - \$bl_size`
+        echo -n \$genome_size
         
         ## CALL PEAKS WITH MACS2 N TIMES ACCORDING TO params.rep parameter 
         for i in {0..${satCurveReps}}; do
@@ -717,11 +720,11 @@ if (params.with_control) {
 	    if [ ${params.macs_pv} != -1 ]; then
 	        macs2 callpeak -g \$genome_size -t \$nPC.IP.bed -c ${ct_bed} \
                     --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
-                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --pvalue ${params.macs_pv}
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --pvalue ${params.macs_pv} >> ${params.scratch}/macs2.log
             else
                 macs2 callpeak -g \$genome_size -t \$nPC.IP.bed -c ${ct_bed} \
                     --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
-                    --name \$thisName --nomodel --extsize ${params.macs_extsize}  --qvalue ${params.macs_qv}
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize}  --qvalue ${params.macs_qv} >> ${params.scratch}/macs2.log
             fi
 
             intersectBed -a \$thisName'_peaks.narrowPeak' -b ${params.blacklist} -v >\$thisName'.peaks_sc.noBL'
@@ -782,6 +785,7 @@ if (params.with_control) {
             path("*peaks.xls") optional true into peaks_xls
             path("*peaks.bed") optional true into peaks_bed
             path("*peaks.bedgraph") optional true into peaks_bg
+            stdout into gsize
             val 'ok' into callPeaks_ok
         script:
         """
@@ -795,6 +799,7 @@ if (params.with_control) {
         tot_sz=`cut -f3 ${params.fai} |tail -n1`
         bl_size=`perl -lane '\$tot+=(\$F[2]-\$F[1]); print \$tot' ${params.blacklist} |tail -n1`
         genome_size=`expr \$tot_sz - \$bl_size`
+        echo -n \$genome_size
     
         ## CALL PEAKS WITH MACS2 N TIMES ACCORDING TO params.rep parameter
         for i in {0..${satCurveReps}}; do
@@ -805,11 +810,11 @@ if (params.with_control) {
             if [ ${params.macs_pv} != -1 ]; then
 	        macs2 callpeak -g \$genome_size -t \$nPC.IP.bed \
                     --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
-                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --pvalue ${params.macs_pv}
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --pvalue ${params.macs_pv} >> ${params.scratch}/macs2.log
             else
                 macs2 callpeak -g \$genome_size -t \$nPC.IP.bed \
                     --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
-                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv}
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv} >> ${params.scratch}/macs2.log
             fi
 
             intersectBed -a \$thisName'_peaks.narrowPeak' -b ${params.blacklist} -v >\$thisName'.peaks_sc.noBL'
@@ -847,7 +852,7 @@ if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
     process createPseudoReplicates_ct {
         tag "tmp"
         label 'process_basic'
-        publishDir "${params.outdir}/pseudoreplicates",  mode: 'copy'
+        publishDir "${params.outdir}/pseudo_replicates",  mode: 'copy'
         input:
             tuple val(id_ip), val(id_ct), file(ip_rep1), file(ip_rep2), file(ct_r1), file(ct_r2) from T1BED_replicate_ch
         output:
@@ -887,14 +892,15 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
      process createPseudoReplicates {
         tag "${id_ip}"
         label 'process_basic'
-        publishDir "${params.outdir}/pseudoreplicates",  mode: 'copy'
+        publishDir "${params.outdir}/pseudo_replicates",  mode: 'copy'
         input:
             tuple val(id_ip), file(ip_rep1), file(ip_rep2) from T1BED_replicate_ch
         output:
-            tuple val("${id_ip}_truerep"), file(ip_rep1), file(ip_rep2) into TRUEREP
+            tuple val(id_ip), file(ip_rep1), file(ip_rep2) into TRUEREP
             tuple val("${id_ip}_psrep1"), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed') into PSREP1
             tuple val("${id_ip}_psrep2"), file('*r2_pseudorep_r1.bed'), file('*r2_pseudorep_r2.bed') into PSREP2
             tuple val("${id_ip}_plrep"), file('*pool_r1.bed'), file('*pool_r2.bed') into PLREP
+            tuple val("${id_ip}_pool"), file('*poolT.bed') into POOL 
         script:
         """
         nlines_r1=\$((`cat ${ip_rep1} | wc -l`/2)) 
@@ -907,15 +913,113 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
         mv ${id_ip}_r2_pseudorep_01 ${id_ip}_r2_pseudorep_r2.bed
 
         nlines_pool=\$((`cat ${ip_rep1} ${ip_rep2} | wc -l`/2))
-        cat ${ip_rep1} ${ip_rep2} > ${id_ip}_pool.bed
-        shuf ${id_ip}_pool.bed | split -d -l \$nlines_pool - ${id_ip}_pool_
+        cat ${ip_rep1} ${ip_rep2} > ${id_ip}_poolT.bed
+        shuf ${id_ip}_poolT.bed | split -d -l \$nlines_pool - ${id_ip}_pool_
         mv ${id_ip}_pool_00 ${id_ip}_pool_r1.bed
         mv ${id_ip}_pool_01 ${id_ip}_pool_r2.bed
         """
     }
 
-    TRUEREP
-        .concat( PSREP1, PSREP2, PLREP )
+    process callPeaksForIDR {
+        tag "${id_ip}"
+        label 'process_basic'
+        publishDir "${params.outdir}/idrpeaks",  mode: 'copy'
+        input:
+            tuple val(id_ip), file(ip_rep1), file(ip_rep2) from TRUEREP
+            tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PSREP1
+            tuple val(psrep2), file(r2_pseudorep_r1), file(r2_pseudorep_r2) from PSREP2
+            tuple val(plrep), file(pool_r1), file(pool_r2) from PLREP
+            tuple val(pool), file(poolT) from POOL
+            val(genome_size) from gsize
+        output:
+            tuple val(id_ip), file('*_R1*type1*.regionPeak'), file('*_R2*type1*.regionPeak') into PEAKTRUEREP
+            tuple val(psrep1), file('*r1_pseudorep_r1*.regionPeak'), file('*r1_pseudorep_r2*.regionPeak') into PEAKPSREP1
+            tuple val(psrep2), file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak') into PEAKPSREP2
+            tuple val(plrep), file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak') into PEAKPLREP
+            tuple val(pool), file('*poolT*.regionPeak') into PEAKPOOL
+        script:
+        """
+        echo ${genome_size}
+        for file in \$(ls *.bed) ; 
+        do
+            echo \$file
+            name=`basename -- \$file .bed`
+            macs2 callpeak -g ${genome_size} -t \$file \
+                --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
+                --name \$name --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv}
+            npeaks=`cat \$name_peaks.narrowPeak | wc -l`
+	    if [ \$npeaks -gt 100000 ]
+	    then
+		sort -k 8nr,8nr \$name_peaks.narrowPeak | head -n 100000  > \$name.regionPeak
+	    else
+		npeaks=\$(( \$npeaks - 1 ))
+		sort -k 8nr,8nr \$name_peaks.narrowPeak | head -n \$npeaks  > \$name.regionPeak
+	    fi
+			
+ 
+        done
+        """
+    }
+
+    // MAP PEAKTRUEREP CHANNEL
+    //PEAKTRUEREP
+    //    .map { it -> it[0,1].flatten() }
+    //    .set { PEAKTRUEREPSEP }
+
+
+    process IDRanalysis {
+        tag "${id_ip}"
+        label 'process_basic'
+        conda 'idr=2.0.4.2'
+        publishDir "${params.outdir}/idrresults",  mode: 'copy'
+        input:
+            tuple val(id_ip), file(ip_rep1), file(ip_rep2) from PEAKTRUEREP
+            tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PEAKPSREP1
+            tuple val(psrep2), file(r2_pseudorep_r1), file(r2_pseudorep_r2) from PEAKPSREP2
+            tuple val(plrep), file(pool_r1), file(pool_r2) from PEAKPLREP
+            tuple val(pool), file(poolT) from PEAKPOOL
+        output:
+            file('*.log') into IDRLOG
+            file('*.txt') into IDRTXT
+        script:
+        """
+            python ${encode_idr_script} --peak-type regionPeak \
+                --idr-thresh ${params.idr_threshold} \
+                --idr-rank ${params.idr_rank} \
+                --blacklist ${params.blacklist} \
+                --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
+                --prefix r1_pseudorep \
+                ${r1_pseudorep_r1} ${r1_pseudorep_r2} ${ip_rep1}
+    
+            python ${encode_idr_script} --peak-type regionPeak \
+                --idr-thresh ${params.idr_threshold} \
+                --idr-rank ${params.idr_rank} \
+                --blacklist ${params.blacklist} \
+                --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
+                --prefix r2_pseudorep \
+                ${r2_pseudorep_r1} ${r2_pseudorep_r2} ${ip_rep2}
+
+            python ${encode_idr_script} --peak-type regionPeak \
+                --idr-thresh ${params.idr_threshold} \
+                --idr-rank ${params.idr_rank} \
+                --blacklist ${params.blacklist} \
+                --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
+                --prefix truerep \
+                ${ip_rep1} ${ip_rep2} ${poolT}
+
+             python ${encode_idr_script} --peak-type regionPeak \
+                --idr-thresh ${params.idr_threshold} \
+                --idr-rank ${params.idr_rank} \
+                --blacklist ${params.blacklist} \
+                --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
+                --prefix poolrep \
+                ${pool_r1} ${pool_r2} ${poolT}
+        """
+    }
+}
+
+ /*           
+     
         .println()
 //PSREP1.println()
 //PSREP2.println()
