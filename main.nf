@@ -99,6 +99,10 @@ Peak calling parameters
 """.stripIndent()
 }
 
+//***************************************************************************//
+//           PRELIMINARY SECTION : GLOBAL VARIABLES ANS SETTINGS             //
+//***************************************************************************//
+//Show pipeline version
 params.version = false
 if (params.version){
     println("This is $workflow.manifest.name version $workflow.manifest.version")
@@ -114,25 +118,20 @@ if (params.help){
 } 
 
 // Define global variables
-// The channel initialization depends on the input data type (fastq, bam or sra IDs)
-def inputType
-if (params.sra_ids){inputType = 'sra'}
-if (params.bamdir){inputType = 'bam'}
-if (params.fqdir){inputType = 'fastq'}
-
 // Create scratch directory
 scrdir = file("${params.scratch}")
-scrdir.mkdirs()
+result = scrdir.mkdirs()
+println result ? "OK" : "Cannot create directory: $scrdir"
 
-// Custom variables
+// Custom name variables
 def outNameStem = "${params.name}.SSDS.${params.genome}"
 def tmpNameStem = "${params.name}.tmpFile.${params.genome}"
 
-// Scripts used in the pipeline
+// External scripts used in the pipeline
 def ITR_id_v2c_NextFlow2_script = "${params.src}/ITR_id_v2c_NextFlow2.pl" //Author Kevin Brick
 def ssDNA_to_bigwigs_FASTER_LOMEM_script = "${params.src}/ssDNA_to_bigwigs_FASTER_LOMEM.pl" //Author Kevin Brick
 def makeSSMultiQCReport_nextFlow_script = "${params.src}/makeSSMultiQCReport_nextFlow.pl" //Author Kevin Brick
-def check_design_script = "${params.src}/check_design.py" // From nf-core
+def check_design_script = "${params.src}/check_design.py" // Adapted from nf-core chipseq pipeline version 1.2.1
 def pickNlines_script = "${params.src}/pickNlines.pl" //Author Kevin Brick
 def satCurveHS_script = "${params.src}/satCurveHS.R" //Author Kevin Brick
 def norm_script = "${params.src}/normalizeStrengthByAdjacentRegions.pl" //Author Kevin Brick
@@ -155,71 +154,23 @@ params.genomedir = params.genome ? params.genomes[ params.genome ].genomedir ?: 
 params.genome_name = params.genome ? params.genomes[ params.genome ].genome_name ?: false : false
 params.fai = params.genome ? params.genomes[ params.genome ].fai ?: false : false
 
-// Set saturation curve thresholds for processes callPeaks and makeSatCurve
-if (params.satcurve){
-  if (params.sctype == 'expanded'){
-    satCurvePCs  = Channel.from(0.025,0.05,0.075,0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90,1.00)
-  }
-  if (params.sctype == 'standard'){
-    satCurvePCs  = Channel.from(0.20,0.40,0.60,0.80,1.00)
-  }
-  if (params.sctype == 'minimal'){
-    satCurvePCs  = Channel.from(0.10,0.50,1.00)
-  }
-  useSatCurve  = true
-  satCurveReps = params.reps-1
-  }
-else{
-    satCurvePCs  = Channel.from(1.00)
-    useSatCurve  = false
-    satCurveReps = 0
-}
 
+//***************************************************************************//
+//                                                                           //
+//                          BEGINNING PIPELINE                               //
+//                                                                           //
+// **************************************************************************//
 
-// ******************* //
-// BEGINNING PIPELINE  //
-// ******************* //
-// Get input files according to the input type : sra ; bam or fastq
-/*
-switch (inputType) {
-case 'sra':
-    Channel
-        .fromSRA(params.sra_ids, apiKey:params.ncbi_api_key)
-        .set { fq_ch }
-break
-case 'bam':
-    Channel
-        .fromPath(params.bamdir, checkIfExists:true)
-        .set { bam_ch }
-    process bam2fastq {
-	label 'process_low'
-        publishDir "${params.outdir}/preprocess", mode: 'copy', overwrite: false, pattern: "*.fastq.gz"
-        input:
-            file(bam) from bam_ch
-        output:
-            set val("${bam.baseName}"), file('*.fastq.gz') into fq_ch                                    
-        script:
-        """
-        picard FixMateInformation I=${bam} O=fixmate.bam SORT_ORDER=queryname \
-                    TMP_DIR=${params.scratch} VALIDATION_STRINGENCY=LENIENT
-        samtools sort -n fixmate.bam -o sorted.bam
-        bedtools bamtofastq -i sorted.bam -fq ${bam.baseName}_1.fastq -fq2 ${bam.baseName}_2.fastq
-        gzip ${bam.baseName}_1.fastq ; gzip ${bam.baseName}_2.fastq
-        """
-    }
-break
-case 'fastq':
-    Channel
-        .fromFilePairs(params.fqdir, checkIfExists:true)
-        .set { fq_ch }
-break
-}
-*/
-// CHECK INPUT DESIGN FILE
-// This process controls the input csv file (checks if there is the right columns, and valid file extension).
-// It outputs 2 csv files for mapping fastq files to their sample ID and to map chIP files to corresponding control files if needed.
-// This process uses the python script ${check_design_script} adapted from nf-core chipseq pipeline.
-process CHECK_DESIGN {
+//***************************************************************************//
+//                     SECTION 1 : INPUT SETTINGS                            //
+//***************************************************************************//
+
+// PROCESS 1 : check_design (CHECK INPUT DESIGN FILE)
+// What it does : checks the conformity and integrity of the input csv file
+// Input : 1 csv file with 6 columns [group,replicate,fastq_1,fastq_2,antibody,control]
+// Output : 2 csv files : 1 for mapping fastq files to their sample ID ; and 1 for mapping chIP files to corresponding control files if needed.
+// External tool : python script ${check_design_script} adapted from nf-core chipseq pipeline.
+process check_design {
     tag "${design}"
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
     publishDir "${params.outdir}/pipeline_info", mode: 'copy'
@@ -241,7 +192,8 @@ process CHECK_DESIGN {
     """
 }
     
-//CREATE INPUT CHANNEL WITH SAMPLE ID AND FASTQ FILES
+//CREATE INPUT CHANNEL WITH SAMPLE ID AND CORRESPONDING FASTQ FILES R1 AND R2
+//The resulting channel is composed of 3 elements : [sampleID,file_R1.fq(.gz),file_R2.fq(.gz)]
 ch_design_reads_csv
     .splitCsv(header:true, sep:',')
     .map { row -> [ row.sample_id, [ file(row.fastq_1, checkIfExists: true), file(row.fastq_2, checkIfExists: true) ] ] }
@@ -249,16 +201,17 @@ ch_design_reads_csv
     //.println()
 
 //CREATE INPUT CHANNEL MAPPING chIP SAMPLE ID AND control SAMPLE ID
+//The resulting channel is composed of 5 elements : [sampleID,controlID,antibody,replicate(1/0),multiple(1/0)]
 ch_design_controls_csv
     .splitCsv(header:true, sep:',')
     .map { row -> [ row.sample_id, row.control_id, row.antibody, row.replicatesExist.toBoolean(),row.multipleGroups.toBoolean() ] }
     .set { ch_design_controls_csv }
     //.println()
 
-// MAKE CONFIGURATION FILE FOR FASTQSCREEN
-// This process generates a configuration file for fastqscreen which will contain the list of genomes to be screened during general QC.
+// PROCESS 2 : makeScreenConfigFile (MAKE CONFIGURATION FILE FOR FASTQSCREEN)
+// What it does : generates a configuration file for fastqscreen which will contain the list of genomes to be screened during general QC.
 // The list of genomes is defined in the parameter --genome2screen
-// The output is a text file named conf.fqscreen
+// Output : text file named conf.fqscreen
 process makeScreenConfigFile {
     tag "${outNameStem}" 
     label 'process_basic'
@@ -266,10 +219,12 @@ process makeScreenConfigFile {
     output:
         file "checkfile.ok" into fqscreen_conf_ok
     script:
+        //Create config file and write header
         def glist=params.genome2screen
         File conf  = new File("${params.outdir}/conf.fqscreen")
         conf.write "This is a config file for FastQ Screen\n\n"
         conf << "THREADS ${task.cpus}\n\n"
+        //Output list of genomes to screen in config file
         for (item in glist) {
 	    if (params.genomes.containsKey(item)) {
             	fasta=params.genomes[ item ].genome_fasta
@@ -277,6 +232,7 @@ process makeScreenConfigFile {
             	conf << "DATABASE  ${name}    ${fasta}\n"
 	    }
         }
+        //Test if file has been created, if not, exit.
 	"""
 	if [ -f "${params.outdir}/conf.fqscreen" ]; then
     		echo "${params.outdir}/conf.fqscreen exists." > checkfile.ok
@@ -289,11 +245,17 @@ process makeScreenConfigFile {
 	"""
 }
 
-// TRIMMING : USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES
-// This process runs trimmomatic (default) or Trim Galore (if option --with_trimagalore is set) for adapter & quality trimming.
+//***************************************************************************//
+//                           SECTION 2 : TRIMMING                            //
+//***************************************************************************//
+
+// PROCESS 3 : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES)
+// What it does : runs trimmomatic (default) or Trim Galore (if option --with_trimagalore is set) for adapter & quality trimming.
 // Several parameters can be set for the trimming, see help section.
 // For trimmomatic an adapter file need to be set, and for trim galore the choice is yours.
 // Finally hard trimming is done using fastx-trimmer on trimmed fastq files and QC is done with fastqc.
+// Input : channel with couple of raw fastq files
+// Output : channel with couple of trimmed fastq files and all QC reports from fastqc
 process trimming {
     tag "${sampleId}" 
     label 'process_low'
@@ -343,12 +305,15 @@ process trimming {
         """
 }
 
-// MAP FASTQC CHANNEL
+// MAP FASTQC CHANNEL (Need to flat the raw files R1.fq(.gz) and R2.fq(.gz) for process 4)
 fqc_ch
     .map { it -> it[0,1].flatten() }
     .set { fqc_tuple }
 
-// QUALITY CONTROL : RUN FASTQC AND FASTQSCREEN
+// PROCESS 4 : fastqc (QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
+// What it does : runs fastqc and fastqscreen on raw reads
+// Input : raw reads and config file from fastqscreen created in process 2
+// Output : QC reports
 process fastqc {
     tag "${sampleId}"
     label 'process_low'
@@ -363,17 +328,28 @@ process fastqc {
 	file('*') into fastc_report
         val 'ok' into fastqc_ok
     script:
+    // Get fastq files extension (for properly rename files)
     ext=("${read1.getExtension()}")
     """
+    # Rename raw files so that they contain the sampleID in the name (will be useful for the QC names)
     if [[ ${ext} == "gz" ]] ; then ext="fastq.gz" ; fi
     mv ${read1} ${sampleId}_raw_R1.${ext}   
     mv ${read2} ${sampleId}_raw_R2.${ext}
+    # Run fastqc and fastqscreen
     fastqc -t ${task.cpus} *raw* 
     fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${params.outdir}/fastqscreen/conf.fqscreen *raw*
     """
 }
 
-// MAPPING : USE BWA aAND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA
+//***************************************************************************//
+//                      SECTION 3 : MAPPING AND PARSING                      //
+//***************************************************************************//
+
+// PROCESS 5 : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
+// What it does : aligns trimmed ssds reads to the reference genome
+// Input : trimmed reads
+// Output : sorted and indexed bam file
+// External tool : custom bwa (bwa-ra (bwa rigth align) from original pipeline by K. Brick (2012)
 process bwaAlign {
     tag "${sampleId}"
     label 'process_long'
@@ -401,7 +377,7 @@ process bwaAlign {
             VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
     samtools index ${sampleId}.sorted.bam 
     
-    ## CHECK IF BAM FILE IS EMPTY AFTER MAPPING
+    ## CHECK IF BAM FILE IS EMPTY AFTER MAPPING (if so, exit)
     samtools flagstat ${sampleId}.sorted.bam > ${sampleId}.sorted.bam.flagstat
     if grep -q "0 + 0 mapped" ${sampleId}.sorted.bam.flagstat
     then
@@ -411,7 +387,7 @@ process bwaAlign {
 
     ## REMOVE MULTIMAPPERS IF OPTION --no_multimap IS TRUE
     ## ! It's important that the final bam files are named *.sorted.bam for the next processes.
-    if [[ ${params.no_multimap} ]]
+    if [[ ${params.no_multimap} == "true" ]]
     then
         samtools view -h ${sampleId}.sorted.bam | grep -v -e 'XA:Z:' -e 'SA:Z:' | samtools view -b > ${sampleId}.final.bam
         samtools index ${sampleId}.final.bam
@@ -421,7 +397,11 @@ process bwaAlign {
     """
 }
 
-// BAM FILTERING
+// PROCESS 6 : filterBam 
+// NOT SURE WHY THIS PROCESS IS USED (from original pipeline) #todo
+// What it does : filters bam files (remove unmapped and secondary and mark duplicates
+// Input : sorted bam
+// Output : filtered sorted and indexed bam; and unmapped & supplementary bam
 process filterBam {
     tag "${sampleId}"
     label 'process_medium'
@@ -436,11 +416,14 @@ process filterBam {
         val 'ok' into filterbam_ok
     script:
     """
+    # Remove unmapped and supplementary, then mark duplicates and index
     samtools view -F 2048 -hb ${bam} > ${bam.baseName}.ok.bam
     picard MarkDuplicatesWithMateCigar I=${bam.baseName}.ok.bam O=${bam.baseName}.unparsed.bam \
         PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.MDmetrics.txt MINIMUM_DISTANCE=400 \
         CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
     samtools index ${bam.baseName}.unparsed.bam
+
+    # Get the unmapped and the supplementary, then mark duplicates and index
     samtools view -f 2048 -hb ${bam} > ${bam.baseName}.supp.bam
     picard MarkDuplicatesWithMateCigar I=${bam.baseName}.supp.bam O=${bam.baseName}.unparsed.suppAlignments.bam \
         PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.suppAlignments.MDmetrics.txt \
@@ -450,7 +433,12 @@ process filterBam {
     """
 }
 
-// PARSE ITRS
+// PROCESS 7 : parseITRs (PARSE BAM FILES TO GET THE DIFFERENT SSDS TYPES)
+// THIS PROCESS COULD USE SOME CLEANING AND OPTIMIZATION #todo
+// What it does : parse the bam file into 5 types (type1 ssds, type2 ssds, ds, ds_strict, unclassified)
+// Input : sorted bam file
+// Output : bam and bed files of the 5 types
+// External tool : perl scripts from K. Brick (original pipeline, 2012) 
 process parseITRs {
     tag "${sampleId}"
     label 'process_medium'
@@ -540,8 +528,14 @@ process parseITRs {
     """
 }
 
+//***************************************************************************//
+//                           SECTION 4 : BIGWIG                              //
+//***************************************************************************//
 
-// MAKE DEEPTOOLS BIGWIG
+// PROCESS 8 : makeDeeptoolsBigWig (GENERATES BIGWIG FILES)
+// What it does : uses deeptools to generates bigwig files for each of the 5 types of bam
+// Input : channel BAMwithIDXdt containing indexed bam files of the 5 types of bam
+// Output  bigwig files 
 process makeDeeptoolsBigWig { 
     tag "${sampleId}"
     label 'process_basic'
@@ -564,7 +558,7 @@ process makeDeeptoolsBigWig {
     """
 }
 
-// SAM STATS
+// PROCESS 9 : samStats (GENERATES SAMSTATS REPORTS)
 process samStats {
     tag "${sampleId}"
     label 'process_basic'
@@ -581,7 +575,8 @@ process samStats {
         """
 }
 
-// FWD/REV bigwig 
+// PROCESS 10 : toFRBigWig (GENERATES FWD/REV BIGWIG FILES)
+// External tool : Perl script from K. Brick (original pipeline, 2012) 
 process toFRBigWig {
     tag "${sampleId}"
     label 'process_basic'
@@ -598,7 +593,12 @@ process toFRBigWig {
         """
 }    
 
-// SSDS REPORT
+//***************************************************************************//
+//                           SECTION 5 : SSDS QC                             //
+//***************************************************************************//
+
+// PROCESS 11 : makeSSreport (GET INFO FROM QC SSDS REPORT)
+// External tool : Perl script from K. Brick (original pipeline, 2012)
 process makeSSreport {
     tag "${sampleId}"
     label 'process_basic'
@@ -615,7 +615,8 @@ process makeSSreport {
 }
 
 if (params.with_ssds_multiqc) {
-    // SSDS MULTIQC
+    // PROCESS 12 : ssds_multiqc (MAKE A MULTIQC REPORT FOR SSDS FILES)
+    // External tool : custom multiqc python library and conda environment
     process ssds_multiqc {
         tag "${sampleId}"
     	label 'process_basic'
@@ -632,8 +633,34 @@ if (params.with_ssds_multiqc) {
     }
 }
 
+//***************************************************************************//
+//                          SECTION 6 : PEAK CALLING                         //
+//***************************************************************************//
+
+// Set saturation curve thresholds callPeaks and makeSatCurve processes
+if (params.satcurve){
+  if (params.sctype == 'expanded'){
+    satCurvePCs  = Channel.from(0.025,0.05,0.075,0.10,0.20,0.30,0.40,0.50,0.60,0.70,0.80,0.90,1.00)
+  }
+  if (params.sctype == 'standard'){
+    satCurvePCs  = Channel.from(0.20,0.40,0.60,0.80,1.00)
+  }
+  if (params.sctype == 'minimal'){
+    satCurvePCs  = Channel.from(0.10,0.50,1.00)
+  }
+  useSatCurve  = true
+  satCurveReps = params.reps-1
+  }
+else{
+    satCurvePCs  = Channel.from(1.00)
+    useSatCurve  = false
+    satCurveReps = 0
+}
+
+// CASE 1 : IF INPUT CONTROL ARE PROVIDED
 if (params.with_control) {
     // CREATE CHANNEL LINKING IP TYPE 1 SSDNA BED WITH CONTROL DSDNA BED
+    // ( The control bed is the dsdna bed, is it ok ? #todo )
     T1BED
         .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1] ] }
         .groupTuple(by: [0])
@@ -654,7 +681,10 @@ if (params.with_control) {
         .into { T1BED_shuffle_ch ; T1BED_replicate_ch }
         
 
-    //BED SHUFFLING
+    // PROCESS 13 : shufBEDs (BED SHUFFLING)
+    // What it does : quality trims and shuffles type1 bed files from ITR parsing 
+    // Input : type1 bed files from ITR parsing
+    // Ouptut : shuffled and filtered type1 bed files
     process shufBEDs_ct {
         tag "${id_ip}"
         label 'process_basic'
@@ -665,19 +695,26 @@ if (params.with_control) {
             tuple val(id_ip), val(id_ct), path("*.IP.sq30.bed"), path("*.CT.sq30.bed") into SQ30BED_ch
             val 'ok' into shufbed_ok
         script:
+            // Define output files names
             def ip_Q30_bed      = ip_bed.name.replaceFirst(".bed",".IP.q30.bed")
             def ip_Q30_shuf_bed = ip_bed.name.replaceFirst(".bed",".IP.sq30.bed")
             def ct_Q30_bed        = ct_bed.name.replaceFirst(".bed",".CT.q30.bed")
             def ct_Q30_shuf_bed   = ct_bed.name.replaceFirst(".bed",".CT.sq30.bed")
             """
+            # Quality trimming
             perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) if (\$Q[0] >= 30 && \$Q[1] >= 30)' ${ip_bed} >${ip_Q30_bed}
             perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) if (\$Q[0] >= 30 && \$Q[1] >= 30)' ${ct_bed} >${ct_Q30_bed}
+            # Bed shuffling
             shuf ${ip_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ip_Q30_shuf_bed}
             shuf ${ct_Q30_bed}   |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ct_Q30_shuf_bed}
             """
     }
 
-    //PEAK CALLING WITH MACS2
+    // PROCESS 14 : callPeaks (PEAK CALLING WITH MACS2)
+    // What it does : #todo
+    // Input : Shuffled type1 bed files
+    // Output : 
+    // External tool : perl script from original pipeline by K. Brick (2012)
     process callPeaks_ct {
         tag "${id_ip}"
         label 'process_basic'
@@ -747,9 +784,13 @@ if (params.with_control) {
         """
     }
 
+// CASE 2 : IF NO INPUT CONTROL IS PROVIDED
 } else {
 
-    //BED SHUFFLING
+    // PROCESS 13 : shufBEDs (BED SHUFFLING)
+    // What it does : quality trims and shuffles type1 bed files from ITR parsing 
+    // Input : type1 bed files from ITR parsing
+    // Ouptut : shuffled and filtered type1 bed files
     process shufBEDs {
         tag "${id_ip}"
         label 'process_basic'
@@ -760,15 +801,22 @@ if (params.with_control) {
             tuple val(id_ip), path("*.IP.sq30.bed") into SQ30BED_ch
             val 'ok' into shufbed_ok
         script:
+            // Define output files names
             def ip_Q30_bed      = ip_bed.name.replaceFirst(".bed",".IP.q30.bed")
             def ip_Q30_shuf_bed = ip_bed.name.replaceFirst(".bed",".IP.sq30.bed")
             """
+            # Quality trimming
             perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) if (\$Q[0] >= 30 && \$Q[1] >= 30)' ${ip_bed} >${ip_Q30_bed}
+            # Bed shuffling
             shuf ${ip_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ip_Q30_shuf_bed}
             """
     }
 
-    //PEAK CALLING WITH MACS2
+    // PROCESS 14 : callPeaks (PEAK CALLING WITH MACS2)
+    // What it does : #todo
+    // Input : Shuffled type1 bed files
+    // Output : 
+    // External tool : perl script from original pipeline by K. Brick (2012)
     process callPeaks {
         tag "${id_ip}"
         label 'process_basic'
@@ -838,30 +886,66 @@ if (params.with_control) {
     }
 }
 
+//***************************************************************************//
+//                     SECTION 7 : OPTIONAL IDR ANALYSIS                     //
+//***************************************************************************//
+// THIS ONLY WORKS WITH 2 REPLICATES IN THIS VERSION. #todo
+
+// CASE 1 : IF INPUT CONTROL ARE PROVIDED
 if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
-    println ("coucou")
-    T1BED_replicate_ch
+ 
+    // This process aimed to renamed control input files with a random id tag,
+    // because if the same input is used for 2 replicates and they have the same name
+    // it will raise an exception in the following processes   
+    process renameInputBed {
+        tag "${id_ip}"
+        label 'process_basic'
+        input:
+            tuple val(id_ip), val(id_ct), file(ip_bed), file(ct_bed) from T1BED_replicate_ch
+        output:
+            tuple val(id_ip), val(id_ct), file(ip_bed), file('*renamed*') into T1BED_replicate_ch_renamed
+        script:
+        """
+        random_id=`shuf -zer -n20  {A..Z} {a..z} {0..9}`
+        cat ${ct_bed} > ${ct_bed}_\${random_id}_renamed.bed 
+        """
+        }
+
+    // CREATE CHANNEL TO MAP SAMPLE ID & CONTROL ID WITH ASSOCIATED REPLICATES (BED FILES
+    // The resulting channel is composed of 6 elements : sampleID, controlID, T1BED_R1, T1BED_R2, DSBED_R1, DSBED_R2
+    T1BED_replicate_ch_renamed
         .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1].split('_')[0..-2].join('_'), it[2], it[3] ] }
         .groupTuple(by: [0])
         .groupTuple(by: [1])
         .map { it ->  [ it[0], it[1][0], it[2], it[3] ] }
         .map { it -> it[0,1,2,3].flatten() }
-        .set { T1BED_replicate_ch }
+        .set { T1BED_replicate_ch_renamed }
+        //.println()
+    
 
-
+    // PROCESS 15 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
+    // What it does : creates 2 pseudo replicates per true replicates, then pool the true replicates, and creates 2 pseudo replicates from this pool.
+    // Input : bed files from type1 aligned SSDNA, chip and control
+    // Output : The 2 true replicates ; the pool of the 2 true replicates ; the 4 pseudo replicates from true replicates; 
+    // the 2 pseudo replicates from the pool of true replicates, and 1 control file (merge of control files if they are different)
+    // So 10 files in total.
     process createPseudoReplicates_ct {
-        tag "tmp"
-        label 'process_basic'
-        publishDir "${params.outdir}/pseudo_replicates",  mode: 'copy'
+        tag "${id_ip}"
+        label 'process_medium'
+        publishDir "${params.outdir}/pseudo_replicates",  mode: 'copy', pattern: '*.bed'
         input:
-            tuple val(id_ip), val(id_ct), file(ip_rep1), file(ip_rep2), file(ct_r1), file(ct_r2) from T1BED_replicate_ch
+            tuple val(id_ip), val(id_ct), file(ip_rep1), file(ip_rep2), file(ct_r1), file(ct_r2) from T1BED_replicate_ch_renamed
         output:
-            tuple val(id_ip), val(id_ct), file(ip_rep1), file(ip_rep2), file('*ct_pool.bed') into TRUEREP
-            tuple val(id_ip), val(id_ct), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed'), file('*ct_pool.bed') into PSREP1
-            tuple val(id_ip), val(id_ct), file('*r2_pseudorep_r1.bed'), file('*r2_pseudorep_r2.bed'), file('*ct_pool.bed') into PSREP2
-            tuple val(id_ip), val(id_ct), file('*pool_r1.bed'), file('*pool_r2.bed'), file('*ct_pool.bed') into PLREP
+            tuple val(id_ip), file(ip_rep1), file(ip_rep2) into TRUEREP
+            tuple val("${id_ip}_psrep1"), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed') into PSREP1
+            tuple val("${id_ip}_psrep2"), file('*r2_pseudorep_r1.bed'), file('*r2_pseudorep_r2.bed') into PSREP2
+            tuple val("${id_ip}_plrep"), file('*pool_r1.bed'), file('*pool_r2.bed') into PLREP
+            tuple val("${id_ip}_pool"), file('*poolT.bed') into POOL
+            tuple val("${id_ct}_ct"), file('*ct_pool.bed') into CTPOOL
+            val 'ok' into createPseudoReplicates_ok
         script:
         """
+        # Shuffle then split the 2 original replicates in 2 pseudo replicates
         nlines_r1=\$((`cat ${ip_rep1} | wc -l`/2)) 
         nlines_r2=\$((`cat ${ip_rep2} | wc -l`/2))
         shuf ${ip_rep1} | split -d -l \$nlines_r1 - ${id_ip}_r1_pseudorep_
@@ -871,17 +955,85 @@ if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
         mv ${id_ip}_r2_pseudorep_00 ${id_ip}_r2_pseudorep_r1.bed
         mv ${id_ip}_r2_pseudorep_01 ${id_ip}_r2_pseudorep_r2.bed
 
+        # Pool the 2 original replicates then shuffle then split in 2 pseudo replicates
         nlines_pool=\$((`cat ${ip_rep1} ${ip_rep2} | wc -l`/2))
-        cat ${ip_rep1} ${ip_rep2} > ${id_ip}_pool.bed
-        shuf ${id_ip}_pool.bed | split -d -l \$nlines_pool - ${id_ip}_pool_
+        cat ${ip_rep1} ${ip_rep2} > ${id_ip}_poolT.bed
+        shuf ${id_ip}_poolT.bed | split -d -l \$nlines_pool - ${id_ip}_pool_
         mv ${id_ip}_pool_00 ${id_ip}_pool_r1.bed
         mv ${id_ip}_pool_01 ${id_ip}_pool_r2.bed
 
-        cat ${ct_r1} ${ct_r2} > ${id_ct}_ct_pool.bed
+        # Test if input files are the same ; if not, merge them to build a new control file for IDR
+        if cmp -s ${ct_r1} ${ct_r2} 
+        then 
+            cat ${ct_r1} > ${id_ct}_ct_pool.bed
+        else
+            # not sure if the merging process is good #todo
+            cat ${ct_r1} ${ct_r2} | sort -n | unique > ${id_ct}_ct_pool.bed
+        fi
+        """
+    }
+
+    
+    // PROCESS 16 : callPeaksForIDR (CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
+    // What it does : uses macs2 callPeak to perform peak-calling on all replicates (2), pseudo replicates (4), pool (1), pool pseudo replicates (2)
+    // Input : all 10 bed files from true replicates and pseudo replicates creation; and genome size from process 14 
+    // Output : 9 regionPeak files from peak calling
+    process callPeaksForIDR_ct {
+        tag "${id_ip}"
+        label 'process_medium'
+        publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*narrowPeak*'
+        publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*regionPeak*'
+        input:
+            tuple val(id_ip), file(ip_rep1), file(ip_rep2) from TRUEREP
+            tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PSREP1
+            tuple val(psrep2), file(r2_pseudorep_r1), file(r2_pseudorep_r2) from PSREP2
+            tuple val(plrep), file(pool_r1), file(pool_r2) from PLREP
+            tuple val(pool), file(poolT) from POOL
+            tuple val(ct), file(ctpool) from CTPOOL
+            val(genome_size) from gsize
+        output:
+            tuple val(id_ip), file('*_R1*type1*.regionPeak'), file('*_R2*type1*.regionPeak') into PEAKTRUEREP
+            tuple val(psrep1), file('*r1_pseudorep_r1*.regionPeak'), file('*r1_pseudorep_r2*.regionPeak') into PEAKPSREP1
+            tuple val(psrep2), file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak') into PEAKPSREP2
+            tuple val(plrep), file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak') into PEAKPLREP
+            tuple val(pool), file('*poolT*.regionPeak') into PEAKPOOL
+            val 'ok' into callPeaksForIDR_ok
+        script:
+        """
+        # Get control file basename
+        ctname=`basename -- ${ctpool} .bed`
+        # Runs macs2 callpeak on all input bed files
+        for file in \$(ls *.bed) ; 
+        do
+            # Get basename of curent bed file
+            name=`basename -- \$file .bed`
+            # Check if the current file is not the control input file to not call peaks on control file
+            if [ \$ctname != \$name ]
+            then
+                # Check macs2 parameters here (qvalue/pvalue etc) #todo
+                macs2 callpeak -g ${genome_size} -t \$file -c ${ctpool} \
+                    --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
+                    --name \$name --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv}
+
+                # Cut resulting bed files to 10000 lines max (keep that ? #todo)
+                npeaks=`cat \${name}_peaks.narrowPeak | wc -l`
+	        if [ \$npeaks -gt 100000 ]
+	        then
+		    sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n 100000  > \${name}.regionPeak
+	        else
+		    npeaks=\$(( \$npeaks - 1 ))
+		    sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n \$npeaks  > \${name}.regionPeak
+	        fi
+            fi
+        done
         """
     }
 }
+
+// CASE 2 : IF NO INPUT CONTROL IS PROVIDED
 else if ( !params.with_control && params.with_idr && params.nb_replicates == "2" ) {
+
+    // CREATE CHANNEL TO MAP SAMPLE ID WITH ASSOCIATED REPLICATES (BED FILES)
     T1BEDrep
         .map { it -> [ it[0].split('_')[0..-4].join('_'), it[1] ] }
         .groupTuple(by: [0])
@@ -889,7 +1041,13 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
         .set { T1BED_replicate_ch }
         //.println()   
 
-     process createPseudoReplicates {
+    // PROCESS 15 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
+    // What it does : creates 2 pseudo replicates per true replicates, then pool the true replicates, and creates 2 pseudo replicates from this pool.
+    // Input : bed files from type1 aligned SSDNA, chip and control
+    // Output : The 2 true replicates ; the pool of the 2 true replicates ; the 4 pseudo replicates from true replicates; 
+    // the 2 pseudo replicates from the pool of true replicates.
+    // So 9 files in total.
+    process createPseudoReplicates {
         tag "${id_ip}"
         label 'process_basic'
         publishDir "${params.outdir}/pseudo_replicates",  mode: 'copy'
@@ -900,9 +1058,11 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
             tuple val("${id_ip}_psrep1"), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed') into PSREP1
             tuple val("${id_ip}_psrep2"), file('*r2_pseudorep_r1.bed'), file('*r2_pseudorep_r2.bed') into PSREP2
             tuple val("${id_ip}_plrep"), file('*pool_r1.bed'), file('*pool_r2.bed') into PLREP
-            tuple val("${id_ip}_pool"), file('*poolT.bed') into POOL 
+            tuple val("${id_ip}_pool"), file('*poolT.bed') into POOL
+            val 'ok' into createPseudoReplicates_ok 
         script:
         """
+        # Shuffle then split the 2 original replicates in 2 pseudo replicates
         nlines_r1=\$((`cat ${ip_rep1} | wc -l`/2)) 
         nlines_r2=\$((`cat ${ip_rep2} | wc -l`/2))
         shuf ${ip_rep1} | split -d -l \$nlines_r1 - ${id_ip}_r1_pseudorep_
@@ -912,6 +1072,7 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
         mv ${id_ip}_r2_pseudorep_00 ${id_ip}_r2_pseudorep_r1.bed
         mv ${id_ip}_r2_pseudorep_01 ${id_ip}_r2_pseudorep_r2.bed
 
+        # Pool the 2 original replicates then shuffle then split in 2 pseudo replicates
         nlines_pool=\$((`cat ${ip_rep1} ${ip_rep2} | wc -l`/2))
         cat ${ip_rep1} ${ip_rep2} > ${id_ip}_poolT.bed
         shuf ${id_ip}_poolT.bed | split -d -l \$nlines_pool - ${id_ip}_pool_
@@ -920,10 +1081,15 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
         """
     }
 
+    // PROCESS 16 : callPeaksForIDR (CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
+    // What it does : uses macs2 callPeak to perform peak-calling on all replicates (2), pseudo replicates (4), pool (1), pool pseudo replicates (2)
+    // Input : all 9 bed files from true replicates and pseudo replicates creation; and genome size from process 14 
+    // Output : 9 regionPeak files from peak calling
     process callPeaksForIDR {
         tag "${id_ip}"
-        label 'process_basic'
-        publishDir "${params.outdir}/idrpeaks",  mode: 'copy'
+        label 'process_medium'
+        publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*narrowPeak*'
+        publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*regionPeak*'
         input:
             tuple val(id_ip), file(ip_rep1), file(ip_rep2) from TRUEREP
             tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PSREP1
@@ -937,96 +1103,108 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
             tuple val(psrep2), file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak') into PEAKPSREP2
             tuple val(plrep), file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak') into PEAKPLREP
             tuple val(pool), file('*poolT*.regionPeak') into PEAKPOOL
+            val 'ok' into callPeaksForIDR_ok
         script:
         """
-        echo ${genome_size}
+        # Runs macs2 callpeak on all input bed files
         for file in \$(ls *.bed) ; 
         do
-            echo \$file
+            # Get basename to name the outputs files according to input file names
             name=`basename -- \$file .bed`
+            # Check macs2 parameters here (qvalue/pvalue etc) #todo
             macs2 callpeak -g ${genome_size} -t \$file \
                 --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
                 --name \$name --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv}
-            npeaks=`cat \$name_peaks.narrowPeak | wc -l`
+
+            # Cut resulting bed files to 10000 lines max (keep that ? #todo)
+            npeaks=`cat \${name}_peaks.narrowPeak | wc -l`
 	    if [ \$npeaks -gt 100000 ]
 	    then
-		sort -k 8nr,8nr \$name_peaks.narrowPeak | head -n 100000  > \$name.regionPeak
+		sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n 100000  > \${name}.regionPeak
 	    else
 		npeaks=\$(( \$npeaks - 1 ))
-		sort -k 8nr,8nr \$name_peaks.narrowPeak | head -n \$npeaks  > \$name.regionPeak
+		sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n \$npeaks  > \${name}.regionPeak
 	    fi
-			
- 
         done
-        """
-    }
-
-    // MAP PEAKTRUEREP CHANNEL
-    //PEAKTRUEREP
-    //    .map { it -> it[0,1].flatten() }
-    //    .set { PEAKTRUEREPSEP }
-
-
-    process IDRanalysis {
-        tag "${id_ip}"
-        label 'process_basic'
-        conda 'idr=2.0.4.2'
-        publishDir "${params.outdir}/idrresults",  mode: 'copy'
-        input:
-            tuple val(id_ip), file(ip_rep1), file(ip_rep2) from PEAKTRUEREP
-            tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PEAKPSREP1
-            tuple val(psrep2), file(r2_pseudorep_r1), file(r2_pseudorep_r2) from PEAKPSREP2
-            tuple val(plrep), file(pool_r1), file(pool_r2) from PEAKPLREP
-            tuple val(pool), file(poolT) from PEAKPOOL
-        output:
-            file('*.log') into IDRLOG
-            file('*.txt') into IDRTXT
-        script:
-        """
-            python ${encode_idr_script} --peak-type regionPeak \
-                --idr-thresh ${params.idr_threshold} \
-                --idr-rank ${params.idr_rank} \
-                --blacklist ${params.blacklist} \
-                --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
-                --prefix r1_pseudorep \
-                ${r1_pseudorep_r1} ${r1_pseudorep_r2} ${ip_rep1}
-    
-            python ${encode_idr_script} --peak-type regionPeak \
-                --idr-thresh ${params.idr_threshold} \
-                --idr-rank ${params.idr_rank} \
-                --blacklist ${params.blacklist} \
-                --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
-                --prefix r2_pseudorep \
-                ${r2_pseudorep_r1} ${r2_pseudorep_r2} ${ip_rep2}
-
-            python ${encode_idr_script} --peak-type regionPeak \
-                --idr-thresh ${params.idr_threshold} \
-                --idr-rank ${params.idr_rank} \
-                --blacklist ${params.blacklist} \
-                --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
-                --prefix truerep \
-                ${ip_rep1} ${ip_rep2} ${poolT}
-
-             python ${encode_idr_script} --peak-type regionPeak \
-                --idr-thresh ${params.idr_threshold} \
-                --idr-rank ${params.idr_rank} \
-                --blacklist ${params.blacklist} \
-                --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
-                --prefix poolrep \
-                ${pool_r1} ${pool_r2} ${poolT}
         """
     }
 }
 
- /*           
-     
-        .println()
-//PSREP1.println()
-//PSREP2.println()
-//PLREP.println()
-}         
+// PROCESS 17 : IDRanalysis (PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES
+// What it does : performs IDR (Irreproducible Discovery Rate) statistical analysis on 4 pairs of replicates :
+// IDR1 and IDR2 : pseudoreplicates from true replicates ; IDR3 : true replicates ; IDR4 : pseudoreplicates from pooled true replicates ;
+// Input : 9 regionpeak files from idr peak calling  
+// Ouptut : log and results files from IDR analysis
+// External tool : IDR python script from encode chip-seq pipeline
+process IDRanalysis {
+    tag "${id_ip}"
+    label 'process_medium'
+    conda 'idr=2.0.4.2'
+    publishDir "${params.outdir}/idrresults",  mode: 'copy', pattern: '*.txt'
+    publishDir "${params.outdir}/idrresults",  mode: 'copy', pattern: '*.log'
+    input:
+        tuple val(id_ip), file(ip_rep1), file(ip_rep2) from PEAKTRUEREP
+        tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PEAKPSREP1
+        tuple val(psrep2), file(r2_pseudorep_r1), file(r2_pseudorep_r2) from PEAKPSREP2
+        tuple val(plrep), file(pool_r1), file(pool_r2) from PEAKPLREP
+        tuple val(pool), file(poolT) from PEAKPOOL
+    output:
+        file('*.log') into IDRLOG
+        file('*.txt') into IDRTXT
+    when:
+        params.with_idr && params.nb_replicates
+    script:
+    """
+        #Check parameters for encode script (blacklist, pvalue ?) #todo
+        #IDR1
+        python ${encode_idr_script} --peak-type regionPeak \
+            --idr-thresh ${params.idr_threshold} \
+            --idr-rank ${params.idr_rank} \
+            --blacklist ${params.blacklist} \
+            --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
+            --prefix r1_pseudorep \
+            ${r1_pseudorep_r1} ${r1_pseudorep_r2} ${ip_rep1}
 
+        #IDR2
+        python ${encode_idr_script} --peak-type regionPeak \
+            --idr-thresh ${params.idr_threshold} \
+            --idr-rank ${params.idr_rank} \
+            --blacklist ${params.blacklist} \
+            --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
+            --prefix r2_pseudorep \
+            ${r2_pseudorep_r1} ${r2_pseudorep_r2} ${ip_rep2}
+
+        #IDR3
+        python ${encode_idr_script} --peak-type regionPeak \
+            --idr-thresh ${params.idr_threshold} \
+            --idr-rank ${params.idr_rank} \
+            --blacklist ${params.blacklist} \
+            --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
+            --prefix truerep \
+            ${ip_rep1} ${ip_rep2} ${poolT}
+
+        #IDR4
+        python ${encode_idr_script} --peak-type regionPeak \
+            --idr-thresh ${params.idr_threshold} \
+            --idr-rank ${params.idr_rank} \
+            --blacklist ${params.blacklist} \
+            --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
+            --prefix poolrep \
+            ${pool_r1} ${pool_r2} ${poolT}
+    """
+}
+
+
+
+//***************************************************************************//
+//                          SECTION 8 : SAT CURVE                            //
+//***************************************************************************//
 /*
+// PROCESS 18 : makeSatCurve (CREATE SATURATION CURVE)
+// What it does : 
+// Input :
+// Ouptut : 
+// External tool :
 process makeSatCurve {
     tag "${outNameStem}"
     label 'process_basic'
@@ -1038,6 +1216,8 @@ process makeSatCurve {
         path("*satCurve.tab", emit: table) into satcurve_table
         path("*.png", emit: png) into curve
         val 'ok' into makeSatCurve_ok
+    when:
+        params.satcurve
     script:
     """
     #Option 1 : original perl script
@@ -1051,8 +1231,42 @@ process makeSatCurve {
     Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}    
     """
 }
+*/
+//***************************************************************************//
+//                          SECTION 9 : GENERAL QC                           //
+//***************************************************************************//
+/*
+if ( !params.with_idr ) {
+    process createMissingCheckPointsIDR {
+        tag "${outNameStem}"
+        label 'process_basic'
+        output:
+            val 'ok' into createPseudoReplicates_ok
+            val 'ok' into callPeaksForIDR_ok
+            //val 'ok' into IDRanalysis_ok
+        script:
+        """
+        echo "No IDR analysis is run."
+        """
+    }
+}
+if ( !params.satcurve ) {
+    process createMissingCheckPointsSatCurve {
+        tag "${outNameStem}"
+        label 'process_basic'
+        output:
+            val 'ok' into makeSatCurve_ok
+        script:
+        """
+        echo "No saturation curve is run."
+        """
+    }
+} 
 
-// GENERAL MULTIQC
+// PROCESS 19 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
+// What it does :
+// Input :
+// Output : 
 process general_multiqc {
     tag "${outNameStem}"
     label 'process_basic'
@@ -1070,6 +1284,9 @@ process general_multiqc {
         val('ssreport_ok') from ssreport_ok.collect()
         val('shufbed_ok') from shufbed_ok.collect()
         val('callPeaks_ok') from callPeaks_ok.collect()
+        val('createPseudoReplicates_ok') from createPseudoReplicates_ok.collect()
+        val('callPeaksForIDR_ok') from callPeaksForIDR_ok.collect()
+       // val('IDRanalysis_ok') from IDRanalysis_ok.collect()
         val('makeSatCurve_ok') from makeSatCurve_ok.collect()
     output:
 	file('*') into generalmultiqc_report
@@ -1080,7 +1297,14 @@ process general_multiqc {
         ${params.outdir}/samstats ${params.outdir}/bigwig 
     """
 }
+
 */
+//***************************************************************************//
+//                                                                           //
+//                          END OF PIPELINE !!                               //
+//                                                                           //
+// **************************************************************************//
+
 // PRINT LOG MESSAGE ON COMPLETION        
 workflow.onComplete {
     scrdir.deleteDir()
