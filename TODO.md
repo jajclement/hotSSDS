@@ -1,31 +1,37 @@
 # TODO list for ssds nextflow pipeline
 ## Little tasks
 * Rename pipeline... or not ? ssds_chipseq
-* git merge branch dev when peak calling is functionnal
-* Update  -h option in main.nf
 * Check if output files in processes match publishDir files
-* Comment code in main.nf
+* **Comment code in main.nf** started 2020-12-01
+* Processing of control files -> not DSBED for peak calling but ouptut from bwa
 
 ## Medium tasks
 * Implement log.info with parameters or reorder parameters in report
-* Make a changelog file start 2020-10-29
+* **Make a changelog file** started 2020-10-29
 * Update README with examples & output description
-* Handling of concatenation of SRA files
+* Add ``when`` tag for peak calling
+* Test with nexflow latest version
+* Consistency of variables calling in ``main.nf``
 
 ## Big tasks
 * Implement a Global and pretty QC
 * Test pipeline on SRA and Julie's data
-* Add (optional) IDR analysis process
+* **Add (optional) IDR analysis process** started 2020-12-17 
 * Migration to Singularity/Docker container
 * Better handling of custom Multiqc v0.7.dev0 via conda to let nextflow deal with conda env creation
-* Implement frombam option
 * Fix the 'don't go beyond' resources function in config
 * Test running pipeline on Genotoul cluster
+* Pipeline starts from bam or another check point
 
-## One day maybe
-* Replicates handling
+## Bug to investigate
+* bwa job cancelled time limit but only 48h
+* Pipeline do not resume properly when job cancelled by SLURM
+* satcurve process : one per bam or one per pipeline ?
+
+## Features to consider
+* Downstream analyses integration
+* Handling n>2 replicates for IDR
 * SRA inputs
-* controls when not in input (dsDNA ? pooled ssDNA ?)
 
 ## Done
 * **Check if --version works in the main.nf** ok 2020-10-27
@@ -40,4 +46,11 @@
 * **No error when pipeline is launched with option "with-control" without control** ok 2020-11-04
 * **No error when empty bam** ok 2020-11-06 
 * **Add multimapper handling process** ok 2020-11-04
+* **git merge branch dev when peak calling is functionnal** ok 2020-12-09
+* **Update  -h option in main.nf** ok 2020-12-02
+* **Comment code in main.nf** ok 2020-12-04
+* *Implement frombam option* no longer considered
+* *Handling of concatenation of SRA files* no longer considered
+
+
 
