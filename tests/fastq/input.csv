@@ -1,5 +1,3 @@
 group,replicate,fastq_1,fastq_2,antibody,control
-TEST_IP,1,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_chip_one_R1.fastq,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_chip_one_R2.fastq,antiDMC1,TEST_INPUT
-TEST_IP,2,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_chip_two_R1.fastq,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_chip_two_R2.fastq,antiDMC1,TEST_INPUT
-TEST_INPUT,1,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_input_one_R1.fastq,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_input_one_R2.fastq,,
-TEST_INPUT,2,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_input_two_R1.fastq,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_input_two_R2.fastq,,
+TEST_IP,1,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_chip_one_R1.fastq,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_chip_one_R2.fastq,antiDMC1,
+TEST_IP,2,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_chip_two_R1.fastq,/home/demassyie/work/ssdsnextflowpipeline/tests/fastq/test_chip_two_R2.fastq,antiDMC1,

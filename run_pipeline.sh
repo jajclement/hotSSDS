@@ -8,8 +8,7 @@ export NUMEXPR_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 
 #Default parameters
-#ANALYSIS_NAME="SSDS_pipeline"
-ANALYSIS_NAME="sat_curve"
+ANALYSIS_NAME="SSDS_pipeline"
 PIPELINE_DIRECTORY="/home/${USER}/work/ssdsnextflowpipeline"
 OUTPUT_DIRECTORY="/home/${USER}/work/results/${ANALYSIS_NAME}.outdir"
 CONF="${PIPELINE_DIRECTORY}/conf/igh.config"
@@ -22,7 +21,7 @@ OPTIONS="-profile conda " # -with-tower"
 while getopts hp:o:c:a:i:n:y: flag
 do
 	case "${flag}" in
-		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; echo "Options : "; echo "-h display help message"; echo "-i REQUIRED Path to input csv file"; echo "-p Path to ssds nextflow pipeline  base directory (default : ${PIPELINE_DIRECTORY})"; echo "-o Path to output directory (default : ${OUTPUT_DIRECTORY})"; echo "-c Path to IGH cluster configuration file (default : ${CONF})"; echo "-a Path to conda environment for nextflow (default : ${CENV})"; echo "-n Analysis name (default : ${ANALYSIS_NAME})"; echo "-y Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; echo ""; exit 0;;
+		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; echo "Options : "; echo "-h display help message"; echo "-i REQUIRED Absolute path to input csv file"; echo "-p Path to ssds nextflow pipeline  base directory (default : ${PIPELINE_DIRECTORY})"; echo "-o Path to output directory (default : ${OUTPUT_DIRECTORY})"; echo "-c Path to IGH cluster configuration file (default : ${CONF})"; echo "-a Path to conda environment for nextflow (default : ${CENV})"; echo "-n Analysis name (default : ${ANALYSIS_NAME})"; echo "-y Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; echo ""; exit 0;;
 		p) PIPELINE_DIRECTORY=${OPTARG};if [ ! -d ${PIPELINE_DIRECTORY} ]; then echo "Directory ${PIPELINE_DIRECTORY} not found!" ; exit 0; fi;;
 		o) OUTPUT_DIRECTORY=${OPTARG};;
 		c) CONF=${OPTARG};if [ ! -f ${CONF} ]; then echo "File ${CONF} not found!" ; exit 0; fi;;
@@ -55,9 +54,9 @@ conda activate ${CENV}
 echo "Running pipeline nf-core chipseq ${PIPELINE_DIRECTORY##*/} on ${INPUT##*/} data within ${CENV##*/} conda environment. Check output directory ${OUTPUT_DIRECTORY}"
 
 #Cheat lines for dev
-OPTIONBASE="--genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --binsize 25  --with_ssds_multiqc --multiqc_dev_conda_env /work/demassyie/bin/miniconda2/envs/SSDSnextflowPipeline -resume"
+#OPTIONBASE="--genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --binsize 25  --with_ssds_multiqc --multiqc_dev_conda_env /work/demassyie/bin/miniconda2/envs/SSDSnextflowPipeline -resume"
 #OPTIONBASE="--genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --binsize 25  -resume"
-#OPTIONBASE=""
+OPTIONBASE=""
 
 sbatch -p computepart -J ${JOBNAME} --export=ALL -n 1 --mem 7G -t 5-0:0 --mem-per-cpu=1000 \
 --wrap "export MKL_NUM_THREADS=1 ; export NUMEXPR_NUM_THREADS=1 ; export OMP_NUM_THREADS=1 ; nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} --name ${ANALYSIS_NAME} --outdir ${OUTPUT_DIRECTORY} --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"

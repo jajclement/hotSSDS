@@ -99,7 +99,7 @@ The QC reports are located in the multiqc folder.
 ### Test data
 You may want to test the installation before going with your own data. 
 
-If so, just use ````--fqdir tests/fastq/*{R1,R2}.fastq"```` e.g.
+If so, you use use ````--inputcsv tests/fastq/input.csv```` e.g.
 ````
 cd /home/${USER}/work/ssdsnextflowpipeline
 conda activate nextflow-dev
