@@ -560,9 +560,6 @@ process parseITRs {
 //***************************************************************************//
 //                           SECTION 4 : BIGWIG                              //
 //***************************************************************************//
-
-/*
-
 // PROCESS 8 : makeDeeptoolsBigWig (GENERATES BIGWIG FILES)
 // What it does : uses deeptools to generates bigwig files for each of the 5 types of bam
 // Input : channel BAMwithIDXdt containing indexed bam files of the 5 types of bam
@@ -623,13 +620,11 @@ process toFRBigWig {
             --s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v
         """
 }    
-*/
 
 //***************************************************************************//
 //                           SECTION 5 : SSDS QC                             //
 //***************************************************************************//
 
-/*
 // PROCESS 11 : makeSSreport (GET INFO FROM QC SSDS REPORT)
 // External tool : Perl script from K. Brick (original pipeline, 2012)
 process makeSSreport {
@@ -667,12 +662,12 @@ if (params.with_ssds_multiqc) {
 }
 
 
-*/
 
 //***************************************************************************//
 //                          SECTION 6 : PEAK CALLING                         //
 //***************************************************************************//
 
+/*
 // Set saturation curve thresholds callPeaks and makeSatCurve processes
 if (params.satcurve){
   if (params.sctype == 'expanded'){
@@ -924,11 +919,14 @@ if (params.with_control) {
         """
     }
 }
+*/
 
 //***************************************************************************//
 //                     SECTION 7 : OPTIONAL IDR ANALYSIS                     //
 //***************************************************************************//
 // THIS ONLY WORKS WITH 2 REPLICATES IN THIS VERSION. #todo
+
+/*
 
 // CASE 1 : IF INPUT CONTROL ARE PROVIDED
 if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
@@ -1252,6 +1250,7 @@ process IDRanalysis {
 //                          SECTION 8 : SAT CURVE                            //
 //***************************************************************************//
 
+/*
 // PROCESS 18 : makeSatCurve (CREATE SATURATION CURVE)
 // What it does : 
 // Input :
@@ -1283,6 +1282,7 @@ process makeSatCurve {
     Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}    
     """
 }
+*/
 
 //***************************************************************************//
 //                          SECTION 9 : GENERAL QC                           //
@@ -1315,7 +1315,7 @@ if ( !params.satcurve ) {
         """
     }
 } 
-
+*/
 // PROCESS 19 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
 // What it does :
 // Input :
@@ -1335,12 +1335,12 @@ process general_multiqc {
 	val('samstats') from samstats_ok.collect()
 	val('frbigwig_ok') from frbigwig_ok.collect()
         val('ssreport_ok') from ssreport_ok.collect()
-        val('shufbed_ok') from shufbed_ok.collect()
-        val('callPeaks_ok') from callPeaks_ok.collect()
-        val('createPseudoReplicates_ok') from createPseudoReplicates_ok.collect()
-        val('callPeaksForIDR_ok') from callPeaksForIDR_ok.collect()
-       // val('IDRanalysis_ok') from IDRanalysis_ok.collect()
-        val('makeSatCurve_ok') from makeSatCurve_ok.collect()
+        //val('shufbed_ok') from shufbed_ok.collect()
+        //val('callPeaks_ok') from callPeaks_ok.collect()
+        //val('createPseudoReplicates_ok') from createPseudoReplicates_ok.collect()
+        //val('callPeaksForIDR_ok') from callPeaksForIDR_ok.collect()
+       //val('IDRanalysis_ok') from IDRanalysis_ok.collect()
+        //val('makeSatCurve_ok') from makeSatCurve_ok.collect()
     output:
 	file('*') into generalmultiqc_report
     script:
@@ -1351,7 +1351,7 @@ process general_multiqc {
     """
 }
 
-*/
+
 
 //***************************************************************************//
 //                                                                           //
