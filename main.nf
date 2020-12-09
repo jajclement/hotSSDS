@@ -2,8 +2,8 @@
 /*
 ========================================================================================
                         SSDS Pipeline version 2.0
-			Author : Kevin Brick (version 1.8_NF)
-                        Pauline Auffret (version 2.0)
+			Adapted from Kevin Brick (version 1.8_NF)
+                        Pauline Auffret, 2020
 ========================================================================================
  SSDS nextflow pipeline
  #### Homepage / Documentation
@@ -15,23 +15,29 @@
 ----------------------------------------------------------------------------------------
 Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align, Parse and call Peaks in ssDNA
 Pipeline overview:
-0. makeScreenConfigFile Generates configuration file for fastqscreen in accordance with params.genome2screen
-1. trimming             Runs Trimmomatic or trim_galore for quality trimming, adapters removal and hard trimming
-2. fastqc               Runs FastQC for sequencing reads quality control
-3. bwaAlign             Runs BWA and Custom BWA algorithm (bwa-ra : bwa right align) to map reads to reference genome
-4. filterBam            Uses PicardTools and Samtools for duplicates marking ; removing supplementary alignements ; bam sorting and indexing
-5. parseITRs            Uses in-house perl script and samtools to parse BAM files into type1 ss dna, type 2 ss dna, ds dna, strict ds dna, unclassfied (5 types bam files)
-6. makeDeeptoolsBigWig  Runs deeptool to make bigwig files for each 5 types bam files
-7. samStats             Runs samtools to make stats on 5 types bam files
-8. toFRBigWig           Uses in-house perl to make FWD bigwig files
-9. makeSSreport         Uses in-house perl script to parse bed files
-10. ssds_multiqc        Runs custom multiqc to edit report on SSDS alignement
-11. shufBEDS            Perfoms random shuffling in bed files
-12. callPeaks           Calls peaks in bed files
-13. makeSatCurve        Makes saturation Curve
-14. general_multiqc     Runs multiqc to edit a general stat report
+PROCESS 1  : check_design (CHECK INPUT DESIGN FILE)
+PROCESS 2  : makeScreenConfigFile (MAKE CONFIGURATION FILE FOR FASTQSCREEN)
+PROCESS 3  : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES)
+PROCESS 4  : fastqc (QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
+PROCESS 5  : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
+PROCESS 6  : filterBam (MARK DUPLICATES, REMOVE SUPPLEMENTARY ALIGNMENTS, SORT AND INDEX)
+PROCESS 7  : parseITRs (PARSE BAM FILES TO GET THE 5 DIFFERENT SSDS TYPES)
+PROCESS 8  : makeDeeptoolsBigWig (GENERATES BIGWIG FILES)
+PROCESS 9  : samStats (GENERATES SAMSTATS REPORTS)
+PROCESS 10 : toFRBigWig (GENERATES FWD/REV BIGWIG FILES)
+PROCESS 11 : makeSSreport (GET INFO FROM QC SSDS REPORT)
+PROCESS 12 : ssds_multiqc (MAKE A MULTIQC REPORT FOR SSDS FILES)
+PROCESS 13 : shufBEDs (BED SHUFFLING)
+PROCESS 14 : callPeaks (PEAK CALLING WITH MACS2)
+PROCESS 15 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
+PROCESS 16 : callPeaksForIDR (CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
+PROCESS 17 : IDRanalysis (PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES
+PROCESS 18 : makeSatCurve (CREATE SATURATION CURVE)
+PROCESS 19 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
 ----------------------------------------------------------------------------------------
 */
+
+// Construct help message (option --help)
 def helpMessage() { 
     log.info"""
 =============================================================================
@@ -39,15 +45,13 @@ def helpMessage() {
 =============================================================================
     Usage:
 
-    nextflow run main.nf -c conf/igh.config --fqdir tests/fastq/*{R1,R2}.fastq --name "runtest" --trim_cropR1 36 --trim_cropR2 40 --with_trimgalore -profile conda -resume
+    nextflow run main.nf -c conf/igh.config --inputcsv tests/fastq/input.csv  --name "runtest" --trim_cropR1 36 --trim_cropR2 40 --with_trimgalore -profile conda -resume
 
 
 =============================================================================
 
-Input data parameters:                  
-    --fqdir     		DIR     PATH TO PAIRED-END FASTQ(.GZ) DIRECTORY (e.g. /path/to/fq/*{R1,R2}.fq.gz)
-OR  --sra_ids   		STRING  SRA SAMPLE ID(s) (Comma separated list of SRA IDS, e.g ['ERR908507', 'ERR908506']
-OR  --bamdir    		DIR     PATH TO BAM DIRECTORY (e.g. /path/to/bam/*.bam)
+Input data parameters:
+    --inputcsv                  FILE    PATH TO INPUT CSV FILE (template and default : ${baseDir}/tests/fastq/input.csv)       
     --genomebase		DIR	PATH TO REFERENCE GENOMES (default : "/poolzfs/genomes")
     --genome    		STRING  REFERENCE GENOME NAME (must correspond to an existing genome in your config file, default : "mm10")
     --genomedir			DIR     PATH TO GENOME DIRECTORY (required if your reference genome is not present in your config file)
@@ -55,10 +59,9 @@ OR  --bamdir    		DIR     PATH TO BAM DIRECTORY (e.g. /path/to/bam/*.bam)
     --genome_fasta  		FILE	PATH TO FILE GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA (required if your reference genome is not present in your config file)
     --fai			FILE	PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
     --genome2screen 		STRING	GENOMES TO SCREEN FOR FASTQC SCREENING (default : ['mm10','hg19','dm3','dm6','hg38','sacCer2','sacCer3'], comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
-    --trimmomatic_adapters  	FILE	PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default ${baseDir}/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
-                                                                  
-Output and Tempory directory parameters:                            
-    --name      		STRING    RUN NAME (default : "SSDS_pipeline")      
+
+Output and temporary directory parameters:                            
+    --name      		STRING    ANALYSIS NAME (default : "SSDS_pipeline")      
     --outdir    		DIR       PATH TO OUTPUT DIRECTORY (default : name.outdir)           
     --scratch   		DIR       PATH TO TEMPORARY DIRECTORY (default : scratch)
 
@@ -66,16 +69,14 @@ Pipeline dependencies:
     --src	        	DIR	PATH TO SOURCE DIRECTORY (default : accessoryFiles/SSDS/scripts ; contains perl scripts)
     --custom_bwa        	EXE	PATH TO CUSTOM BWA EXEC (default : accessoryFiles/SSDS/bwa_0.7.12)
     --custom_bwa_ra		EXE	PATH TO CUSTOM BWA_SRA EXEC (default : accessoryFiles/SSDS/bwa_ra_0.7.12)
-    --custom_multiqc		EXE	PATH TO CUSTOM MULTIQC EXEC (default : accessoryFiles/SSDS/MultiQC_SSDS_Rev1/bin/multiqc)
     --hotspots	        	DIR	PATH TO HOTSPOTS FILES DIRECTORY (default : accessoryFiles/SSDS/hotspots)
     --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING (default : accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
-    --NCIS_dir                  DIR     PATH TO NCIS DIRECTORY (default : accessoryFiles/SSDS/NCIS)
-
+    --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : ${baseDir}/multiqc_config.yaml)
 QC parameters
     --with_ssds_multiqc		BOOL	RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
     --multiqc_dev_conda_env     DIR	PATH TO MULTIQC-DEV CONDA ENVIRONMENT (used when --with_ssds-multiqc is true ; default : multiqc_dev)
 
-Trimming parameters
+Trimming parameters:
     --with_trimgalore		BOOL	If you want to trim with trim-galore (default : false)
     --trimgalore_adapters	FILE	OPTIONAL : PATH TO ADAPTERS FILE FOR TRIMGALORE (default : none)
     --trimg_quality		INT	trim-galore : minimum quality (default 10)
@@ -86,15 +87,42 @@ Trimming parameters
     --trim_cropR2		INT	fastx : Cut the R2 read to that specified length (default 50)
     --trim_slidingwin		STRING	trimmomatic : perform a sliding window trimming, cutting once the average quality within the window falls below a threshold (default "4:15")
     --trim_illumina_clip	STRING	trimmomatic :  Cut adapter and other illumina-specific sequences from the read (default "2:20:10")
+    --trimmomatic_adapters      FILE    PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default ${baseDir}/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
+    --trimgalore_adapters       FILE    OPTIONAL : PATH TO ADAPTERS FILE FOR TRIMGALORE (default : none)
 
-Bam processing parameters
+Mapping parameters:
+    --no_multimap               BOOL    If you want to remove multimapping reads from bam (default : false)
     --bamPGline			STRING	bam header (default '@PG\\tID:ssDNAPipeline1.8_nxf_KBRICK')
 
-Peak calling parameters
+Bigwig parameter:
+    --binsize                   INT     Deeptools binsize parameter (default : 50)
+
+Peak calling parameters:
+    --with_control              BOOL    If you are running the analysis with input control files (default : false)
+    --satcurve                  BOOL    If you want to plot saturation curve (default : true)
+    --reps                      INT     Number of iterations for saturation curve (default : 3)
+    --macs_bw                   INT     Macs2 callpeak bandwidth parameter (default : 1000)
+    --macs_slocal               INT     Macs2 callpeak slocal parameter (default : 5000)
+    --macs_extsize              INT     Macs2 callpeak extsize parameter (default : 800)
+    --macs_qv                   FLOAT   Macs2 callpeak q-value parameter (default : 0.1)
+    --macs_pv                   FLOAT   Macs2 callpeak p-value parameter, if not -1, will overrule macs_qv, see macs2 doc (default : -1)
     --sctype                    STRING  Saturation curve type (either 'minimal', 'standard' or 'expanded' ; default : 'standard')
-    --reps                      INT     Number of repetitions (default : 3)
-    --macs_bw                   INT     MACS2 bandwidth paramter (default : 1000)
-    --macs_slocal               INT     MACS2 slocal parameter (default : 5000)
+
+Optional IDR analysis parameters:
+    --with_idr                  BOOL    If you want to perform IDR analysis, only possible if nb_replicates=2 (default : false)
+    --nb_replicates             INT     Number of replicates per sample (default : 2)
+    --idr_threshold             FLOAT   idr p-value threshold (default : 0.1)
+    --idr_rank                  INT     p.value or q.value (default : p.value)
+    --idr_filtering_pattern     STRING  Regex for filtering bed files (default :"chr[\\dY]+")
+
+QC parameters:
+    --with_ssds_multiqc		BOOL	RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
+    --multiqc_dev_conda_env     DIR	PATH TO MULTIQC-DEV CONDA ENVIRONMENT (used when --with_ssds-multiqc is true ; default : multiqc_dev)
+    --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : ${baseDir}/multiqc_config.yaml)
+
+Nextflow Tower parameter:
+    -with-tower                 BOOL    Enable job monitoring with Nextflow tower (https://tower.nf/)
+    --tower_token               STRING  Nextflow tower key token (see https://tower.nf/ to create your account)
 =================================================================================================
 """.stripIndent()
 }
@@ -306,6 +334,7 @@ process trimming {
 }
 
 // MAP FASTQC CHANNEL (Need to flat the raw files R1.fq(.gz) and R2.fq(.gz) for process 4)
+// The resulting channel is composed of 3 elements : sampleID, fastq1, fastq2
 fqc_ch
     .map { it -> it[0,1].flatten() }
     .set { fqc_tuple }
@@ -397,9 +426,9 @@ process bwaAlign {
     """
 }
 
-// PROCESS 6 : filterBam 
+// PROCESS 6 : filterBam (MARK DUPLICATES, REMOVE SUPPLEMENTARY ALIGNMENTS, SORT AND INDEX)
 // NOT SURE WHY THIS PROCESS IS USED (from original pipeline) #todo
-// What it does : filters bam files (remove unmapped and secondary and mark duplicates
+// What it does : filters bam files (remove unmapped and secondary and mark duplicates)
 // Input : sorted bam
 // Output : filtered sorted and indexed bam; and unmapped & supplementary bam
 process filterBam {
@@ -532,6 +561,8 @@ process parseITRs {
 //                           SECTION 4 : BIGWIG                              //
 //***************************************************************************//
 
+/*
+
 // PROCESS 8 : makeDeeptoolsBigWig (GENERATES BIGWIG FILES)
 // What it does : uses deeptools to generates bigwig files for each of the 5 types of bam
 // Input : channel BAMwithIDXdt containing indexed bam files of the 5 types of bam
@@ -592,11 +623,13 @@ process toFRBigWig {
             --s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v
         """
 }    
+*/
 
 //***************************************************************************//
 //                           SECTION 5 : SSDS QC                             //
 //***************************************************************************//
 
+/*
 // PROCESS 11 : makeSSreport (GET INFO FROM QC SSDS REPORT)
 // External tool : Perl script from K. Brick (original pipeline, 2012)
 process makeSSreport {
@@ -632,6 +665,9 @@ if (params.with_ssds_multiqc) {
         """
     }
 }
+
+
+*/
 
 //***************************************************************************//
 //                          SECTION 6 : PEAK CALLING                         //
@@ -673,6 +709,7 @@ if (params.with_control) {
         .map { it ->  [ it[0], it[1].flatten() ] }
         .set { DSBED }
 
+    // The resulting channel is composed of 4 elemnts : sampleID, controlID, chIP type1 bed file, input dsDNA bed file
     ch_design_controls_csv
         .combine(T1BED)
         .combine(DSBED)
@@ -723,6 +760,7 @@ if (params.with_control) {
         publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks.be*"
         publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks.xls"
+        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: ".macs2.log"
         input:
             tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from SQ30BED_ch
             val(shuffle_percent) from satCurvePCs
@@ -733,6 +771,7 @@ if (params.with_control) {
             path("*peaks.bedgraph") optional true into peaks_bg
             stdout into gsize
             val 'ok' into callPeaks_ok
+            path("*.macs2.log") into macs2log
         script:
         """
         ## SELECT N LINES FROM IP BED FILE ACCORDING TO satCurve parameter 
@@ -746,7 +785,6 @@ if (params.with_control) {
         bl_size=`perl -lane '\$tot+=(\$F[2]-\$F[1]); print \$tot' ${params.blacklist} |tail -n1`
         genome_size=`expr \$tot_sz - \$bl_size`
         echo -n \$genome_size
-        
         ## CALL PEAKS WITH MACS2 N TIMES ACCORDING TO params.rep parameter 
         for i in {0..${satCurveReps}}; do
             thisName=${id_ip}'.N'\$nPC'_${shuffle_percent}pc.'\$i
@@ -757,11 +795,11 @@ if (params.with_control) {
 	    if [ ${params.macs_pv} != -1 ]; then
 	        macs2 callpeak -g \$genome_size -t \$nPC.IP.bed -c ${ct_bed} \
                     --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
-                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --pvalue ${params.macs_pv} >> ${params.scratch}/macs2.log
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --pvalue ${params.macs_pv} >> IP-${id_ip}_CT-${ct_bed}.macs2.log
             else
                 macs2 callpeak -g \$genome_size -t \$nPC.IP.bed -c ${ct_bed} \
                     --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
-                    --name \$thisName --nomodel --extsize ${params.macs_extsize}  --qvalue ${params.macs_qv} >> ${params.scratch}/macs2.log
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize}  --qvalue ${params.macs_qv} >> IP-${id_ip}_CT-${ct_bed}.macs2.log
             fi
 
             intersectBed -a \$thisName'_peaks.narrowPeak' -b ${params.blacklist} -v >\$thisName'.peaks_sc.noBL'
@@ -769,7 +807,6 @@ if (params.with_control) {
             cut -f1-3 \$thisName'.peaks_sc.noBL' |grep -v ^M |grep -v chrM |sort -k1,1 -k2n,2n >\$thisName'_peaks_sc.bed'
             mv \$thisName'_peaks.xls' \$thisName'_peaks_sc.xls'
         done
-  
         ##MERGE BED FILES
         sort -k1,1 -k2n,2n -k3n,3n ${id_ip}*peaks_sc.bed |mergeBed -i - >${id_ip}.${shuffle_percent}.peaks_sc.bed
         
@@ -825,6 +862,7 @@ if (params.with_control) {
         publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks.be*"
         publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks.xls"
+        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: ".macs2.log"
         input:
             tuple val(id_ip), path(ip_bed) from SQ30BED_ch
             val(shuffle_percent) from satCurvePCs
@@ -835,6 +873,7 @@ if (params.with_control) {
             path("*peaks.bedgraph") optional true into peaks_bg
             stdout into gsize
             val 'ok' into callPeaks_ok
+            path("*.macs2.log") into macs2log
         script:
         """
         ## SELECT N LINES FROM IP BED FILE ACCORDING TO satCurve parameter
@@ -858,11 +897,11 @@ if (params.with_control) {
             if [ ${params.macs_pv} != -1 ]; then
 	        macs2 callpeak -g \$genome_size -t \$nPC.IP.bed \
                     --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
-                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --pvalue ${params.macs_pv} >> ${params.scratch}/macs2.log
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --pvalue ${params.macs_pv} >> IP-${id_ip}.macs2.log
             else
                 macs2 callpeak -g \$genome_size -t \$nPC.IP.bed \
                     --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
-                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv} >> ${params.scratch}/macs2.log
+                    --name \$thisName --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv} >> IP-${id_ip}.macs2.log
             fi
 
             intersectBed -a \$thisName'_peaks.narrowPeak' -b ${params.blacklist} -v >\$thisName'.peaks_sc.noBL'
@@ -983,6 +1022,7 @@ if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
         label 'process_medium'
         publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*narrowPeak*'
         publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*regionPeak*'
+        publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*.macs2.log'
         input:
             tuple val(id_ip), file(ip_rep1), file(ip_rep2) from TRUEREP
             tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PSREP1
@@ -992,12 +1032,14 @@ if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
             tuple val(ct), file(ctpool) from CTPOOL
             val(genome_size) from gsize
         output:
+            file('*narrowPeak*') into ALLPEAKS
             tuple val(id_ip), file('*_R1*type1*.regionPeak'), file('*_R2*type1*.regionPeak') into PEAKTRUEREP
             tuple val(psrep1), file('*r1_pseudorep_r1*.regionPeak'), file('*r1_pseudorep_r2*.regionPeak') into PEAKPSREP1
             tuple val(psrep2), file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak') into PEAKPSREP2
             tuple val(plrep), file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak') into PEAKPLREP
             tuple val(pool), file('*poolT*.regionPeak') into PEAKPOOL
             val 'ok' into callPeaksForIDR_ok
+            file('*.macs2.log') into macs2logidr
         script:
         """
         # Get control file basename
@@ -1011,12 +1053,16 @@ if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
             if [ \$ctname != \$name ]
             then
                 # Check macs2 parameters here (qvalue/pvalue etc) #todo
-                macs2 callpeak -g ${genome_size} -t \$file -c ${ctpool} \
+                echo ${genome_size}
+                random_id=`shuf -zer -n20  {A..Z} {a..z} {0..9}`
+                mkdir ${params.scratch}/\${random_id}
+                macs2 callpeak -g ${genome_size} -t \$file -c ${ctpool} --tempdir ${params.scratch}/\${random_id} \
                     --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
-                    --name \$name --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv}
+                    --name \$name --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv} >> IP-\${name}_CT-${ctpool}.macs2.log
 
                 # Cut resulting bed files to 10000 lines max (keep that ? #todo)
                 npeaks=`cat \${name}_peaks.narrowPeak | wc -l`
+                echo \$npeaks
 	        if [ \$npeaks -gt 100000 ]
 	        then
 		    sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n 100000  > \${name}.regionPeak
@@ -1026,6 +1072,7 @@ if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
 	        fi
             fi
         done
+        
         """
     }
 }
@@ -1090,6 +1137,7 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
         label 'process_medium'
         publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*narrowPeak*'
         publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*regionPeak*'
+        publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*.macs2.log'
         input:
             tuple val(id_ip), file(ip_rep1), file(ip_rep2) from TRUEREP
             tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PSREP1
@@ -1098,12 +1146,14 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
             tuple val(pool), file(poolT) from POOL
             val(genome_size) from gsize
         output:
+            file('*narrowPeak*') into ALLPEAKS
             tuple val(id_ip), file('*_R1*type1*.regionPeak'), file('*_R2*type1*.regionPeak') into PEAKTRUEREP
             tuple val(psrep1), file('*r1_pseudorep_r1*.regionPeak'), file('*r1_pseudorep_r2*.regionPeak') into PEAKPSREP1
             tuple val(psrep2), file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak') into PEAKPSREP2
             tuple val(plrep), file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak') into PEAKPLREP
             tuple val(pool), file('*poolT*.regionPeak') into PEAKPOOL
             val 'ok' into callPeaksForIDR_ok
+            file('*.macs2.log') into macs2logidr
         script:
         """
         # Runs macs2 callpeak on all input bed files
@@ -1111,10 +1161,12 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
         do
             # Get basename to name the outputs files according to input file names
             name=`basename -- \$file .bed`
+            random_id=`shuf -zer -n20  {A..Z} {a..z} {0..9}`
+            mkdir ${params.scratch}/\${random_id}
             # Check macs2 parameters here (qvalue/pvalue etc) #todo
             macs2 callpeak -g ${genome_size} -t \$file \
-                --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} \
-                --name \$name --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv}
+                --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} --tempdir ${params.scratch}/\${random_id} \
+                --name \$name --nomodel --extsize ${params.macs_extsize} --qvalue ${params.macs_qv} >> \${name}.macs2.log
 
             # Cut resulting bed files to 10000 lines max (keep that ? #todo)
             npeaks=`cat \${name}_peaks.narrowPeak | wc -l`
@@ -1129,7 +1181,7 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
         """
     }
 }
-
+/*
 // PROCESS 17 : IDRanalysis (PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES
 // What it does : performs IDR (Irreproducible Discovery Rate) statistical analysis on 4 pairs of replicates :
 // IDR1 and IDR2 : pseudoreplicates from true replicates ; IDR3 : true replicates ; IDR4 : pseudoreplicates from pooled true replicates ;
@@ -1194,12 +1246,12 @@ process IDRanalysis {
     """
 }
 
-
+*/
 
 //***************************************************************************//
 //                          SECTION 8 : SAT CURVE                            //
 //***************************************************************************//
-/*
+
 // PROCESS 18 : makeSatCurve (CREATE SATURATION CURVE)
 // What it does : 
 // Input :
@@ -1231,10 +1283,11 @@ process makeSatCurve {
     Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}    
     """
 }
-*/
+
 //***************************************************************************//
 //                          SECTION 9 : GENERAL QC                           //
 //***************************************************************************//
+
 /*
 if ( !params.with_idr ) {
     process createMissingCheckPointsIDR {
@@ -1299,6 +1352,7 @@ process general_multiqc {
 }
 
 */
+
 //***************************************************************************//
 //                                                                           //
 //                          END OF PIPELINE !!                               //
