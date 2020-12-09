@@ -69,7 +69,7 @@ You can either run the pipeline directly through the command line :
 ````
 cd /home/${USER}/work/ssdsnextflowpipeline
 conda activate nextflow-dev
-sbatch -p computepart -J SSDSnextflowPiepline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --fqdir path/to/your/data/*{R1,R2}.fastq.gz --name your_analysis_name --genome mm10 --profile conda
+sbatch -p computepart -J SSDSnextflowPipeline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --fqdir path/to/your/data/*{R1,R2}.fastq.gz --name your_analysis_name --genome mm10 --profile conda
 ````
 or use ``run_pipeline.sh`` script : in that case make sure to edit with your parameters, then
 ````
@@ -86,16 +86,11 @@ If so, just use ````--fqdir tests/fastq/*{R1,R2}.fastq"```` e.g.
 ````
 cd /home/${USER}/work/ssdsnextflowpipeline
 conda activate nextflow-dev
-sbatch -p computepart -J SSDSnextflowPiepline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --fqdir tests/fastq/*{R1,R2}.fastq --name your_analysis_name --genome mm10 -profile conda"
+sbatch -p computepart -J SSDSnextflowPipeline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --fqdir tests/fastq/*{R1,R2}.fastq --name your_analysis_name --genome mm10 -profile conda"
 ````
 or use ``run_pipeline.sh`` script (make sur to edit it with the relevant paramters before use) :
 ````
 bash run_pipeline.sh
 ````
-**Note : the default value of ``--with-ssds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with-ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
+**Note : the default value of ``--with_sds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with_ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
 
-Features currently under development
-- Better handling of custom Multiqc v0.7.dev0 via conda to let nextflow deal with conda env creation, and/or
-- Migration to Singularity/Docker container
-- Complete pipeline with peak calling and IDR analysis.
-- Update README with examples & output description
