@@ -57,7 +57,7 @@ def blacklist_filter(peak, blacklist, regex_bfilt_peak_chr_name, out_dir):
     else:
         # due to bedtools bug when .gz is given for -a and -b
         tmp1 = gunzip(peak, 'tmp1', out_dir)
-        tmp2 = gunzip(blacklist, 'tmp2', out_dir)
+        #tmp2 = gunzip(blacklist, 'tmp2', out_dir)
 
         cmd = 'bedtools intersect -nonamecheck -v -a {} -b {} | '
         cmd += 'awk \'BEGIN{{OFS="\\t"}} '
@@ -66,11 +66,12 @@ def blacklist_filter(peak, blacklist, regex_bfilt_peak_chr_name, out_dir):
         cmd += 'gzip -nc > {}'
         cmd = cmd.format(
             tmp1,  # peak
-            tmp2,  # blacklist
+            blacklist, #tmp2
             regex_bfilt_peak_chr_name, # regex
             filtered)
         run_shell_cmd(cmd)
-        rm_f([tmp1, tmp2])
+        #rm_f([tmp1, tmp2])
+        rm_f(tmp1)
     return filtered
 
 
@@ -84,15 +85,15 @@ def blacklist_filter_bam(bam, blacklist, out_dir):
         run_shell_cmd(cmd)
     else:
         # due to bedtools bug when .gz is given for -a and -b
-        tmp2 = gunzip(blacklist, 'tmp2', out_dir)
+        #tmp2 = gunzip(blacklist, 'tmp2', out_dir)
 
         cmd = 'bedtools intersect -nonamecheck -v -abam {} -b {} > {}'
         cmd = cmd.format(
             bam,
-            tmp2,  # blacklist
+            blacklist, #tmp2
             filtered)
         run_shell_cmd(cmd)
-        rm_f([tmp2])
+        #rm_f([tmp2])
     return filtered
 
 

@@ -3,7 +3,7 @@
 * Rename pipeline... or not ? ssds_chipseq
 * Check if output files in processes match publishDir files
 * **Comment code in main.nf** started 2020-12-01
-* Processing of control files -> not DSBED for peak calling but ouptut from bwa
+* Connect the filter process or not ?
 
 ## Medium tasks
 * Implement log.info with parameters or reorder parameters in report
@@ -34,6 +34,7 @@
 * SRA inputs
 
 ## Done
+* **Processing of control files -> not DSBED for peak calling but ouptut from bwa** ok 2021-01-08
 * **Check if --version works in the main.nf** ok 2020-10-27
 * **Remove build from conda environment yml files** ok 2020-10-27
 * **Edit manifest section in nextflow.config** ok 2020-10-28
