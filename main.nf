@@ -7,9 +7,11 @@
 ========================================================================================
  SSDS nextflow pipeline
  #### Homepage / Documentation
+ Adapted from version 1.8_NF (Kevin Brick)
+ Original pipelines :
  https://github.com/kevbrick/SSDSnextflowPipeline
  https://github.com/kevbrick/callSSDSpeaks
- Adapted from version 1.8_NF (Pauline Auffret, 2020)
+ Version 2.0 (Pauline Auffret) :
  https://gitlab.igh.cnrs.fr/pauline.auffret/ssdsnextflowpipeline
 ----------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------
@@ -32,8 +34,9 @@ PROCESS 14 : callPeaks (PEAK CALLING WITH MACS2)
 PROCESS 15 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
 PROCESS 16 : callPeaksForIDR (CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
 PROCESS 17 : IDRanalysis (PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES
-PROCESS 18 : makeSatCurve (CREATE SATURATION CURVE)
-PROCESS 19 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
+PROCESS 18 : IDRpostprocess (IDR PEAKS POST PROCESSING)
+PROCESS 19 : makeSatCurve (CREATE SATURATION CURVE)
+PROCESS 20 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
 ----------------------------------------------------------------------------------------
 */
 
@@ -70,7 +73,7 @@ Pipeline dependencies:
     --custom_bwa        	EXE	PATH TO CUSTOM BWA EXEC (default : accessoryFiles/SSDS/bwa_0.7.12)
     --custom_bwa_ra		EXE	PATH TO CUSTOM BWA_SRA EXEC (default : accessoryFiles/SSDS/bwa_ra_0.7.12)
     --hotspots	        	DIR	PATH TO HOTSPOTS FILES DIRECTORY (default : accessoryFiles/SSDS/hotspots)
-    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING (default : accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
+    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
     --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : ${baseDir}/multiqc_config.yaml)
 QC parameters
     --with_ssds_multiqc		BOOL	RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
@@ -109,9 +112,10 @@ Peak calling parameters:
     --macs_pv                   FLOAT   Macs2 callpeak p-value parameter, if not -1, will overrule macs_qv, see macs2 doc (default : -1)
     --sctype                    STRING  Saturation curve type (either 'minimal', 'standard' or 'expanded' ; default : 'standard')
 
-Optional IDR analysis parameters:
+Optional IDR analysis parameters (ENCODE procedure, see https://github.com/ENCODE-DCC/chip-seq-pipeline2) :
     --with_idr                  BOOL    If you want to perform IDR analysis, only possible if nb_replicates=2 (default : false)
-    --nb_replicates             INT     Number of replicates per sample (default : 2)
+    --nb_replicates             INT     Number of replicates per sample (default : 2
+    --idr_peaktype              FLOAT   The peak file format for IDR (narrowPeak, regionPeak or broadPeak, default : "regionPeak")
     --idr_threshold             FLOAT   idr p-value threshold (default : 0.1)
     --idr_rank                  INT     p.value or q.value (default : p.value)
     --idr_filtering_pattern     STRING  Regex for filtering bed files (default :"chr[1-9X]+")
@@ -214,6 +218,7 @@ process check_design {
         path 'design_controls.csv' into ch_design_controls_csv
     script:
     """
+    # Run python script to check the design file
     python ${check_design_script} $design design_reads.csv design_controls.csv
     # Check if the --with_control parameter value is consistent with csv input file
     nb_line_ctrl_file=`cat design_controls.csv | wc -l`
@@ -265,7 +270,7 @@ process makeScreenConfigFile {
             	conf << "DATABASE  ${name}    ${fasta}\n"
 	    }
         }
-        //Test if file has been created, if not, exit.
+        //Test if file has been correctly created, if not, exit pipeline.
 	"""
 	if [ -f "${params.outdir}/conf.fqscreen" ]; then
     		echo "${params.outdir}/conf.fqscreen exists." > checkfile.ok
@@ -303,7 +308,7 @@ process trimming {
         set val("${sampleId}"), file(reads) into fqc_ch
         set val("${sampleId}"), file('*crop_R1.fastq.gz'), file('*crop_R2.fastq.gz') into trim_ch
         file('*') into trim_fastqc_report
-        val 'ok_multiqc' into trimming_ok
+        val 'ok' into trimming_ok
     script:
     	if (params.with_trimgalore && params.trimgalore_adapters)
 	"""
@@ -393,25 +398,31 @@ process bwaAlign {
     input:
         set val(sampleId), file(fqR1), file(fqR2) from trim_ch
     output:
-        set val(sampleId), file('*.sorted.bam') into sortedbam2filterbam, sortedbam2parseITR
+        set val(sampleId), file('*.sorted.bam') into SORTEDBAM
         set file('*.sorted.bam'), file('*.sorted.bam.bai') into sortedAndIndexedBam
         file('*.flagstat') into flagstat_report_bwa
         val 'ok' into bwa_ok
     script:
     """
+    # Align R1 reads (fully complementary to the genome)  with bwa aln
     ${params.custom_bwa} aln -t ${task.cpus} ${params.genome_fasta} ${fqR1} \
             > ${tmpNameStem}.R1.sai
+    # Align R2 reads (potentially contain fill-in ITR part at the end of the 5')
+    # with bwa-ra aln (custom version of bwa that search for the longest mappable suffix in the query)
     ${params.custom_bwa_ra} aln -t ${task.cpus} ${params.genome_fasta} ${fqR2} \
             > ${tmpNameStem}.R2.sai
+    # Generate alignments in the SAM format given R1 and R2 alignments
     ${params.custom_bwa} sampe ${params.genome_fasta} ${tmpNameStem}.R1.sai ${tmpNameStem}.R2.sai ${fqR1} \
             ${fqR2} >${tmpNameStem}.unsorted.sam
+    # Convert SAM to BAM file
     picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam \
             VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    # Sort and inde sam file
     picard SortSam I=${tmpNameStem}.unsorted.tmpbam O=${sampleId}.sorted.bam SO=coordinate \
             VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
     samtools index ${sampleId}.sorted.bam 
     
-    ## CHECK IF BAM FILE IS EMPTY AFTER MAPPING (if so, exit)
+    ## CHECK IF BAM FILE IS EMPTY AFTER MAPPING (if so, exit pipeline)
     samtools flagstat ${sampleId}.sorted.bam > ${sampleId}.sorted.bam.flagstat
     if grep -q "0 + 0 mapped" ${sampleId}.sorted.bam.flagstat
     then
@@ -439,11 +450,11 @@ process bwaAlign {
 process filterBam {
     tag "${sampleId}"
     label 'process_medium'
-    publishDir "${params.outdir}/filterbam",  mode: 'copy', pattern: "*.txt"
+    publishDir "${params.outdir}/filterbam",  mode: 'copy'
     input:
-        set val(sampleId), file(bam) from sortedbam2filterbam
+        set val(sampleId), file(bam) from SORTEDBAM
     output:
-        set val(sampleId), file('*.unparsed.bam') into bamAligned
+        set val(sampleId), file('*.unparsed.bam') into FILTEREDBAM
         set val(sampleId), file('*.unparsed.bed') into INPUTBED
         set val(sampleId), file('*.unparsed.bam.bai') into bamIDX 
         set val(sampleId), file('*.unparsed.suppAlignments.bam') into bamAlignedSupp
@@ -452,16 +463,16 @@ process filterBam {
     script:
     """
     # Remove unmapped and supplementary, then mark duplicates and index
-    samtools view -F 2048 -hb ${bam} > ${bam.baseName}.ok.bam
+    samtools view -F 2052 -hb ${bam} > ${bam.baseName}.ok.bam
     picard MarkDuplicatesWithMateCigar I=${bam.baseName}.ok.bam O=${bam.baseName}.unparsed.bam \
         PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.MDmetrics.txt MINIMUM_DISTANCE=400 \
         CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
     samtools index ${bam.baseName}.unparsed.bam
 
-    # Convert bam to bed
+    # Convert bam to bed (usefull for the control input files which will not be parsed into bed files)
     bedtools bamtobed -i ${bam.baseName}.unparsed.bam > ${bam.baseName}.unparsed.bed
 
-    # Get the unmapped and the supplementary, then mark duplicates and index
+    # Get the the supplementary, then mark duplicates and index
     samtools view -f 2048 -hb ${bam} > ${bam.baseName}.supp.bam
     picard MarkDuplicatesWithMateCigar I=${bam.baseName}.supp.bam O=${bam.baseName}.unparsed.suppAlignments.bam \
         PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.suppAlignments.MDmetrics.txt \
@@ -474,7 +485,7 @@ process filterBam {
 // PROCESS 7 : parseITRs (PARSE BAM FILES TO GET THE DIFFERENT SSDS TYPES)
 // THIS PROCESS COULD USE SOME CLEANING AND OPTIMIZATION #todo
 // What it does : parse the bam file into 5 types (type1 ssds, type2 ssds, ds, ds_strict, unclassified)
-// Input : sorted bam file
+// Input : filtered bam file
 // Output : bam and bed files of the 5 types
 // External tool : perl scripts from K. Brick (original pipeline, 2012) 
 process parseITRs {
@@ -483,26 +494,31 @@ process parseITRs {
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
     publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.txt"
     publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.bed"
-    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md.ssDNA_type1.bam*"
-    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md.ssDNA_type2.bam*"
-    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md.dsDNA.bam*"
-    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md.dsDNA_strict.bam*"
-    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md.unclassified.bam*"
+    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md*.bam*"
     publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.flagstat"
+    publishDir "${params.outdir}/parse_itr/log",  mode: 'copy', pattern: "*.log"
+    publishDir "${params.outdir}/parse_itr", mode: 'copy', pattern: "norm_factors.txt"
     input:
-        set val(sampleId), file(bam) from sortedbam2parseITR 
-        //file(bam) from bamAligned
-        //file(bai) from bamIDX
+        set val(sampleId), file(bam) from FILTEREDBAM
     output:
         set val(sampleId), file("${bam}"), file('*bed') into ITRBED
         set val(sampleId), file('*ssDNA_type1.bed') into T1BED, T1BEDrep
-        set val(sampleId), file('*dsDNA.bed') into DSBED, DSBEDrep
         set val(sampleId), file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
+        set val(sampleId), file('*.md.ssDNA_type1.bam'), file('*.md.ssDNA_type1.bam.bai') into T1BAMwithIDXfr, T1BAMwithIDXdt mode flatten
+        //tuple val(sampleId), file('norm_factors.txt'), file('*.md.ssDNA_type1.bam'), file('*.md.ssDNA_type1.bam.bai'), \
+        //    file('*.md.ssDNA_type2.bam'), file('*.md.ssDNA_type2.bam.bai'), file('*.md.dsDNA.bam'), file('*.md.dsDNA.bam.bai'), \
+        //    file('*.md.dsDNA_strict.bam'), file('*.md.dsDNA_strict.bam.bai'), file('*.md.unclassified.bam'), file('*.md.unclassified.bam.bai') into BAMtoBW
+        tuple val(sampleId), file('norm_factors.txt'), file('*.ssDNA_type1.bed'), file('*.ssDNA_type2.bed'), \
+                file('*.dsDNA.bed'), file('*.dsDNA_strict.bed'), file('*.unclassified.bed') into BEDtoBW 
         file ('*.flagstat') into flagstat_report_parseITRs
+        file ('*.log') into parseITR_log
+        file ('norm_factors.txt') into norm_factors
         val 'ok' into parseitr_ok
     script:
     """
-    perl ${ITR_id_v2c_NextFlow2_script} ${bam} ${params.genome_fasta}
+    # Parse filtered bam file into 5 types
+    perl ${ITR_id_v2c_NextFlow2_script} ${bam} ${params.genome_fasta} >& ${sampleId}_parseITR.log 2>&1
+    # Sort resulting bed files (the bed files will be used for peak calling)
     sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${bam}.ssDNA_type1.bed \
         -o ${bam}.ssDNA_type1.bed
     sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${bam}.ssDNA_type2.bed \
@@ -513,6 +529,27 @@ process parseITRs {
         -o ${bam}.dsDNA_strict.bed
     sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${bam}.unclassified.bed \
         -o ${bam}.unclassified.bed
+
+    # Get library size
+    libsizeT1=`wc -l  *.ssDNA_type1.bed | grep -v "_random"| awk '{print \$1}'`
+    libsizeT2=`wc -l  *.ssDNA_type2.bed | grep -v "_random"| awk '{print \$1}'`
+    libsizeDS=`wc -l  *.dsDNA.bed | grep -v "_random"| awk '{print \$1}'`
+    libsizeDSstrict=`wc -l  *.dsDNA_strict.bed | grep -v "_random"| awk '{print \$1}'`
+    libsizeUN=`wc -l  *.unclassified.bed | grep -v "_random"| awk '{print \$1}'`
+    # Keep les unclassified ? #todo
+    libsizeTotal=`expr \$libsizeT1 + \$libsizeT2 + \$libsizeDS + \$libsizeDSstrict + \$libsizeUN`
+    normT1=`python -c "print(round((\$libsizeT1/\$libsizeTotal)*1000000,2))"`
+    normT2=`python -c "print(round((\$libsizeT2/\$libsizeTotal)*1000000,2))"`
+    normDS=`python -c "print(round((\$libsizeDS/\$libsizeTotal)*1000000,2))"`
+    normDSstrict=`python -c "print(round((\$libsizeDSstrict/\$libsizeTotal)*1000000,2))"`
+    normUN=`python -c "print(round((\$libsizeUN/\$libsizeTotal)*1000000,2))"`
+    echo "${bam}.md.ssDNA_type1.bam \$normT1" > norm_factors.txt
+    echo "${bam}.md.ssDNA_type2.bam \$normT2" >> norm_factors.txt
+    echo "${bam}.md.dsDNA.bam \$normDS" >> norm_factors.txt
+    echo "${bam}.md.dsDNA_strict.bam \$normDSstrict" >> norm_factors.txt
+    echo "${bam}.md.unclassified.bam \$normUN" >> norm_factors.txt
+    
+    # Convert sam to bam files (the bam files with be used for bigwig/bedgrah generation)
     samtools view -H ${bam} > header.txt
     echo -e "${params.bamPGline}" >>header.txt
     cat header.txt ${bam}.ssDNA_type1.sam  >${bam}.ssDNA_type1.RH.sam
@@ -525,6 +562,7 @@ process parseITRs {
     samtools view -Shb ${bam}.dsDNA.RH.sam        >${bam}.dsDNA.US.bam
     samtools view -Shb ${bam}.dsDNA_strict.RH.sam >${bam}.dsDNA_strict.US.bam
     samtools view -Shb ${bam}.unclassified.RH.sam >${bam}.unclassified.US.bam
+    # Sort bam files
     picard SortSam I=${bam}.ssDNA_type1.US.bam  O=${bam}.ssDNA_type1.bam \
         SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
     picard SortSam I=${bam}.ssDNA_type2.US.bam  O=${bam}.ssDNA_type2.bam \
@@ -535,6 +573,7 @@ process parseITRs {
         SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
     picard SortSam I=${bam}.unclassified.US.bam O=${bam}.unclassified.bam \
         SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    # Mark duplicates
     picard MarkDuplicatesWithMateCigar I=${bam}.ssDNA_type1.bam O=${bam}.md.ssDNA_type1.bam \
         PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.ssDNA_type1.MDmetrics.txt  CREATE_INDEX=false \
         VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
@@ -550,6 +589,7 @@ process parseITRs {
     picard MarkDuplicatesWithMateCigar I=${bam}.unclassified.bam O=${bam}.md.unclassified.bam \
         PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.unclassified.MDmetrics.txt  CREATE_INDEX=false \
         VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+    # Index bam files
     samtools index ${bam}.md.ssDNA_type1.bam
     samtools index ${bam}.md.ssDNA_type2.bam
     samtools index ${bam}.md.dsDNA.bam
@@ -569,10 +609,59 @@ process parseITRs {
 //***************************************************************************//
 //                           SECTION 4 : BIGWIG                              //
 //***************************************************************************//
+
+//IF RUNNING WITH REPLICATES AND BIGWIG PROFILES 2
+if ( params.nb_replicates >=2 ) {
+    if ( params.bigwig_profile == "minimal2" || params.bigwig_profile == "normal2" || params.bigwig_profile == "exhaustive2" ) {
+/*
+        BAMtoBW
+            .map { it -> [ it[0].split('_')[0..-4].join('_'), it[1], it[2], it[3], it[4], it[5], it[6], it[7], it[8], it[9], it[10], it[11] ] }
+            .groupTuple(by: [0])
+            .map { it -> it[0,1,2,3,4,5,6,7,8,9,10,11].flatten() }
+            .map { it -> it[0,1,3,5,4,6,7,9,8,10,11,13,12,14,15,17,16,18,19,21,20,22] }
+            .set { BAMtoBW }
+            //.println()
+  */
+        BEDtoBW
+            .map { it -> [ it[0].split('_')[0..-4].join('_'), it[1], it[2], it[3], it[4], it[5], it[6] ] }
+            .groupTuple(by: [0])
+            .map { it -> it[0,1,2,3,4,5,6].flatten() }
+            .map { it -> it[0,1,3,4,5,6,7,8,9,10,11,12] }
+            .set { BEDtoBW }
+            .println()
+}}
+/*
+            .set { BEDtoBW }  
+        // PROCESS 8 : makeDeeptoolsBigWig (GENERATES BIGWIG FILES)
+        // What it does : uses deeptools to generates bigwig files for each of the 5 types of bam
+        // Input : channel BAMwithIDXdt containing indexed bam files of the 5 types of bam
+        // Output : bigwig files
+        process makeDeeptoolsBigWig {
+        tag "${sampleId}"
+        label 'process_basic'
+        publishDir "${params.outdir}/bigwig",  mode: 'copy', pattern: "*.png"
+        publishDir "${params.outdir}/bigwig",  mode: 'copy', pattern: "*.bigwig"
+        publishDir "${params.outdir}/bigwig",  mode: 'copy', pattern: "*.tab"
+        input:
+            tuple val(sampleId), file(norm_factors), file(R1_ssDNA_type1_bam), file(R1_ssDNA_type1_bai), \
+                file(R2_ssDNA_type1_bam), file(R2_ssDNA_type1_bai), file(R1_ssDNA_type2_bam), file(R1_ssDNA_type2_bai), \
+                file(R2_ssDNA_type2_bam), file(R2_ssDNA_type2_bai), file(R1_dsDNA_bam), file(R1_dsDNA_bai), \
+                file(R2_dsDNA_bam), file(R2_dsDNA_bai), file(R1_dsDNA_strict_bam), file(R1_dsDNA_strict_bai), \
+                file(R2_dsDNA_strict_bam), file(R2_dsDNA_strict_bai), file(R1_unclassified_bam), file(R1_unclassified_bai), \
+                file(R2_unclassified_bam), file(R2_unclassified_bai) from BAMtoBW 
+        output:
+        script:
+        """    
+        if [ ${params.bigwig_profile} == "minimal2" ]
+        then
+ 
+*/      
+/*
+
 // PROCESS 8 : makeDeeptoolsBigWig (GENERATES BIGWIG FILES)
 // What it does : uses deeptools to generates bigwig files for each of the 5 types of bam
 // Input : channel BAMwithIDXdt containing indexed bam files of the 5 types of bam
-// Output  bigwig files 
+// Output : bigwig files 
 process makeDeeptoolsBigWig { 
     tag "${sampleId}"
     label 'process_basic'
@@ -580,18 +669,28 @@ process makeDeeptoolsBigWig {
     publishDir "${params.outdir}/bigwig",  mode: 'copy', pattern: "*.bigwig"
     publishDir "${params.outdir}/bigwig",  mode: 'copy', pattern: "*.tab"
     input:
-        set val(sampleId), file(bam), file(bamidx) from BAMwithIDXdt
+        tuple val(sampleId), file(norm_factors), file(type1bam), file(type1bai), \
+             file(type2bam), file(type2bai), file(dsDNAbam), file(dsDNAbai), \
+             file(dsDNAsbam), file(dsDNAsbai), file(unclassifiedbam), file(unclassifiedbai) from BAMtoBW
+        //set val(sampleId), file(bam), file(bamidx) from BAMwithIDXdt
+        //file (norm_factors) from norm_factors
+        //set val(sampleId), file(bam), file(bamidx) from T1BAMwithIDXdt
     output:
         file('*') into bigwig
         val 'ok' into bigwig_ok
     shell:
     """
-    bamCoverage --bam ${bam} --normalizeUsing RPKM --binSize ${params.binsize} \
-        --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.RPKM.bigwig 
-    plotCoverage --bamfiles ${bam} --numberOfProcessors ${task.cpus} -o ${bam.baseName}.deeptools.coveragePlot.png
-    plotFingerprint --bamfiles ${bam} --labels ${bam} --numberOfProcessors ${task.cpus} \
-        --minMappingQuality 30 --skipZeros --plotFile ${bam.baseName}.deeptools.fingerprints.png \
-        --outRawCounts ${bam.baseName}.deeptools.fingerprints.tab
+    for bam in \$(ls *.bam)
+    do
+        norm=`grep "\$bam" ${norm_factors} | cut -f2 -d " "`
+        echo \$norm
+        bamCoverage --bam \$bam --normalizeUsing RPKM --binSize ${params.binsize} \
+            --numberOfProcessors ${task.cpus} -o \$bam.baseName.deeptools.RPKM.bigwig 
+        plotCoverage --bamfiles \$bam --numberOfProcessors ${task.cpus} -o \$bam.baseName.deeptools.coveragePlot.png
+        plotFingerprint --bamfiles \$bam --labels \$bam --numberOfProcessors ${task.cpus} \
+            --minMappingQuality 30 --skipZeros --plotFile \$bam.baseName.deeptools.fingerprints.png \
+            --outRawCounts \$bam.baseName.deeptools.fingerprints.tab   
+    done
     """
 }
 
@@ -618,36 +717,41 @@ process toFRBigWig {
     tag "${sampleId}"
     label 'process_basic'
     publishDir "${params.outdir}/bigwig",  mode: 'copy'
+    publishDir "${params.outdir}/bigwig/log",  mode: 'copy', pattern: '*.log'
     input:
         set val(sampleId), file(bam), file(bamidx) from BAMwithIDXfr
+        //set val(sampleId), file(bam), file(bamidx) from T1BAMwithIDXfr
     output:
         file('*') into frbigwig
+        file('*.log') into frbigwig_log
 	val 'ok' into frbigwig_ok
     script:
         """
         perl ${ssDNA_to_bigwigs_FASTER_LOMEM_script} --bam ${bam} --g ${params.genome} --o ${bam.baseName}.out \
-            --s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v
+            --s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v >& ${sampleId}_toFRBigwig.log 2>&1
         """
 }    
-
+*/
 //***************************************************************************//
 //                           SECTION 5 : SSDS QC                             //
 //***************************************************************************//
-
+/*
 // PROCESS 11 : makeSSreport (GET INFO FROM QC SSDS REPORT)
 // External tool : Perl script from K. Brick (original pipeline, 2012)
 process makeSSreport {
     tag "${sampleId}"
     label 'process_basic'
-    publishDir "${params.outdir}/multiqc",  mode: 'copy'
+    publishDir "${params.outdir}/multiqc",  mode: 'copy', patten: '*SSDSreport*'
+    publishDir "${params.outdir}/multiqc/log",  mode: 'copy', patten: '*.log'
     input:
         set val(sampleId), file(bam), file(ssdsBEDs) from ITRBED 
     output:
         set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqc
+        file('*.log') into makessreport_log
         val 'ok' into ssreport_ok
     script:
         """
-        perl ${makeSSMultiQCReport_nextFlow_script} ${bam} ${ssdsBEDs} --g ${params.genome} --h ${params.hotspots}
+        perl ${makeSSMultiQCReport_nextFlow_script} ${bam} ${ssdsBEDs} --g ${params.genome} --h ${params.hotspots} >& ${sampleId}_makeSSreport.log 2>&1
         """
 }
 
@@ -671,11 +775,11 @@ if (params.with_ssds_multiqc) {
 }
 
 
-
+*/
 //***************************************************************************//
 //                          SECTION 6 : PEAK CALLING                         //
 //***************************************************************************//
-
+/*
 
 // Set saturation curve thresholds callPeaks and makeSatCurve processes
 if (params.satcurve){
@@ -699,7 +803,7 @@ else{
 
 // CASE 1 : IF INPUT CONTROL ARE PROVIDED
 if (params.with_control) {
-    // CREATE CHANNEL LINKING IP TYPE 1 SSDNA BED WITH CONTROL DSDNA BED
+    // CREATE CHANNEL LINKING IP TYPE 1 SSDNA BED WITH CONTROL BED
     // ( The control bed is the input control filtered bam file )
 
     T1BED
@@ -745,7 +849,6 @@ if (params.with_control) {
             """
             # Quality trimming
             perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) if (\$Q[0] >= ${params.bed_trimqual} && \$Q[1] >= ${params.bed_trimqual})' ${ip_bed} >${ip_Q30_bed}
-            # perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) if (\$Q[0] >= 30 && \$Q[1] >= 30)' ${ct_bed} >${ct_Q30_bed}
             perl -lane '@F = split(/\\t/,\$_); print join("\\t",@F) if (\$F[4] >= ${params.bed_trimqual} )' ${ct_bed} >${ct_Q30_bed}
             # Bed shuffling
             shuf ${ip_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ip_Q30_shuf_bed}
@@ -765,8 +868,7 @@ if (params.with_control) {
     // to evaluate the saturation of the samples.
     // Input : Shuffled type1 bed files ; Shuffled controlled bed files  and satCurvePCs percent channel
     // Output : Bed/xls files for peaks called in downsampled bed file; and bed/xls files for peaks called in the whole input bed file.
-    // Also outputs bedgraph file for the whole input bed file, and genome size parameters (wil be used in post processes) 
-    // External tool : perl script from original pipeline by K. Brick (2012)
+    // Also outputs genome size parameters (wil be used in post processes) 
     process callPeaks_ct {
         tag "${id_ip}"
         label 'process_basic'
@@ -784,6 +886,7 @@ if (params.with_control) {
             path("*peaks*.xls") optional true into peaks_xls
             path("*peaks.bedgraph") optional true into peaks_bg
             path("*.macs2.log") into macs2log
+            tuple val(id_ip), file(ip_bed), file("*peaks.bed") optional true into ALLPEAKSTOPP
             stdout into gsize
             val 'ok' into callPeaks_ok
         script:
@@ -848,9 +951,6 @@ if (params.with_control) {
             cp ${id_ip}.peaks.bed ${id_ip}.finalPeaks_noIDR.bed
             cat *1.00pc.0_peaks_sc.xls >${id_ip}.peaks.xls
             cp ${id_ip}.peaks.xls ${id_ip}.finalPeaks_noIDR.xls
-            ## Calculate strength
-            perl ${norm_script} --bed ${id_ip}.peaks.bed \
-                 --in ${ip_bed} --out ${id_ip}.peaks.bedgraph --rc --rev_src ${reverse_script}
         fi
         """
     }
@@ -904,8 +1004,7 @@ if (params.with_control) {
     // to evaluate the saturation of the samples.
     // Input : Shuffled type1 bed files and satCurvePCs percent channel
     // Output : Bed/xls files for peaks called in downsampled bed file; and bed/xls files for peaks called in the whole input bed file. 
-    // Also outputs bedgraph file for the whole input bed file, and genome size parameters (wil be used in post processes)
-    // External tool : perl script from original pipeline by K. Brick (2012)
+    // Also outputs genome size parameters (wil be used in post processes)
     process callPeaks {
         tag "${id_ip}"
         label 'process_basic'
@@ -925,6 +1024,7 @@ if (params.with_control) {
             path("*peaks*.xls") optional true into peaks_xls
             path("*peaks*.bedgraph") optional true into peaks_bg
             path("*.macs2.log") into macs2log
+            tuple val(id_ip), file(ip_bed), file("*peaks.bed") optional true into ALLPEAKSTOPP
             stdout into gsize
             val 'ok' into callPeaks_ok
         script:
@@ -990,22 +1090,17 @@ if (params.with_control) {
             
             cat *1.00pc.0_peaks_sc.xls >${id_ip}.peaks.xls
             cp ${id_ip}.peaks.xls ${id_ip}.finalPeaks_noIDR.xls
-            ## Calculate strength
-            perl ${norm_script} --bed ${id_ip}.peaks.bed \
-                 --in ${ip_bed} --out ${id_ip}.peaks.bedgraph --rc --rev_src ${reverse_script}
         fi
         """
     }
 }
 
-
+*/
 //***************************************************************************//
 //                     SECTION 7 : OPTIONAL IDR ANALYSIS                     //
 //***************************************************************************//
 // THIS ONLY WORKS WITH 2 REPLICATES IN THIS VERSION. #todo
-
-
-
+/*
 // CASE 1 : IF INPUT CONTROL ARE PROVIDED
 if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
  
@@ -1049,33 +1144,27 @@ if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
         label 'process_medium'
         publishDir "${params.outdir}/pseudo_replicates",  mode: 'copy', pattern: '*.bed'
         input:
-            tuple val(id_ip), val(id_ct), file(ip_rep1), file(ip_rep2), file(ct_r1), file(ct_r2) from T1BED_replicate_ch_renamed
+            tuple val(id_ip), val(id_ct), file(t1_rep1), file(t1_rep2), file(ct_r1), file(ct_r2) from T1BED_replicate_ch_renamed
         output:
-            //tuple val(id_ip), file(ip_rep1), file(ip_rep2) into TRUEREP
-            //tuple val("${id_ip}_psrep1"), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed') into PSREP1
-            //tuple val("${id_ip}_psrep2"), file('*r2_pseudorep_r1.bed'), file('*r2_pseudorep_r2.bed') into PSREP2
-            //tuple val("${id_ip}_plrep"), file('*pool_r1.bed'), file('*pool_r2.bed') into PLREP
-            //tuple val("${id_ip}_pool"), file('*poolT.bed') into POOL
-            //tuple val("${id_ct}_ct"), file('*ct_pool.bed') into CTPOOL
-            tuple val(id_ip), file(ip_rep1), file(ip_rep2), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed'), \
+            tuple val(id_ip), file(t1_rep1), file(t1_rep2), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed'), \
                 file('*r2_pseudorep_r1.bed'), file('*r2_pseudorep_r2.bed'), file('*pool_r1.bed'), file('*pool_r2.bed'), \
                 file('*poolT.bed'), file('*ct_pool.bed') into ALLREP
             val 'ok' into createPseudoReplicates_ok
         script:
         """
         # Shuffle then split the 2 original replicates in 2 pseudo replicates
-        nlines_r1=\$((`cat ${ip_rep1} | wc -l`/2)) 
-        nlines_r2=\$((`cat ${ip_rep2} | wc -l`/2))
-        shuf ${ip_rep1} | split -d -l \$nlines_r1 - ${id_ip}_r1_pseudorep_
-        shuf ${ip_rep2} | split -d -l \$nlines_r2 - ${id_ip}_r2_pseudorep_
+        nlines_r1=\$((`cat ${t1_rep1} | wc -l`/2)) 
+        nlines_r2=\$((`cat ${t1_rep2} | wc -l`/2))
+        shuf ${t1_rep1} | split -d -l \$nlines_r1 - ${id_ip}_r1_pseudorep_
+        shuf ${t1_rep2} | split -d -l \$nlines_r2 - ${id_ip}_r2_pseudorep_
         mv ${id_ip}_r1_pseudorep_00 ${id_ip}_r1_pseudorep_r1.bed
         mv ${id_ip}_r1_pseudorep_01 ${id_ip}_r1_pseudorep_r2.bed
         mv ${id_ip}_r2_pseudorep_00 ${id_ip}_r2_pseudorep_r1.bed
         mv ${id_ip}_r2_pseudorep_01 ${id_ip}_r2_pseudorep_r2.bed
 
         # Pool the 2 original replicates then shuffle then split in 2 pseudo replicates
-        nlines_pool=\$((`cat ${ip_rep1} ${ip_rep2} | wc -l`/2))
-        cat ${ip_rep1} ${ip_rep2} > ${id_ip}_poolT.bed
+        nlines_pool=\$((`cat ${t1_rep1} ${t1_rep2} | wc -l`/2))
+        cat ${t1_rep1} ${t1_rep2} > ${id_ip}_poolT.bed
         shuf ${id_ip}_poolT.bed | split -d -l \$nlines_pool - ${id_ip}_pool_
         mv ${id_ip}_pool_00 ${id_ip}_pool_r1.bed
         mv ${id_ip}_pool_01 ${id_ip}_pool_r2.bed
@@ -1104,24 +1193,13 @@ if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
         publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*regionPeak*'
         publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*.macs2.log'
         input:
-            //tuple val(id_ip), file(ip_rep1), file(ip_rep2) from TRUEREP
-            //tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PSREP1
-            //tuple val(psrep2), file(r2_pseudorep_r1), file(r2_pseudorep_r2) from PSREP2
-            //tuple val(plrep), file(pool_r1), file(pool_r2) from PLREP
-            //tuple val(pool), file(poolT) from POOL
-            //tuple val(ct), file(ctpool) from CTPOOL
-            tuple val(id_ip), file(ip_rep1), file(ip_rep2), file(r1_pseudorep_r1), file(r1_pseudorep_r2),\
+            tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(r1_pseudorep_r1), file(r1_pseudorep_r2),\
                 file(r2_pseudorep_r1), file(r2_pseudorep_r2), file(pool_r1), file(pool_r2), \
                 file(poolT), file(ctpool) from ALLREP
             val(genome_size) from gsize
         output:
             file('*narrowPeak*') into ALLPEAKS
-            //tuple val(id_ip), file('*_R1*type1*.regionPeak'), file('*_R2*type1*.regionPeak') into PEAKTRUEREP
-            //tuple val(psrep1), file('*r1_pseudorep_r1*.regionPeak'), file('*r1_pseudorep_r2*.regionPeak') into PEAKPSREP1
-            //tuple val(psrep2), file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak') into PEAKPSREP2
-            //tuple val(plrep), file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak') into PEAKPLREP
-            //tuple val(pool), file('*poolT*.regionPeak') into PEAKPOOL
-            tuple val(id_ip), file('*_R1*type1*.regionPeak'), file('*_R2*type1*.regionPeak'),\
+            tuple val(id_ip),file(t1_rep1), file(t1_rep2), file('*_R1*type1*.regionPeak'), file('*_R2*type1*.regionPeak'),\
                 file('*r1_pseudorep_r1*.regionPeak'), file('*r1_pseudorep_r2*.regionPeak'),\
                 file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak'), \
                 file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak'), file('*poolT*.regionPeak') into ALLPEAKSREP
@@ -1160,16 +1238,16 @@ if ( params.with_control && params.with_idr && params.nb_replicates == "2" ) {
                     --name \$name --nomodel --extsize ${params.macs_extsize} --qvalue ${params.idr_macs_qv} > \$name.macs2.log 2>&1
                 fi
 
-                # Cut resulting bed files to 10000 lines max (keep that ? #todo)
+                # Cut resulting bed files to 10000 lines max for better handling in IDR statistical analysis
                 npeaks=`cat \${name}_peaks.narrowPeak | wc -l`
                 # Check if the number of peaks is not too low
                 if [ \$npeaks -lt 20 ]
                 then
                     echo "Not enough peaks in \${name}_peaks.narrowPeak file, to perform IDR analysis, please check your bed files and/or idr parameters."
                     exit 1 
-	        elif [ \$npeaks -gt 100000 ]
+	        elif [ \$npeaks -gt ${params.idr_maxpeaks} ]
 	        then
-		    sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n 100000  > \${name}.regionPeak
+		    sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n ${params.idr_maxpeaks}  > \${name}.regionPeak
 	        else
 		    npeaks=\$(( \$npeaks - 1 ))
 		    sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n \$npeaks  > \${name}.regionPeak
@@ -1192,7 +1270,6 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
         .set { T1BED_replicate_ch }
         //.println()   
 
-
     // PROCESS 15 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
     // What it does : creates 2 pseudo replicates per true replicates, then pool the true replicates, and creates 2 pseudo replicates from this pool.
     // Input : bed files from type1 aligned SSDNA, chip and control
@@ -1204,29 +1281,27 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
         label 'process_basic'
         publishDir "${params.outdir}/pseudo_replicates",  mode: 'copy'
         input:
-            tuple val(id_ip), file(ip_rep1), file(ip_rep2) from T1BED_replicate_ch
+            tuple val(id_ip), file(t1_rep1), file(t1_rep2) from T1BED_replicate_ch
         output:
-            tuple val(id_ip), file(ip_rep1), file(ip_rep2) into TRUEREP
-            tuple val("${id_ip}_psrep1"), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed') into PSREP1
-            tuple val("${id_ip}_psrep2"), file('*r2_pseudorep_r1.bed'), file('*r2_pseudorep_r2.bed') into PSREP2
-            tuple val("${id_ip}_plrep"), file('*pool_r1.bed'), file('*pool_r2.bed') into PLREP
-            tuple val("${id_ip}_pool"), file('*poolT.bed') into POOL
+            tuple val(id_ip), file(t1_rep1), file(t1_rep2), file('*r1_pseudorep_r1.bed'), file('*r1_pseudorep_r2.bed'), \
+                file('*r2_pseudorep_r1.bed'), file('*r2_pseudorep_r2.bed'), file('*pool_r1.bed'), file('*pool_r2.bed'), \
+                file('*poolT.bed') into ALLREP
             val 'ok' into createPseudoReplicates_ok 
         script:
         """
         # Shuffle then split the 2 original replicates in 2 pseudo replicates
-        nlines_r1=\$((`cat ${ip_rep1} | wc -l`/2)) 
-        nlines_r2=\$((`cat ${ip_rep2} | wc -l`/2))
-        shuf ${ip_rep1} | split -d -l \$nlines_r1 - ${id_ip}_r1_pseudorep_
-        shuf ${ip_rep2} | split -d -l \$nlines_r2 - ${id_ip}_r2_pseudorep_
+        nlines_r1=\$((`cat ${t1_rep1} | wc -l`/2)) 
+        nlines_r2=\$((`cat ${t1_rep2} | wc -l`/2))
+        shuf ${t1_rep1} | split -d -l \$nlines_r1 - ${id_ip}_r1_pseudorep_
+        shuf ${t1_rep2} | split -d -l \$nlines_r2 - ${id_ip}_r2_pseudorep_
         mv ${id_ip}_r1_pseudorep_00 ${id_ip}_r1_pseudorep_r1.bed
         mv ${id_ip}_r1_pseudorep_01 ${id_ip}_r1_pseudorep_r2.bed
         mv ${id_ip}_r2_pseudorep_00 ${id_ip}_r2_pseudorep_r1.bed
         mv ${id_ip}_r2_pseudorep_01 ${id_ip}_r2_pseudorep_r2.bed
 
         # Pool the 2 original replicates then shuffle then split in 2 pseudo replicates
-        nlines_pool=\$((`cat ${ip_rep1} ${ip_rep2} | wc -l`/2))
-        cat ${ip_rep1} ${ip_rep2} > ${id_ip}_poolT.bed
+        nlines_pool=\$((`cat ${t1_rep1} ${t1_rep2} | wc -l`/2))
+        cat ${t1_rep1} ${t1_rep2} > ${id_ip}_poolT.bed
         shuf ${id_ip}_poolT.bed | split -d -l \$nlines_pool - ${id_ip}_pool_
         mv ${id_ip}_pool_00 ${id_ip}_pool_r1.bed
         mv ${id_ip}_pool_01 ${id_ip}_pool_r2.bed
@@ -1245,19 +1320,16 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
         publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*regionPeak*'
         publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*.macs2.log'
         input:
-            tuple val(id_ip), file(ip_rep1), file(ip_rep2) from TRUEREP
-            tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PSREP1
-            tuple val(psrep2), file(r2_pseudorep_r1), file(r2_pseudorep_r2) from PSREP2
-            tuple val(plrep), file(pool_r1), file(pool_r2) from PLREP
-            tuple val(pool), file(poolT) from POOL
+            tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(r1_pseudorep_r1), file(r1_pseudorep_r2),\
+                file(r2_pseudorep_r1), file(r2_pseudorep_r2), file(pool_r1), file(pool_r2), \
+                file(poolT) from ALLREP
             val(genome_size) from gsize
         output:
+            tuple val(id_ip), file(t1_rep1), file(t1_rep2), file('*_R1*type1*.regionPeak'), file('*_R2*type1*.regionPeak'),\
+                file('*r1_pseudorep_r1*.regionPeak'), file('*r1_pseudorep_r2*.regionPeak'),\
+                file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak'), \
+                file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak'), file('*poolT*.regionPeak') into ALLPEAKSREP
             file('*narrowPeak*') into ALLPEAKS
-            tuple val(id_ip), file('*_R1*type1*.regionPeak'), file('*_R2*type1*.regionPeak') into PEAKTRUEREP
-            tuple val(psrep1), file('*r1_pseudorep_r1*.regionPeak'), file('*r1_pseudorep_r2*.regionPeak') into PEAKPSREP1
-            tuple val(psrep2), file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak') into PEAKPSREP2
-            tuple val(plrep), file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak') into PEAKPLREP
-            tuple val(pool), file('*poolT*.regionPeak') into PEAKPOOL
             file('*.macs2.log') into MACS2IDRLOG
             val 'ok' into callPeaksForIDR_ok
         script:
@@ -1274,29 +1346,29 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
             then
                 macs2 callpeak -g ${genome_size} -t \$file \
                 --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} --tempdir ${params.scratch}/\${random_id} \
-                --name \$name --nomodel --extsize ${params.macs_extsize} \$name.macs2.log 2>&1
+                --name \$name --nomodel --extsize ${params.macs_extsize} > \$name.macs2.log 2>&1
             elif [ ${params.idr_macs_pv} != -1 ];
             then
                 macs2 callpeak -g ${genome_size} -t \$file \
                 --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} --tempdir ${params.scratch}/\${random_id} \
-                --name \$name --nomodel --extsize ${params.macs_extsize} --pvalue ${params.idr_macs_pv} \$name.macs2.log 2>&1
+                --name \$name --nomodel --extsize ${params.macs_extsize} --pvalue ${params.idr_macs_pv} > \$name.macs2.log 2>&1
             elif [ ${params.idr_macs_qv} != -1 ];
             then
                 macs2 callpeak -g ${genome_size} -t \$file \
                     --bw ${params.macs_bw} --keep-dup all --slocal ${params.macs_slocal} --tempdir ${params.scratch}/\${random_id} \
-                    --name \$name --nomodel --extsize ${params.macs_extsize} --qvalue ${params.idr_macs_qv} \$name.macs2.log 2>&1
+                    --name \$name --nomodel --extsize ${params.macs_extsize} --qvalue ${params.idr_macs_qv} > \$name.macs2.log 2>&1
             fi
 
-            # Cut resulting bed files to 10000 lines max (keep that ? #todo)
+            # Cut resulting bed files to 10000 lines max for better handling in IDR statistical analysis
             npeaks=`cat \${name}_peaks.narrowPeak | wc -l`
             # Check if the number of peaks is not too low
             if [ \$npeaks -lt 20 ]
             then
                 echo "Not enough peaks in \${name}_peaks.narrowPeak file, to perform IDR analysis, please check your bed files and/or idr parameters."
                 exit 1 
-	    elif [ \$npeaks -gt 100000 ]
+	    elif [ \$npeaks -gt ${params.idr_maxpeaks} ]
 	    then
-		sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n 100000  > \${name}.regionPeak
+		sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n ${params.idr_maxpeaks}  > \${name}.regionPeak
 	    else
 		npeaks=\$(( \$npeaks - 1 ))
 		sort -k 8nr,8nr \${name}_peaks.narrowPeak | head -n \$npeaks  > \${name}.regionPeak
@@ -1312,31 +1384,23 @@ else if ( !params.with_control && params.with_idr && params.nb_replicates == "2"
 // Input : 9 regionpeak files from idr peak calling  
 // Ouptut : log and results files from IDR analysis
 // External tool : IDR python script from encode chip-seq pipeline
+if (params.with_idr && params.nb_replicates) {
 process IDRanalysis {
     tag "${id_ip}"
     label 'process_medium'
     conda 'idr=2.0.4.2 bioconda::ucsc-bedclip=377 bioconda::bedtools=2.29.2 bioconda::ucsc-bedtobigbed=377' 
     publishDir "${params.outdir}/idrresults",  mode: 'copy'
     input:
-        tuple val(id_ip), file(ip_rep1), file(ip_rep2), file(r1_pseudorep_r1), file(r1_pseudorep_r2), \
+        tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(ip_rep1), file(ip_rep2), file(r1_pseudorep_r1), file(r1_pseudorep_r2), \
             file(r2_pseudorep_r1), file(r2_pseudorep_r2), file(pool_r1), file(pool_r2), file(poolT) from ALLPEAKSREP
-        //tuple val(id_ip), file(ip_rep1), file(ip_rep2) from PEAKTRUEREP
-        //tuple val(psrep1), file(r1_pseudorep_r1), file(r1_pseudorep_r2) from PEAKPSREP1
-        //tuple val(psrep2), file(r2_pseudorep_r1), file(r2_pseudorep_r2) from PEAKPSREP2
-        //tuple val(plrep), file(pool_r1), file(pool_r2) from PEAKPLREP
-        //tuple val(pool), file(poolT) from PEAKPOOL
     output:
-        //val(id_ip) into IDIP
         file('*unthresholded-peaks*') into UNTHPEAKS
         file('*.log') into IDRLOG
         file('*.png') into IDRPNG
         file('*.bfilt.gz') into BFILT
-        tuple val(id_ip), file('*r1_pseudorep*.*Peak.gz'), file('*r2_pseudorep*.*Peak.gz'), \
+        tuple val(id_ip), file(t1_rep1), file(t1_rep2), file('*r1_pseudorep*.*Peak.gz'), file('*r2_pseudorep*.*Peak.gz'), \
             file('*truerep*.*Peak.gz'), file('*poolrep*.*Peak.gz') into IDRPEAKS
-        //file('*r1_pseudorep*.*Peak.gz') into R1IDRPEAKS
-        //file('*r2_pseudorep*.*Peak.gz') into R2IDRPEAKS
-        //file('*truerep*.*Peak.gz') into TRUEREPIDRPEAKS
-        //file('*poolrep*.*Peak.gz') into POOLREPIDRPEAKS
+        val 'ok' into IDRanalysis_ok
     when:
         params.with_idr && params.nb_replicates
     script:
@@ -1350,51 +1414,50 @@ process IDRanalysis {
 
         #IDR1
         python ${encode_idr_script} --peak-type ${params.idr_peaktype} \
-            --idr-thresh ${params.idr_threshold} --idr-rank ${params.idr_rank} \
+            --idr-thresh ${params.idr_threshold_r1} --idr-rank ${params.idr_rank} \
             --chrsz ${params.idr_chrsz} \$blacklist_params \
             --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
-            --prefix r1_pseudorep \
-            ${r1_pseudorep_r1} ${r1_pseudorep_r2} ${ip_rep1}
+            --prefix ${id_ip}_r1_pseudorep \
+            ${r1_pseudorep_r1} ${r1_pseudorep_r2} ${ip_rep1} > ${id_ip}_r1pseudorep.encodeidr.out.log 2>&1
 
         #IDR2
         python ${encode_idr_script} --peak-type ${params.idr_peaktype} \
-            --idr-thresh ${params.idr_threshold} --idr-rank ${params.idr_rank} \
+            --idr-thresh ${params.idr_threshold_r2} --idr-rank ${params.idr_rank} \
             --chrsz ${params.idr_chrsz} \$blacklist_params \
             --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
-            --prefix r2_pseudorep \
-            ${r2_pseudorep_r1} ${r2_pseudorep_r2} ${ip_rep2}
+            --prefix ${id_ip}_r2_pseudorep \
+            ${r2_pseudorep_r1} ${r2_pseudorep_r2} ${ip_rep2} > ${id_ip}_r2pseudorep.encodeidr.out.log 2>&1
 
         #IDR3
         python ${encode_idr_script} --peak-type ${params.idr_peaktype} \
-            --idr-thresh ${params.idr_threshold} --idr-rank ${params.idr_rank} \
+            --idr-thresh ${params.idr_threshold_truerep} --idr-rank ${params.idr_rank} \
             --chrsz ${params.idr_chrsz} \$blacklist_params \
             --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
-            --prefix truerep \
-            ${ip_rep1} ${ip_rep2} ${poolT}
+            --prefix ${id_ip}_truerep \
+            ${ip_rep1} ${ip_rep2} ${poolT} > ${id_ip}_truerep.encodeidr.out.log 2>&1
 
         #IDR4
         python ${encode_idr_script} --peak-type ${params.idr_peaktype} \
-            --idr-thresh ${params.idr_threshold} --idr-rank ${params.idr_rank} \
+            --idr-thresh ${params.idr_threshold_poolrep} --idr-rank ${params.idr_rank} \
             --chrsz ${params.idr_chrsz} \$blacklist_params \
             --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
-            --prefix poolrep \
-            ${pool_r1} ${pool_r2} ${poolT}
+            --prefix ${id_ip}_poolrep \
+            ${pool_r1} ${pool_r2} ${poolT} > ${id_ip}_poolrep.encodeidr.out.log 2>&1
         
         #rename blackist filtered file for better handling in the output
-        if [ ${params.blacklist} != "None" ]
-        then
-            mv r1_pseudorep.idr${params.idr_threshold}.bfilt.${params.idr_peaktype}.gz r1_pseudorep.bfilt.gz
-            mv r2_pseudorep.idr${params.idr_threshold}.bfilt.${params.idr_peaktype}.gz r2_pseudorep.bfilt.gz
-            mv truerep.idr${params.idr_threshold}.bfilt.${params.idr_peaktype}.gz truerep.bfilt.gz
-            mv poolrep.idr${params.idr_threshold}.bfilt.${params.idr_peaktype}.gz poolrep.bfilt.gz
-        else
-            echo "no blacklist provided" > log.bfilt
-            gzip log.bfilt
-        fi
+        mv ${id_ip}_r1_pseudorep.idr${params.idr_threshold_r1}.bfilt.${params.idr_peaktype}.gz ${id_ip}_r1_pseudorep.bfilt.gz
+        mv ${id_ip}_r2_pseudorep.idr${params.idr_threshold_r2}.bfilt.${params.idr_peaktype}.gz ${id_ip}_r2_pseudorep.bfilt.gz
+        mv ${id_ip}_truerep.idr${params.idr_threshold_truerep}.bfilt.${params.idr_peaktype}.gz ${id_ip}_truerep.bfilt.gz
+        mv ${id_ip}_poolrep.idr${params.idr_threshold_poolrep}.bfilt.${params.idr_peaktype}.gz ${id_ip}_poolrep.bfilt.gz
 
     """
 }
 
+// PROCESS 18 : IDRpostprocess (IDR PEAKS POST PROCESSING)
+// What it does : Compute rescue ratio and self consistency ratio to evaluate reproducibility
+// and export reproducible set of peaks
+// Input : peaks called in IDR process
+// Output : final set of peaks post IDR and text file with reproducibility ratio and flags
 process IDRpostprocess {
     tag "${id_ip}"
     label 'process_basic'
@@ -1402,15 +1465,14 @@ process IDRpostprocess {
         publishDir "${params.outdir}/idrQC",  mode: 'copy', pattern:'*.finalPeaks*'
         publishDir "${params.outdir}/FINALPEAKS",  mode: 'copy', pattern:'*.finalPeaks*'
     input:
-        tuple val(id_ip), file(r1_pseudorep_peaks), file(r2_pseudorep_peaks), file(truerep_peaks), file(poolrep_peaks) from IDRPEAKS
-        //val(id_ip) from IDIP
-        //file(r1_pseudorep_peaks) from R1IDRPEAKS
-        //file(r2_pseudorep_peaks) from R2IDRPEAKS
-        //file(truerep_peaks) from TRUEREPIDRPEAKS
-        //file(poolrep_peaks) from POOLREPIDRPEAKS
+        tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(r1_pseudorep_peaks), file(r2_pseudorep_peaks), file(truerep_peaks), file(poolrep_peaks) from IDRPEAKS
     output:
+        tuple val(id_ip), file(t1_rep1), file(t1_rep2), file('*.finalPeaks_IDR.bed') into ALLPEAKSTOPPIDR
         file('*_IDR_QC.log') into IDRQC 
         file('*.finalPeaks*') into FINALPEAKS
+        val 'ok' into IDRpostprocess_ok
+     when:
+        params.with_idr && params.nb_replicates
     script:
     """
         n1=`zcat ${r1_pseudorep_peaks} | wc -l`
@@ -1431,11 +1493,11 @@ process IDRpostprocess {
         if [ \$np -gt \$nt ]
         then
             rr=`python -c "print(\$np/\$nt)"`
-            zcat ${poolrep_peaks} > ${id_ip}_${poolrep_peaks}.finalPeaks_IDR.bed
+            zcat ${poolrep_peaks} > ${poolrep_peaks}.finalPeaks_IDR.bed
             #filter for chromY, chromM and blacklist ? #todo
         else
             rr=`python -c "print(\$nt/\$np)"`
-            zcat ${truerep_peaks} > ${id_ip}_${truerep_peaks}.finalPeaks_IDR.bed
+            zcat ${truerep_peaks} > ${truerep_peaks}.finalPeaks_IDR.bed
             #filter for chromY, chromM and blacklist ? #todo
         fi
         echo "Rescue Ratio = \$rr" >> ${id_ip}_IDR_QC.log
@@ -1453,20 +1515,71 @@ process IDRpostprocess {
         
     """
 }
-        
-        
+}
+*/
+//***************************************************************************//
+//                     SECTION 8 : PEAK POST PROCESSING                      //
+//***************************************************************************//        
+// PROCESS 19 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
+// What it does : perform the peak centering using Kevin Brick's method
+// Input : final peak set bed file and mapped T1 bed file
+// Output : bedgraph and tab
+// External tool : Perl script from K. Brick (original pipeline, 2012)
+/*
+if (!params.with_idr) {
+    process normalizePeaks {
+        tag "${id_ip}"
+        label 'process_basic'
+        publishDir "${params.outdir}/normalize_peaks",  mode: 'copy'
+        input:
+            tuple val(id_ip), file(ip_bed), file(peaks_bed) from ALLPEAKSTOPP
+        output:
+            tuple val(id_ip), file("*normpeaks.bedgraph"), file("*normpeaks.tab") into NORMPEAKS
+            tuple val(id_ip), file(ip_bed), file(peaks_bed) into TESTCH
+            file('*.normpeaks.log') into normpeakslog
+        script:
+        """
+            # Normalize and recenter peaks
+            perl ${norm_script} --bed ${peaks_bed} \
+                --in ${ip_bed} --out ${id_ip}.normpeaks.bedgraph \
+                --rc --rev_src ${reverse_script} > ${id_ip}.normpeaks.log 2>&1
+        """
+    }
+}
 
-
+if (params.with_idr) {
+    process normalizePeaks_idr {
+        tag "${id_ip}"
+        label 'process_basic'
+        publishDir "${params.outdir}/normalize_peaks",  mode: 'copy'
+        input:
+            tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(peaks_bed) from ALLPEAKSTOPPIDR
+        output:
+            tuple val(id_ip), file("*normpeaks.bedgraph"), file("*normpeaks.tab") into NORMPEAKSIDR
+            file('*.normpeaks.log') into normpeakslog
+        script:
+        """
+            # Merge the 2 T1BED replicates
+            intersectBed -a ${t1_rep1} -b ${t1_rep2} > ${id_ip}_rep1_rep2.bed
+            # Normalize and recenter peaks
+            perl ${norm_script} --bed ${peaks_bed} \
+                --in ${id_ip}_rep1_rep2.bed --out ${id_ip}.normpeaks.bedgraph \
+                --rc --rev_src ${reverse_script} > ${id_ip}.normpeaks.log 2>&1
+        """
+        }
+}
+*/
+        
 //***************************************************************************//
 //                          SECTION 8 : SAT CURVE                            //
 //***************************************************************************//
-
-
-// PROCESS 18 : makeSatCurve (CREATE SATURATION CURVE)
-// What it does : 
-// Input :
-// Ouptut : 
-// External tool :
+/*
+// PROCESS 19 : makeSatCurve (CREATE SATURATION CURVE)
+// What it does : Compute saturation curve of the samples 
+// The saturation curve plots the number of peaks called function of the number of reads in the samples
+// Input : All bed files from callPeaks process corresponding to peaks called in progressively downsampled samples
+// Ouptut : png of the saturation curve and data table
+// External tool : Perl script from K. Brick (original pipeline 2012) and R script (adapted from original pipeline 2012)
 process makeSatCurve {
     tag "${outNameStem}"
     label 'process_basic'
@@ -1494,41 +1607,72 @@ process makeSatCurve {
     """
 }
 
-
+*/
 //***************************************************************************//
 //                          SECTION 9 : GENERAL QC                           //
 //***************************************************************************//
-
 /*
-if ( !params.with_idr ) {
-    process createMissingCheckPointsIDR {
+if (params.with_idr) {
+    process createCheckPointIDR {
         tag "${outNameStem}"
         label 'process_basic'
+        input:
+            val 'ok' from createPseudoReplicates_ok.collect()
+            val 'ok' from callPeaksForIDR_ok.collect()
+            val 'ok' from IDRanalysis_ok.collect()
+            val 'ok' from IDRpostprocess_ok.collect()
         output:
-            val 'ok' into createPseudoReplicates_ok
-            val 'ok' into callPeaksForIDR_ok
-            //val 'ok' into IDRanalysis_ok
+            val 'ok' into idr_ok
         script:
         """
-        echo "No IDR analysis is run."
+        echo "IDR analysis was run."
         """
     }
 }
-if ( !params.satcurve ) {
-    process createMissingCheckPointsSatCurve {
+
+if (!params.with_idr) {
+    process createCheckPointNoIDR {
         tag "${outNameStem}"
         label 'process_basic'
         output:
-            val 'ok' into makeSatCurve_ok
+            val 'ok' into idr_ok
         script:
         """
-        echo "No saturation curve is run."
+        echo "No IDR analysis was run."
         """
     }
-} 
+}
 
-// PROCESS 19 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
-// What it does :
+if (params.satcurve) {
+    process createCheckPointSatCurve {
+        tag "${outNameStem}"
+        label 'process_basic'
+        input:
+            val 'ok' from makeSatCurve_ok.collect()
+        output:
+            val 'ok' into satcurve_ok
+        script:
+        """
+        echo "Saturation curve was run."
+        """
+    }
+}
+ 
+if (!params.satcurve) {
+    process createCheckPointNoSatCurve {
+        tag "${outNameStem}"
+        label 'process_basic'
+        output:
+            val 'ok' into satcurve_ok
+        script:
+        """
+        echo "No saturation curve was run."
+        """
+    }
+}
+
+// PROCESS 20 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
+// What it does :#todo
 // Input :
 // Output : 
 process general_multiqc {
@@ -1546,12 +1690,10 @@ process general_multiqc {
 	val('samstats') from samstats_ok.collect()
 	val('frbigwig_ok') from frbigwig_ok.collect()
         val('ssreport_ok') from ssreport_ok.collect()
-        //val('shufbed_ok') from shufbed_ok.collect()
-        //val('callPeaks_ok') from callPeaks_ok.collect()
-        //val('createPseudoReplicates_ok') from createPseudoReplicates_ok.collect()
-        //val('callPeaksForIDR_ok') from callPeaksForIDR_ok.collect()
-       //val('IDRanalysis_ok') from IDRanalysis_ok.collect()
-        //val('makeSatCurve_ok') from makeSatCurve_ok.collect()
+        val('shufbed_ok') from shufbed_ok.collect()
+        val('callPeaks_ok') from callPeaks_ok.collect()
+        val('satcurve_ok') from satcurve_ok.collect()
+        val('idr_ok') from idr_ok.collect()
     output:
 	file('*') into generalmultiqc_report
     script:
@@ -1561,9 +1703,9 @@ process general_multiqc {
         ${params.outdir}/samstats ${params.outdir}/bigwig 
     """
 }
+
+
 */
-
-
 //***************************************************************************//
 //                                                                           //
 //                          END OF PIPELINE !!                               //
