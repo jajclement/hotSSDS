@@ -4,39 +4,39 @@
 
 
 ### **Welcome**
-**This pipeline is based on  [SSDS pipeline](https://github.com/kevbrick/SSDSnextflowPipeline) and [SSDS call peaks pipeline](https://github.com/kevbrick/callSSDSpeaks) by Kevin Brick, updated and adapted to IGH cluster.**
-See [initial paper](https://genome.cshlp.org/content/22/5/957.long) and [technical paper](https://www.sciencedirect.com/science/article/pii/S0076687917303750?via%3Dihub).
-The pipeline uses [Nextflow]( https://www.nextflow.io/) > 20.04.1
-Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**, input modification, callpeaks and IDR procedure addition, and global nextflow homogeneisation.
+**This pipeline is based on  [SSDS pipeline](https://github.com/kevbrick/SSDSnextflowPipeline) and [SSDS call peaks pipeline](https://github.com/kevbrick/callSSDSpeaks) by Kevin Brick, updated and adapted to IGH cluster.**  
+See [initial paper](https://genome.cshlp.org/content/22/5/957.long) and [technical paper](https://www.sciencedirect.com/science/article/pii/S0076687917303750?via%3Dihub).  
+The pipeline uses [Nextflow]( https://www.nextflow.io/) > 20.04.1  
+Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**, input modification, callpeaks and IDR procedure addition, and global nextflow homogeneisation.  
 
-*Please report any bug occured during the installation to pauline.auffret at igh dot cnrs dot fr*
-
-The pipeline is composed of 25 processes :
-*PROCESS 1 : check_design (CHECK INPUT DESIGN FILE)
-*PROCESS 2 : makeScreenConfigFile (MAKE CONFIGURATION FILE FOR FASTQSCREEN)
-*PROCESS 3 : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES)
-*PROCESS 4 : fastqc (QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
-*PROCESS 5 : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
-*PROCESS 6 : filterBam (MARK DUPLICATES, REMOVE SUPPLEMENTARY ALIGNMENTS, SORT AND INDEX)
-*PROCESS 7 : parseITRs (PARSE BAM FILES TO GET THE 5 DIFFERENT SSDS TYPES : SSTYPE1, SSTYPE2, DS, DSSTRICT, UNCLASSIFIED)
-*PROCESS 8 : makeBigwig (GENERATE NORMALIZED BIGWIG FILES FOR T1 AND T1+T2 BED FILES)
-*PROCESS 9 : makeBigwigReplicates (optional, GENERATE NORMALIZED BIGWIG FILES FOR MERGED REPLICATES T1 AND T1+T2 BED FILES)
-*PROCESS 10 : makeDeeptoolsBigWig (optional, GENERATES BIGWIG FILES, COVERAGE AND CUMULATIVE COVERAGE PLOTS)
-*PROCESS 11 : toFRBigWig (optional, GENERATES FWD/REV BIGWIG FILES)
-*PROCESS 12 : samStats (GENERATES SAMSTATS REPORTS)
-*PROCESS 13 : makeSSreport (COMPUTE STATS FROM SSDS PARSING)
-*PROCESS 14 : ssds_multiqc (MAKE MULTIQC REPORT FOR SSDS FILES)
-*PROCESS 15 : makeFingerPrint (MAKE DEEPTOOLS FINGERPRINT PLOTS)
-*PROCESS 16 : shufBEDs (T1 BED SHUFFLING)
-*PROCESS 17 : callPeaks (PEAK CALLING ON T1 WITH MACS2)
-*PROCESS 18 : createPseudoReplicates (optional, CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
-*PROCESS 19 : callPeaksForIDR (optional, CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
-*PROCESS 20 : IDRanalysis (optional, PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES
-*PROCESS 21 : IDRpostprocess (optional, IDR PEAKS POST PROCESSING)
-*PROCESS 22 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
-*PROCESS 23 ; mergeFinalPeaks (MERGE PEAKS FROM REPLICATES)
-*PROCESS 24 : makeSatCurve (optional, CREATE SATURATION CURVE)
-*PROCESS 25 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
+*Please report any bug occured during the installation to pauline.auffret at igh dot cnrs dot fr*  
+  
+The pipeline is composed of 25 processes :  
+* PROCESS 1 : check_design (CHECK INPUT DESIGN FILE)
+* PROCESS 2 : makeScreenConfigFile (MAKE CONFIGURATION FILE FOR FASTQSCREEN)
+* PROCESS 3 : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES)
+* PROCESS 4 : fastqc (QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
+* PROCESS 5 : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
+* PROCESS 6 : filterBam (MARK DUPLICATES, REMOVE SUPPLEMENTARY ALIGNMENTS, SORT AND INDEX)
+* PROCESS 7 : parseITRs (PARSE BAM FILES TO GET THE 5 DIFFERENT SSDS TYPES : SSTYPE1, SSTYPE2, DS, DSSTRICT, UNCLASSIFIED)
+* PROCESS 8 : makeBigwig (GENERATE NORMALIZED BIGWIG FILES FOR T1 AND T1+T2 BED FILES)
+* PROCESS 9 : makeBigwigReplicates (optional, GENERATE NORMALIZED BIGWIG FILES FOR MERGED REPLICATES T1 AND T1+T2 BED FILES)
+* PROCESS 10 : makeDeeptoolsBigWig (optional, GENERATES BIGWIG FILES, COVERAGE AND CUMULATIVE COVERAGE PLOTS)
+* PROCESS 11 : toFRBigWig (optional, GENERATES FWD/REV BIGWIG FILES)
+* PROCESS 12 : samStats (GENERATES SAMSTATS REPORTS)
+* PROCESS 13 : makeSSreport (COMPUTE STATS FROM SSDS PARSING)
+* PROCESS 14 : ssds_multiqc (MAKE MULTIQC REPORT FOR SSDS FILES)
+* PROCESS 15 : makeFingerPrint (MAKE DEEPTOOLS FINGERPRINT PLOTS)
+* PROCESS 16 : shufBEDs (T1 BED SHUFFLING)
+* PROCESS 17 : callPeaks (PEAK CALLING ON T1 WITH MACS2)
+* PROCESS 18 : createPseudoReplicates (optional, CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
+* PROCESS 19 : callPeaksForIDR (optional, CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
+* PROCESS 20 : IDRanalysis (optional, PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES
+* PROCESS 21 : IDRpostprocess (optional, IDR PEAKS POST PROCESSING)
+* PROCESS 22 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
+* PROCESS 23 ; mergeFinalPeaks (MERGE PEAKS FROM REPLICATES)
+* PROCESS 24 : makeSatCurve (optional, CREATE SATURATION CURVE)
+* PROCESS 25 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)  
 
 ## **How to run the pipeline on IGH cluster**
 ### Requirements
