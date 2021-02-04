@@ -1,13 +1,42 @@
 ## **SSDS nextflow pipeline version 2.0**
-**\/!\ Work in progress /!\ : currently callPeaks and IDR processes are disabled**
+### **Parse, Align and Call peaks from SSDS data**
+**\/!\ Work in progress /!\ **
+
+
 ### **Welcome**
-**This is [SSDS pipeline by Kevin Brick](https://github.com/kevbrick/SSDSnextflowPipeline) updated and adapted to IGH cluster.**
+**This pipeline is based on  [SSDS pipeline](https://github.com/kevbrick/SSDSnextflowPipeline) and [SSDS call peaks pipeline](https://github.com/kevbrick/callSSDSpeaks) by Kevin Brick, updated and adapted to IGH cluster.**
 See [initial paper](https://genome.cshlp.org/content/22/5/957.long) and [technical paper](https://www.sciencedirect.com/science/article/pii/S0076687917303750?via%3Dihub).
 The pipeline uses [Nextflow]( https://www.nextflow.io/) > 20.04.1
 Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**, input modification, callpeaks and IDR procedure addition, and global nextflow homogeneisation.
 
 *Please report any bug occured during the installation to pauline.auffret at igh dot cnrs dot fr*
 
+The pipeline is composed of 25 processes :
+*PROCESS 1 : check_design (CHECK INPUT DESIGN FILE)
+*PROCESS 2 : makeScreenConfigFile (MAKE CONFIGURATION FILE FOR FASTQSCREEN)
+*PROCESS 3 : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES)
+*PROCESS 4 : fastqc (QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
+*PROCESS 5 : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
+*PROCESS 6 : filterBam (MARK DUPLICATES, REMOVE SUPPLEMENTARY ALIGNMENTS, SORT AND INDEX)
+*PROCESS 7 : parseITRs (PARSE BAM FILES TO GET THE 5 DIFFERENT SSDS TYPES : SSTYPE1, SSTYPE2, DS, DSSTRICT, UNCLASSIFIED)
+*PROCESS 8 : makeBigwig (GENERATE NORMALIZED BIGWIG FILES FOR T1 AND T1+T2 BED FILES)
+*PROCESS 9 : makeBigwigReplicates (optional, GENERATE NORMALIZED BIGWIG FILES FOR MERGED REPLICATES T1 AND T1+T2 BED FILES)
+*PROCESS 10 : makeDeeptoolsBigWig (optional, GENERATES BIGWIG FILES, COVERAGE AND CUMULATIVE COVERAGE PLOTS)
+*PROCESS 11 : toFRBigWig (optional, GENERATES FWD/REV BIGWIG FILES)
+*PROCESS 12 : samStats (GENERATES SAMSTATS REPORTS)
+*PROCESS 13 : makeSSreport (COMPUTE STATS FROM SSDS PARSING)
+*PROCESS 14 : ssds_multiqc (MAKE MULTIQC REPORT FOR SSDS FILES)
+*PROCESS 15 : makeFingerPrint (MAKE DEEPTOOLS FINGERPRINT PLOTS)
+*PROCESS 16 : shufBEDs (T1 BED SHUFFLING)
+*PROCESS 17 : callPeaks (PEAK CALLING ON T1 WITH MACS2)
+*PROCESS 18 : createPseudoReplicates (optional, CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
+*PROCESS 19 : callPeaksForIDR (optional, CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
+*PROCESS 20 : IDRanalysis (optional, PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES
+*PROCESS 21 : IDRpostprocess (optional, IDR PEAKS POST PROCESSING)
+*PROCESS 22 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
+*PROCESS 23 ; mergeFinalPeaks (MERGE PEAKS FROM REPLICATES)
+*PROCESS 24 : makeSatCurve (optional, CREATE SATURATION CURVE)
+*PROCESS 25 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
 
 ## **How to run the pipeline on IGH cluster**
 ### Requirements
@@ -41,6 +70,8 @@ There are currently 2 configuration files :
 - ````./conf/igh.config```` contains cluster resources requirements & reference genomes info. You don't need to edit this file unless you want to custom the requirements for CPU/memory usage and compute queue (see [IGH cluster documentation](https://kojiki.igh.cnrs.fr/doku.php?id=cluster,))
 - ````./nextflow.config```` contains default pipeline parameters. You *can* edit this file but it is recommended to use parameters in nextflow command line through ````run_pipeline.sh```` script to use your own parameters (this will overwrite the default configuration).
 If you are running the pipeline on an other computing cluster, you need to specify the relevant configuration file.
+
+
 ### 3. Input data
 The pipeline will only process **paired-end data**.
 The input data must be described in an input csv file with the 6 following fields (see template in ``/home/${USER}/work/ssdsnextflowpipeline//tests/fastq/input.csv``)
@@ -68,15 +99,31 @@ cd /home/${USER}/work/ssdsnextflowpipeline
 conda activate nextflow-dev
 nextflow run main.nf --help
 ````
+
+The main parameters you need to set are :
+* ``--inputcsv`` : path to the input csv file, see section 3
+* ``--profile conda`` : Run within conda environment (only available option at the moment)
+* ``--genome`` : the reference genome, see section 3
+* ``--name`` : analysis name, e.g. "SSDS_SRA5678_DMC1"
+* ``--outdir`` : path to output directory
+* ``--with_control`` (true/false) : use input control files, see section 3
+* ``--no_multimap`` (true/false) : remove multimappers from bam files
+* ``--nb_replicates`` : number of biological replicates you are running with (maximum 2)
+* ``--bigwig_profile`` : indicates which bigwig to generate (T1 ; T12 ; T1rep or T12rep)
+* ``--with_idr`` (true/false) : run IDR analysis (if nb_replicates=2)
+* ``--satcurve`` (true/false) : plot saturation curve
+
+
+
 You can either run the pipeline directly through the command line :
 ````
 cd /home/${USER}/work/ssdsnextflowpipeline
 conda activate nextflow-dev
-sbatch -p computepart -J SSDSnextflowPipeline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --inputcsv /path/to/the/input/csv/file --name your_analysis_name --genome mm10 --profile conda
+sbatch -p computepart -J SSDSnextflowPipeline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --inputcsv /path/to/the/input/csv/file --name your_analysis_name --genome mm10 --profile conda --with_control --nb_replicates 2"
 ````
 or use ``run_pipeline.sh`` script :
 ````
-bash run_pipeline.sh -i inputfile.csv
+bash run_pipeline.sh -i inputfile.csv -y "--name your_analysis_name --genome mm10 --profile conda --with_control --nb_replicates 2"
 ````
 See the available options before use with 
 ````
@@ -93,6 +140,34 @@ You can use ``-with-tower`` option to monitor your jobs through [nextflow tower 
 You first need to sign in to get your key, then add it to your parameters with the ``--tower-token 'yourkey'`` option.
 
 ### 5. Output
+The main output folder is specified through the ````--outdir```` parameter.
+This folder will contain the following directories :
+* **pipeline_info** with input csv files rearranged for the pipeline
+* **trim_fastqc** with fastQC reports for trimmed fastq files
+* **trim_fastq** with trimmed fastq files
+* **fastqscreen** with plots from fastqscreen 
+* **conf.fqscreen** is the input file for fastqscreen
+* **raw_fastqc** with fastQC reports for raw fastq files
+* **bam** with bam and bai files before filtering
+* **filterbam** with filtered bam and bai files 
+* **parse_itr** with bam, bai and bed files parsed from filtered bam files to 5 subtypes : ssT1, ssT2, ds, ds_strict, unclassified
+* **samstats** with samtools statistics reports for bam files
+* **bed_shuffle** with shuffled T1 bed files before callpeaks
+* **multiqc** with multiqc quality reports
+* **bigwig** with bigwig and bedgraph files
+* **pseudo_replicates** with pseudoreplicates bed files if IDR analysis is run
+* **peaks** with peaks bed files from callpeaks
+* **saturation_curve** with plots and bed peak files for saturation curve of samples
+* **idpeaks** with peaks bed files after IDR if IDR analysis is run
+* **idrresults** with IDR final peak bed files
+* **idrQC** with reports from IDR analysis
+* **finalpeaks** with final peaks set from the pipeline, to use for downstream analysis
+* **normpeaks** with recentered and normalized bedgraphs files after callpeaks
+* **work** is the working directory for Nextflow
+* **fingerprint** with fingerprint plot for filtered bam files
+* **nxfReports** with nextflow execution reports and diagram
+
+
 The execution reports are in ``nxfReports`` folder created in your output directory.
 The QC reports are located in the multiqc folder.
 
