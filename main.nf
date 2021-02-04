@@ -1908,35 +1908,33 @@ if (!params.satcurve) {
     }
 }
 
-if(params.nb_replicates == 2) {
-    if(params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep" ) {
-        process createCheckPointRepBigwig {
-            tag "${outNameStem}"
-            label 'process_basic'
-            input:
-                val('ok') from makeBigwigReplicates_ok.collect()
-            output:
-                val 'ok' into bigwig_ok
-            script:
-            """
-            echo "No replicates bigwig was plot."
-            """
-        }
+if(params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep" ) {
+    process createCheckPointRepBigwig {
+        tag "${outNameStem}"
+        label 'process_basic'
+        input:
+            val('ok') from makeBigwigReplicates_ok.collect()
+        output:
+            val 'ok' into bigwig_ok
+        script:
+        """
+        echo "No replicates bigwig was plot."
+        """
     }
+} 
  
-    if(params.bigwig_profile == "T1" || params.bigwig_profile == "T12" ) {
-        process createCheckPointBigwig {
-            tag "${outNameStem}"
-            label 'process_basic'
-            input:
-                val('ok') from makeBigwig_ok.collect()
-            output:
-                val 'ok' into bigwig_ok
-            script:
-            """
-            echo "Replicates bigwig was plot."
-            """
-        }
+if(params.bigwig_profile == "T1" || params.bigwig_profile == "T12" ) {
+    process createCheckPointBigwig {
+        tag "${outNameStem}"
+        label 'process_basic'
+        input:
+            val('ok') from makeBigwig_ok.collect()
+        output:
+            val 'ok' into bigwig_ok
+        script:
+        """
+        echo "Replicates bigwig was plot."
+        """
     }
 }
         
