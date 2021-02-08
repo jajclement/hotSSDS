@@ -418,25 +418,27 @@ process bwaAlign {
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
     publishDir "${params.outdir}/bam",  mode: 'copy', pattern: "*.sorted.bam*"
     publishDir "${params.outdir}/bam",  mode: 'copy', pattern: "*.flagstat"
+    publishDir "${params.outdir}/bam/log",  mode: 'copy', pattern: "*.log"
     input:
         set val(sampleId), file(fqR1), file(fqR2) from trim_ch
     output:
         set val(sampleId), file('*.sorted.bam') into SORTEDBAM
         set file('*.sorted.bam'), file('*.sorted.bam.bai') into sortedAndIndexedBam
         file('*.flagstat') into flagstat_report_bwa
+        file('*.log') into bwa_log
         val 'ok' into bwa_ok
     script:
     """
     # Align R1 reads (fully complementary to the genome)  with bwa aln
     ${params.custom_bwa} aln -t ${task.cpus} ${params.genome_fasta} ${fqR1} \
-            > ${tmpNameStem}.R1.sai
+            > ${tmpNameStem}.R1.sai 2>${tmpNameStem}.R1.sai.log
     # Align R2 reads (potentially contain fill-in ITR part at the end of the 5')
     # with bwa-ra aln (custom version of bwa that search for the longest mappable suffix in the query)
     ${params.custom_bwa_ra} aln -t ${task.cpus} ${params.genome_fasta} ${fqR2} \
-            > ${tmpNameStem}.R2.sai
+            > ${tmpNameStem}.R2.sai 2>${tmpNameStem}.R2.sai.log
     # Generate alignments in the SAM format given R1 and R2 alignments
     ${params.custom_bwa} sampe ${params.genome_fasta} ${tmpNameStem}.R1.sai ${tmpNameStem}.R2.sai ${fqR1} \
-            ${fqR2} >${tmpNameStem}.unsorted.sam
+            ${fqR2} >${tmpNameStem}.unsorted.sam 2> ${tmpNameStem}.unsorted.sam.log
     # Convert SAM to BAM file
     picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam \
             VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
@@ -447,7 +449,7 @@ process bwaAlign {
     
     ## CHECK IF BAM FILE IS EMPTY AFTER MAPPING (if so, exit pipeline)
     samtools flagstat ${sampleId}.sorted.bam > ${sampleId}.sorted.bam.flagstat
-    if grep -q "0 + 0 mapped" ${sampleId}.sorted.bam.flagstat
+    if grep -q "^0 + 0 mapped" ${sampleId}.sorted.bam.flagstat
     then
         echo "Bam file ${sampleId}.sorted.bam is empty. Check genome parameter."
         exit 1
