@@ -36,7 +36,7 @@ PROCESS 16 : shufBEDs (BED SHUFFLING)
 PROCESS 17 : callPeaks (PEAK CALLING WITH MACS2)
 PROCESS 18 : createPseudoReplicates (optional, CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
 PROCESS 19 : callPeaksForIDR (optional, CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
-PROCESS 20 : IDRanalysis (optional, PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES
+PROCESS 20 : IDRanalysis (optional, PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES)
 PROCESS 21 : IDRpostprocess (optional, IDR PEAKS POST PROCESSING)
 PROCESS 22 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
 PROCESS 23 ; mergeFinalPeaks (MERGE PEAKS FROM REPLICATES)
@@ -49,7 +49,7 @@ PROCESS 25 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
 def helpMessage() { 
     log.info"""
 =============================================================================
-  SSDS Pipeline version 2.0
+  SSDS Pipeline version 2.0 : Align, parse and call hotspots from SSDNA
 =============================================================================
     Usage:
 
@@ -71,7 +71,8 @@ Input data parameters:
     
 Output and temporary directory parameters:                            
     --name      		STRING  ANALYSIS NAME (default : "SSDS_pipeline")      
-    --outdir    		DIR     PATH TO OUTPUT DIRECTORY (default : name.outdir)           
+    --outdir    		DIR     PATH TO OUTPUT DIRECTORY (default : name.outdir)
+    --publishdir_mode           STRING  MODE FOR EXPORTING PROCESS OUTPUT FILES TO OUTPUT DIRECTORY (default : "copy", must be "symlink", "rellink", "link", "copy", "copyNoFollow","move", see https://www.nextflow.io/docs/latest/process.html)           
     --scratch   		DIR     PATH TO TEMPORARY DIRECTORY (default : scratch)
 
 Pipeline dependencies:
@@ -215,6 +216,91 @@ if(params.satcurve) {
     }
 }
 
+
+// Pipeline parameters information
+def paramsSection() {
+log.info """
+==========================================================================
+   SSDS Pipeline version 2.0 : Align, parse and call hotspots from SSDNA  
+==========================================================================
+Main parameters  
+Run name                       : ${params.name}
+Input file                     : ${params.inputcsv}
+Reference genome               : ${params.genome}
+Output directory               : ${params.outdir}
+Use input control files        : ${params.with_control}
+Filter out multimappers        : ${params.no_multimap}
+Number of replicates           : ${params.nb_replicates}
+Bigwig profile                 : ${params.bigwig_profile}
+Generate deeptools bigwig      : ${params.kbrick_bigwig}
+Exclude chromosome Y peaks     : ${params.no_chrY}
+Run IDR analysis               : ${params.with_idr}
+Plot saturation curve          : ${params.satcurve}
+Use trimgalore                 : ${params.with_trimgalore}
+R1 hard trimming               : ${params.trim_cropR1}
+R2 hard trimming               : ${params.trim_cropR2}
+Hard trimming if R1=R2         : ${params.trim_crop}
+Use SSDS custom multiQC        : ${params.with_ssds_multiqc}
+
+Trimming parameters
+Trimmomatic adapter file       : ${params.trimmomatic_adapters}
+Trimmomatic quality threshold  : ${params.trimg_quality}
+Trimmomatic stringency         : ${params.trimg_stringency}
+Trimmomatic sliding window     : ${params.trim_slidingwin}
+Trimmomatic illumina clip      : ${params.trim_illuminaclip}
+Trimming min length            : ${params.trim_minlen}
+Fastq-screen genomes to screen : ${params.genome2screen}
+MultiQC configuration file     : ${params.multiqc_configfile}
+Trimgalore adapter file        : ${params.trimgalore_adapters}
+
+Mapping and filtering parameters
+Samtools filtering flag        : ${params.filtering_flag}
+Quality threshold              : ${params.bed_trimqual}
+
+Bigwig parameter
+Deeptools bigwig bin size      : ${params.binsize}
+
+Peak calling parameters
+Macs2 bandwidth parameter      : ${params.macs_bw}
+Macs2 slocal parameter         : ${params.macs_slocal}
+Macs2 extsize parameter        : ${params.macs_extsize}
+Macs2 q-value                  : ${params.macs_qv}
+Macs2 p-value                  : ${params.macs_pv}
+
+Saturation curve parameters
+Saturation curve profile       : ${params.sctype}
+Number of iterations           : ${params.reps}
+
+IDR (Irreproducible Discovery Rate) analysis parameters
+Peak type                      : ${params.idr_peaktype}
+Pseudo-rep 1 IDR threshold     : ${params.idr_threshold_r1}
+Pseudo-rep 2 IDR threshold     : ${params.idr_threshold_r2}
+True rep IDR threshold         : ${params.idr_threshold_truerep}
+Pool rep IDR threshold         : ${params.idr_threshold_poolrep}
+IDR rank value                 : ${params.idr_rank}
+IDR macs2 q-value              : ${params.idr_macs_qv}
+IDR macs2 p-value              : ${params.idr_macs_pv}
+IDR filtering pattern          : ${params.idr_filtering_pattern}
+
+Pipeline dependencies
+Source directory               : ${params.src}
+Scratch directory              : ${params.scratch}
+Chromosome sizes file          : ${params.chrsize}
+BWA bin                        : ${params.custom_bwa}
+BWA-ra bin                     : ${params.custom_bwa_ra}
+BAM custom header              : ${params.bamPGline}
+Blacklist file                 : ${params.blacklist}
+Hotspots file                  : ${params.hotspots}
+SSDS multiQC dev bin           : ${params.custom_multiqc}
+SSDS multiQC custom conda env  : ${params.multiqc_dev_conda_env}
+Nextflow Tover token           : ${params.tower_token}
+Publish directory mode         : ${params.publishdir_mode}        
+    
+""".stripIndent()
+}
+// Print parameters in log report
+paramsSection()
+
 //***************************************************************************//
 //                                                                           //
 //                          BEGINNING PIPELINE                               //
@@ -233,7 +319,7 @@ if(params.satcurve) {
 process check_design {
     tag "${design}"
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
-    publishDir "${params.outdir}/pipeline_info", mode: 'copy'
+    publishDir "${params.outdir}/pipeline_info", mode: params.publishdir_mode
     input:
         path design from input_ch 
     output:
@@ -320,17 +406,17 @@ process makeScreenConfigFile {
 process trimming {
     tag "${sampleId}" 
     label 'process_low'
-    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', pattern: "*_report.txt"
-    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', pattern: "*.html"
-    publishDir "${params.outdir}/trim_fastqc", mode: 'copy', pattern: "*.zip"
-    publishDir "${params.outdir}/trim_fastq", mode: 'copy', pattern: "*trim_crop_R1.fastq.gz"
-    publishDir "${params.outdir}/trim_fastq", mode: 'copy', pattern: "*trim_crop_R2.fastq.gz"
+    publishDir "${params.outdir}/trim_fastqc", mode: params.publishdir_mode, pattern: "*_report.txt"
+    publishDir "${params.outdir}/trim_fastqc", mode: params.publishdir_mode, pattern: "*.html"
+    publishDir "${params.outdir}/trim_fastqc", mode: params.publishdir_mode, pattern: "*.zip"
+    publishDir "${params.outdir}/trim_fastq", mode: params.publishdir_mode, pattern: "*trim_crop_R1.fastq.gz"
+    publishDir "${params.outdir}/trim_fastq", mode: params.publishdir_mode, pattern: "*trim_crop_R2.fastq.gz"
     input:
-        set val(sampleId), file(reads) from fq_ch
+        tuple val(sampleId), file(reads) from fq_ch
     output:
-        set val("${sampleId}"), file(reads) into fqc_ch
-        set val("${sampleId}"), file('*crop_R1.fastq.gz'), file('*crop_R2.fastq.gz') into trim_ch
-        file('*') into trim_fastqc_report
+        tuple val("${sampleId}"), file(reads) into fqc_ch
+        tuple val("${sampleId}"), file('*crop_R1.fastq.gz'), file('*crop_R2.fastq.gz') into trim_ch
+        file('*') 
         val 'ok' into trimming_ok
     script:
     	if (params.with_trimgalore && params.trimgalore_adapters)
@@ -379,15 +465,15 @@ fqc_ch
 process fastqc {
     tag "${sampleId}"
     label 'process_low'
-    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', pattern: "*.html"
-    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', pattern: "*.zip"
-    publishDir "${params.outdir}/fastqscreen", mode: 'copy', pattern: "*.png"
-    publishDir "${params.outdir}/raw_fastqc", mode: 'copy', pattern: "*.txt"
+    publishDir "${params.outdir}/raw_fastqc", mode: params.publishdir_mode, pattern: "*.html"
+    publishDir "${params.outdir}/raw_fastqc", mode: params.publishdir_mode, pattern: "*.zip"
+    publishDir "${params.outdir}/fastqscreen", mode: params.publishdir_mode, pattern: "*.png"
+    publishDir "${params.outdir}/raw_fastqc", mode: params.publishdir_mode, pattern: "*.txt"
     input:
         tuple val(sampleId), file(read1), file(read2) from fqc_tuple 
         file(ok) from fqscreen_conf_ok
     output:
-	file('*') into fastc_report
+	file('*') 
         val 'ok' into fastqc_ok
     script:
     // Get fastq files extension (for properly rename files)
@@ -416,16 +502,15 @@ process bwaAlign {
     tag "${sampleId}"
     label 'process_long'
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
-    publishDir "${params.outdir}/bam",  mode: 'copy', pattern: "*.sorted.bam*"
-    publishDir "${params.outdir}/bam",  mode: 'copy', pattern: "*.flagstat"
-    publishDir "${params.outdir}/bam/log",  mode: 'copy', pattern: "*.log"
+    publishDir "${params.outdir}/bam",  mode: params.publishdir_mode, pattern: "*.sorted.bam*"
+    publishDir "${params.outdir}/bam",  mode: params.publishdir_mode, pattern: "*.flagstat"
+    publishDir "${params.outdir}/bam/log",  mode: params.publishdir_mode, pattern: "*.log"
     input:
-        set val(sampleId), file(fqR1), file(fqR2) from trim_ch
+        tuple val(sampleId), file(fqR1), file(fqR2) from trim_ch
     output:
-        set val(sampleId), file('*.sorted.bam') into SORTEDBAM
-        set file('*.sorted.bam'), file('*.sorted.bam.bai') into sortedAndIndexedBam
-        file('*.flagstat') into flagstat_report_bwa
-        file('*.log') into bwa_log
+        tuple val(sampleId), file('*.sorted.bam') into SORTEDBAM
+        file('*.flagstat')
+        file('*.log')
         val 'ok' into bwa_ok
     script:
     """
@@ -476,15 +561,15 @@ process bwaAlign {
 process filterBam {
     tag "${sampleId}"
     label 'process_medium'
-    publishDir "${params.outdir}/filterbam",  mode: 'copy'
+    publishDir "${params.outdir}/filterbam",  mode: params.publishdir_mode
     input:
-        set val(sampleId), file(bam) from SORTEDBAM
+        tuple val(sampleId), file(bam) from SORTEDBAM
     output:
-        set val(sampleId), file('*.unparsed.bam') into FILTEREDBAM
-        set val(sampleId), file('*.unparsed.bed') into INPUTBED
-        set val(sampleId), file('*.unparsed.bam'), file('*.unparsed.bam.bai') into bamIDX 
-        set val(sampleId), file('*.unparsed.suppAlignments.bam') into bamAlignedSupp
-        set val(sampleId), file('*.unparsed.suppAlignments.bam.bai') into bamIDXSupp
+        tuple val(sampleId), file('*.unparsed.bam') into FILTEREDBAM
+        tuple val(sampleId), file('*.unparsed.bed') into INPUTBED
+        //set val(sampleId), file('*.unparsed.bam'), file('*.unparsed.bam.bai') into bamIDX 
+        //set val(sampleId), file('*.unparsed.suppAlignments.bam') into bamAlignedSupp
+        //set val(sampleId), file('*.unparsed.suppAlignments.bam.bai') into bamIDXSupp
         val 'ok' into filterbam_ok
         val 'ok' into filterbam_tofingerprint
     script:
@@ -530,24 +615,24 @@ process parseITRs {
     tag "${sampleId}"
     label 'process_medium'
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
-    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.txt"
-    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.bed"
-    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.md*.bam*"
-    publishDir "${params.outdir}/parse_itr",  mode: 'copy', pattern: "*.flagstat"
-    publishDir "${params.outdir}/parse_itr/log",  mode: 'copy', pattern: "*.log"
-    publishDir "${params.outdir}/parse_itr", mode: 'copy', pattern: "*norm_factors.txt"
+    publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.txt"
+    publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.bed"
+    publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.md*.bam*"
+    publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.flagstat"
+    publishDir "${params.outdir}/parse_itr/log",  mode: params.publishdir_mode, pattern: "*.log"
+    publishDir "${params.outdir}/parse_itr", mode: params.publishdir_mode, pattern: "*norm_factors.txt"
     input:
-        set val(sampleId), file(bam) from FILTEREDBAM
+        tuple val(sampleId), file(bam) from FILTEREDBAM
     output:
-        set val(sampleId), file("${bam}"), file('*.ssDNA_type1.bed'), file('*.ssDNA_type2.bed'), \
+        tuple val(sampleId), file("${bam}"), file('*.ssDNA_type1.bed'), file('*.ssDNA_type2.bed'), \
             file('*.dsDNA.bed'), file('*.dsDNA_strict.bed'), file('*.unclassified.bed')  into ITRBED
-        set val(sampleId), file('*ssDNA_type1.bed') into T1BED, T1BEDrep
-        set val(sampleId), file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
-        set val(sampleId), file('*.md.ssDNA_type1.bam'), file('*.md.ssDNA_type1.bam.bai') into T1BAMwithIDXfr, T1BAMwithIDXdt mode flatten
+        tuple val(sampleId), file('*ssDNA_type1.bed') into T1BED, T1BEDrep
+        tuple val(sampleId), file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
+        tuple val(sampleId), file('*.md.ssDNA_type1.bam'), file('*.md.ssDNA_type1.bam.bai') into T1BAMwithIDXfr, T1BAMwithIDXdt mode flatten
         tuple val(sampleId), file('*norm_factors.txt'), file('*.ssDNA_type1.bed'), \
                 file('*.ssDNA_type12.bed') into BEDtoBW, BEDtoBWrep
-        file ('*.flagstat') into flagstat_report_parseITRs
-        file ('*.log') into parseITR_log
+        file ('*.flagstat')
+        file ('*.log')
         val 'ok' into parseitr_ok
     script:
     """
@@ -649,14 +734,14 @@ process parseITRs {
 process makeBigwig {
     tag "${sampleId}"
     label 'process_basic'
-    publishDir "${params.outdir}/bigwig",  mode: 'copy', pattern: "*.bw"
-    publishDir "${params.outdir}/bigwig/log",  mode: 'copy', pattern: "*.log"
+    publishDir "${params.outdir}/bigwig",  mode: params.publishdir_mode, pattern: "*.bw"
+    publishDir "${params.outdir}/bigwig/log",  mode: params.publishdir_mode, pattern: "*.log"
     input:
         tuple val(sampleId), file(libsizeTotal), file(ssDNA_type1_bed), \
             file(ssDNA_type12_bed) from BEDtoBW
     output:
-        file('*.bw') into BW
-        file('*.log') into bw_log
+        file('*.bw')
+        file('*.log')
         val('ok') into makeBigwig_ok
     script:
     """
@@ -716,14 +801,14 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
         process makeBigwigReplicates {
             tag "${sampleId}"
             label 'process_basic'
-            publishDir "${params.outdir}/bigwig",  mode: 'copy', pattern: "*.bw"
-            publishDir "${params.outdir}/bigwig/log",  mode: 'copy', pattern: "*.log"
+            publishDir "${params.outdir}/bigwig",  mode: params.publishdir_mode, pattern: "*.bw"
+            publishDir "${params.outdir}/bigwig/log",  mode: params.publishdir_mode, pattern: "*.log"
             input:
                 tuple val(sampleId), file(R1_libsizeTotal), file(R2_libsizeTotal), file(R1_ssDNA_type1_bed), file(R2_ssDNA_type1_bed), \
                     file(R1_ssDNA_type12_bed), file(R2_ssDNA_type12_bed) from BEDtoBWrep
             output:
-                file('*.bw') into BWrep
-                file('*.log') into bwrep_log
+                file('*.bw')
+                file('*.log')
                 val('ok') into makeBigwigReplicates_ok
             script:
             """
@@ -789,13 +874,13 @@ if ( params.kbrick_bigwig ) {
     process makeDeeptoolsBigWig { 
         tag "${sampleId}"
         label 'process_basic'
-        publishDir "${params.outdir}/bigwig/kbrick_bigwig/plot",  mode: 'copy', pattern: "*.png"
-        publishDir "${params.outdir}/bigwig/kbrick_bigwig",  mode: 'copy', pattern: "*.bigwig"
-        publishDir "${params.outdir}/bigwig/kbrick_bigwig",  mode: 'copy', pattern: "*.tab"
+        publishDir "${params.outdir}/bigwig/kbrick_bigwig/plot",  mode: params.publishdir_mode, pattern: "*.png"
+        publishDir "${params.outdir}/bigwig/kbrick_bigwig",  mode: params.publishdir_mode, pattern: "*.bigwig"
+        publishDir "${params.outdir}/bigwig/kbrick_bigwig",  mode: params.publishdir_mode, pattern: "*.tab"
     input:
         set val(sampleId), file(bam), file(bamidx) from BAMwithIDXdt
     output:
-        file('*') into kb_bigwig
+        file('*')
         val 'ok' into kb_bigwig_ok
     shell:
     """
@@ -819,14 +904,14 @@ if ( params.kbrick_bigwig ) {
     process toFRBigWig {
         tag "${sampleId}"
         label 'process_basic'
-        publishDir "${params.outdir}/bigwig/kbrick_bigwig/log",  mode: 'copy', pattern: '*.out'
-        publishDir "${params.outdir}/bigwig/kbrick_bigwig/log",  mode: 'copy', pattern: '*.log'
-        publishDir "${params.outdir}/bigwig/kbrick_bigwig",  mode: 'copy', pattern: '*.bigwig'
+        publishDir "${params.outdir}/bigwig/kbrick_bigwig/log",  mode: params.publishdir_mode, pattern: '*.out'
+        publishDir "${params.outdir}/bigwig/kbrick_bigwig/log",  mode: params.publishdir_mode, pattern: '*.log'
+        publishDir "${params.outdir}/bigwig/kbrick_bigwig",  mode: params.publishdir_mode, pattern: '*.bigwig'
         input:
             set val(sampleId), file(bam), file(bamidx) from BAMwithIDXfr
         output:
-            file('*') into frbigwig
-            file('*.log') into frbigwig_log
+            file('*')
+            file('*.log')
 	    val 'ok' into fr_bigwig_ok
         script:
         """
@@ -849,11 +934,11 @@ if ( params.kbrick_bigwig ) {
 process samStats {
     tag "${sampleId}"
     label 'process_basic'
-    publishDir "${params.outdir}/samstats",  mode: 'copy', pattern: "*.tab"
+    publishDir "${params.outdir}/samstats",  mode: params.publishdir_mode, pattern: "*.tab"
     input:
         set val(sampleId), file(bam), file(bamidx) from BAMwithIDXss
     output:
-        file '*stats.tab' into dtSamStat
+        file '*stats.tab'
         val 'ok' into samstats_ok
     script:
         """
@@ -871,13 +956,13 @@ process samStats {
 process makeSSreport {
     tag "${sampleId}"
     label 'process_basic'
-    publishDir "${params.outdir}/multiqc",  mode: 'copy', patten: '*SSDSreport*'
-    publishDir "${params.outdir}/multiqc/log",  mode: 'copy', patten: '*.log'
+    publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode, patten: '*SSDSreport*'
+    publishDir "${params.outdir}/multiqc/log",  mode: params.publishdir_mode, patten: '*.log'
     input:
         set val(sampleId), file(bam), file(T1), file(T2), file(ds), file(dss), file(unclassified) from ITRBED 
     output:
         set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqc
-        file('*.log') into makessreport_log
+        file('*.log')
         val 'ok' into ssreport_ok
     script:
         """
@@ -896,11 +981,11 @@ if (params.with_ssds_multiqc) {
         tag "${sampleId}"
     	label 'process_basic'
     	conda "${params.multiqc_dev_conda_env}" 
-        publishDir "${params.outdir}/multiqc",  mode: 'copy'
+        publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode
         input:
             set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
         output:
-            file('*') into ssdsmultiqc_report
+            file('*')
         script:
         """
         multiqc -m ssds -n ${sampleId}.multiQC .
@@ -915,13 +1000,13 @@ if (params.with_ssds_multiqc) {
 process makeFingerPrint {
     tag "${outNameStem}"
     label 'process_low'
-    publishDir "${params.outdir}/fingerprint",  mode: 'copy', pattern: '*.png'
-    publishDir "${params.outdir}/fingerprint",  mode: 'copy', pattern: '*.tab'
+    publishDir "${params.outdir}/fingerprint",  mode: params.publishdir_mode, pattern: '*.png'
+    publishDir "${params.outdir}/fingerprint",  mode: params.publishdir_mode, pattern: '*.tab'
     input:
         val('filterbam_ok') from filterbam_tofingerprint.collect()
     output:
-        file('*.png') into fingerprint
-        file('*.tab') into tab_fingerprint
+        file('*.png') //into fingerprint
+        file('*.tab') //into tab_fingerprint
         val('ok') into makefingerprint_ok
     script:
     """
@@ -988,7 +1073,7 @@ if (params.with_control) {
     process shufBEDs_ct {
         tag "${id_ip}"
         label 'process_basic'
-        publishDir "${params.outdir}/bed_shuffle",  mode: 'copy'
+        publishDir "${params.outdir}/bed_shuffle",  mode: params.publishdir_mode
         input:
             tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from T1BED_shuffle_ch
         output:
@@ -1028,19 +1113,19 @@ if (params.with_control) {
         tag "${id_ip}"
         label 'process_basic'
         conda "${baseDir}/environment_callpeaks.yml"
-        publishDir "${params.outdir}/saturation_curve/peaks", mode: 'copy', pattern: "*peaks*.bed"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks*.bed"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*peaks*.xls"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*.macs2.log"
-        publishDir "${params.outdir}/finalpeaks",            mode: 'copy', pattern: "*finalPeaks_noIDR.bed"
-        publishDir "${params.outdir}/finalpeaks",            mode: 'copy', pattern: "*finalPeaks_noIDR.xls"
+        publishDir "${params.outdir}/saturation_curve/peaks", mode: params.publishdir_mode, pattern: "*peaks*.bed"
+        publishDir "${params.outdir}/peaks",                  mode: params.publishdir_mode, pattern: "*peaks*.bed"
+        publishDir "${params.outdir}/peaks",                  mode: params.publishdir_mode, pattern: "*peaks*.xls"
+        publishDir "${params.outdir}/peaks",                  mode: params.publishdir_mode, pattern: "*.macs2.log"
+        publishDir "${params.outdir}/finalpeaks",            mode: params.publishdir_mode, pattern: "*finalPeaks_noIDR.bed"
+        publishDir "${params.outdir}/finalpeaks",            mode: params.publishdir_mode, pattern: "*finalPeaks_noIDR.xls"
         input:
             tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed), val(shuffle_percent) from SQ30BED_satcurve_ch
         output:
             path("*peaks*.bed") into allbed
-            path("*peaks*.xls") optional true into peaks_xls
-            path("*peaks.bedgraph") optional true into peaks_bg
-            path("*.macs2.log") into macs2log
+            path("*peaks*.xls") optional true
+            path("*peaks.bedgraph") optional true
+            path("*.macs2.log")
             tuple val(id_ip), file(ip_bed), file("*peaks.bed") optional true into ALLPEAKSTOPP, ALLPEAKSTOPP2
             stdout into gsize
             val 'ok' into callPeaks_ok
@@ -1134,7 +1219,7 @@ else {
     process shufBEDs {
         tag "${id_ip}"
         label 'process_basic'
-        publishDir "${params.outdir}/bed_shuffle",  mode: 'copy'
+        publishDir "${params.outdir}/bed_shuffle",  mode: params.publishdir_mode
         input:
             tuple val(id_ip), path(ip_bed) from T1BED
         output:
@@ -1171,21 +1256,19 @@ else {
         tag "${id_ip}"
         label 'process_basic'
         conda "${baseDir}/environment_callpeaks.yml"
-        publishDir "${params.outdir}/saturation_curve/peaks", mode: 'copy', pattern: "*peaks*.bed"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*.peaks*.bed"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*.peaks*.xls"
-        publishDir "${params.outdir}/peaks",                  mode: 'copy', pattern: "*.macs2.log"
-        publishDir "${params.outdir}/finalpeaks",             mode: 'copy', pattern: "*finalPeaks_noIDR.bed"
-        publishDir "${params.outdir}/finalpeaks",             mode: 'copy', pattern: "*finalPeaks_noIDR.xls"
+        publishDir "${params.outdir}/saturation_curve/peaks", mode: params.publishdir_mode, pattern: "*peaks*.bed"
+        publishDir "${params.outdir}/peaks",                  mode: params.publishdir_mode, pattern: "*.peaks*.bed"
+        publishDir "${params.outdir}/peaks",                  mode: params.publishdir_mode, pattern: "*.peaks*.xls"
+        publishDir "${params.outdir}/peaks",                  mode: params.publishdir_mode, pattern: "*.macs2.log"
+        publishDir "${params.outdir}/finalpeaks",             mode: params.publishdir_mode, pattern: "*finalPeaks_noIDR.bed"
+        publishDir "${params.outdir}/finalpeaks",             mode: params.publishdir_mode, pattern: "*finalPeaks_noIDR.xls"
         input:
-            //tuple val(id_ip), path(ip_bed) from SQ30BED_ch
-            //val(shuffle_percent) from satCurvePCs
             tuple val(id_ip), path(ip_bed), val(shuffle_percent) from SQ30BED_satcurve_ch
         output:
             path("*peaks*.bed") into allbed
-            path("*peaks*.xls") optional true into peaks_xls
-            path("*peaks*.bedgraph") optional true into peaks_bg
-            path("*.macs2.log") into macs2log
+            path("*peaks*.xls") optional true
+            path("*peaks*.bedgraph") optional true
+            path("*.macs2.log")
             tuple val(id_ip), file(ip_bed), file("*peaks.bed") optional true into ALLPEAKSTOPP, ALLPEAKSTOPP2
             stdout into gsize
             val 'ok' into callPeaks_ok
@@ -1312,7 +1395,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
         process createPseudoReplicates_ct {
             tag "${id_ip}"
             label 'process_medium'
-            publishDir "${params.outdir}/pseudo_replicates",  mode: 'copy', pattern: '*.bed'
+            publishDir "${params.outdir}/pseudo_replicates",  mode: params.publishdir_mode, pattern: '*.bed'
             input:
                 tuple val(id_ip), val(id_ct), file(t1_rep1), file(t1_rep2), file(ct_r1), file(ct_r2) from T1BED_replicate_ch_renamed
             output:
@@ -1359,21 +1442,21 @@ if (params.with_idr && params.nb_replicates == 2 ) {
             tag "${id_ip}"
             label 'process_medium'
             conda "${baseDir}/environment_callpeaks.yml"
-            publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*narrowPeak*'
-            publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*regionPeak*'
-            publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*.macs2.log'
+            publishDir "${params.outdir}/idrpeaks",  mode: params.publishdir_mode, pattern: '*narrowPeak*'
+            publishDir "${params.outdir}/idrpeaks",  mode: params.publishdir_mode, pattern: '*regionPeak*'
+            publishDir "${params.outdir}/idrpeaks",  mode: params.publishdir_mode, pattern: '*.macs2.log'
             input:
                 tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(r1_pseudorep_r1), file(r1_pseudorep_r2),\
                     file(r2_pseudorep_r1), file(r2_pseudorep_r2), file(pool_r1), file(pool_r2), \
                     file(poolT), file(ctpool) from ALLREP
                 val(genome_size) from gsize
             output:
-                file('*narrowPeak*') into ALLPEAKS
+                file('*narrowPeak*')
                 tuple val(id_ip),file(t1_rep1), file(t1_rep2), file('*_R1*type1*.regionPeak'), file('*_R2*type1*.regionPeak'),\
                     file('*r1_pseudorep_r1*.regionPeak'), file('*r1_pseudorep_r2*.regionPeak'),\
                     file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak'), \
                     file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak'), file('*poolT*.regionPeak') into ALLPEAKSREP
-                file('*.macs2.log') into MACS2IDRLOG
+                file('*.macs2.log')
                 val 'ok' into callPeaksForIDR_ok
             script:
             """
@@ -1448,7 +1531,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
         process createPseudoReplicates {
             tag "${id_ip}"
             label 'process_basic'
-            publishDir "${params.outdir}/pseudo_replicates",  mode: 'copy'
+            publishDir "${params.outdir}/pseudo_replicates",  mode: params.publishdir_mode
             input:
                 tuple val(id_ip), file(t1_rep1), file(t1_rep2) from T1BED_replicate_ch
             output:
@@ -1485,9 +1568,9 @@ if (params.with_idr && params.nb_replicates == 2 ) {
             tag "${id_ip}"
             label 'process_medium'
             conda "${baseDir}/environment_callpeaks.yml"
-            publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*narrowPeak*'
-            publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*regionPeak*'
-            publishDir "${params.outdir}/idrpeaks",  mode: 'copy', pattern: '*.macs2.log'
+            publishDir "${params.outdir}/idrpeaks",  mode: params.publishdir_mode, pattern: '*narrowPeak*'
+            publishDir "${params.outdir}/idrpeaks",  mode: params.publishdir_mode, pattern: '*regionPeak*'
+            publishDir "${params.outdir}/idrpeaks",  mode: params.publishdir_mode, pattern: '*.macs2.log'
             input:
                 tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(r1_pseudorep_r1), file(r1_pseudorep_r2),\
                     file(r2_pseudorep_r1), file(r2_pseudorep_r2), file(pool_r1), file(pool_r2), \
@@ -1498,8 +1581,8 @@ if (params.with_idr && params.nb_replicates == 2 ) {
                     file('*r1_pseudorep_r1*.regionPeak'), file('*r1_pseudorep_r2*.regionPeak'),\
                     file('*r2_pseudorep_r1*.regionPeak'), file('*r2_pseudorep_r2*.regionPeak'), \
                     file('*pool_r1*.regionPeak'), file('*pool_r2*.regionPeak'), file('*poolT*.regionPeak') into ALLPEAKSREP
-                file('*narrowPeak*') into ALLPEAKS
-                file('*.macs2.log') into MACS2IDRLOG
+                file('*narrowPeak*')
+                file('*.macs2.log')
                 val 'ok' into callPeaksForIDR_ok
             script:
             """
@@ -1550,7 +1633,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
 
 if (params.with_idr && params.nb_replicates == 2 ) {
 
-    // PROCESS 20 : IDRanalysis (PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES
+    // PROCESS 20 : IDRanalysis (PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES)
     // What it does : performs IDR (Irreproducible Discovery Rate) statistical analysis on 4 pairs of replicates :
     // IDR1 and IDR2 : pseudoreplicates from true replicates ; IDR3 : true replicates ; IDR4 : pseudoreplicates from pooled true replicates ;
     // Input : 9 regionpeak files from idr peak calling  
@@ -1560,15 +1643,15 @@ if (params.with_idr && params.nb_replicates == 2 ) {
         tag "${id_ip}"
         label 'process_medium'
         conda 'idr=2.0.4.2 bioconda::ucsc-bedclip=377 bioconda::bedtools=2.29.2 bioconda::ucsc-bedtobigbed=377' 
-        publishDir "${params.outdir}/idrresults",  mode: 'copy'
+        publishDir "${params.outdir}/idrresults",  mode: params.publishdir_mode
         input:
             tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(ip_rep1), file(ip_rep2), file(r1_pseudorep_r1), file(r1_pseudorep_r2), \
                 file(r2_pseudorep_r1), file(r2_pseudorep_r2), file(pool_r1), file(pool_r2), file(poolT) from ALLPEAKSREP
         output:
-            file('*unthresholded-peaks*') into UNTHPEAKS
-            file('*.log') into IDRLOG
-            file('*.png') into IDRPNG
-            file('*.bfilt.gz') into BFILT
+            file('*unthresholded-peaks*')
+            file('*.log')
+            file('*.png')
+            file('*.bfilt.gz')
             tuple val(id_ip), file(t1_rep1), file(t1_rep2), file('*r1_pseudorep*.*Peak.gz'), file('*r2_pseudorep*.*Peak.gz'), \
                 file('*truerep*.*Peak.gz'), file('*poolrep*.*Peak.gz') into IDRPEAKS
             val 'ok' into IDRanalysis_ok
@@ -1630,16 +1713,16 @@ if (params.with_idr && params.nb_replicates == 2 ) {
     process IDRpostprocess {
         tag "${id_ip}"
         label 'process_basic'
-            publishDir "${params.outdir}/idrQC",  mode: 'copy', pattern:'*.log'
-            publishDir "${params.outdir}/idrQC",  mode: 'copy', pattern:'*.finalPeaks*'
-            publishDir "${params.outdir}/finalpeaks",  mode: 'copy', pattern:'*.finalPeaks*'
+            publishDir "${params.outdir}/idrQC",  mode: params.publishdir_mode, pattern:'*.log'
+            publishDir "${params.outdir}/idrQC",  mode: params.publishdir_mode, pattern:'*.finalPeaks*'
+            publishDir "${params.outdir}/finalpeaks",  mode: params.publishdir_mode, pattern:'*.finalPeaks*'
         input:
             tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(r1_pseudorep_peaks), file(r2_pseudorep_peaks), \
                 file(truerep_peaks), file(poolrep_peaks) from IDRPEAKS
         output:
             tuple val(id_ip), file(t1_rep1), file(t1_rep2), file('*.finalPeaks_IDR.bed') into ALLPEAKSTOPPIDR
-            file('*_IDR_QC.log') into IDRQC 
-            file('*.finalPeaks*') into FINALPEAKS
+            file('*_IDR_QC.log') 
+            file('*.finalPeaks*')
             val 'ok' into IDRpostprocess_ok
         script:
         """
@@ -1696,14 +1779,14 @@ if (!params.with_idr) {
     process normalizePeaks {
         tag "${id_ip}"
         label 'process_basic'
-        publishDir "${params.outdir}/normpeaks",  mode: 'copy', pattern: '*.bedgraph'
-        publishDir "${params.outdir}/normpeaks",  mode: 'copy', pattern: '*.tab'
-        publishDir "${params.outdir}/normpeaks/log",  mode: 'copy', pattern: '*.log'
+        publishDir "${params.outdir}/normpeaks",  mode: params.publishdir_mode, pattern: '*.bedgraph'
+        publishDir "${params.outdir}/normpeaks",  mode: params.publishdir_mode, pattern: '*.tab'
+        publishDir "${params.outdir}/normpeaks/log",  mode: params.publishdir_mode, pattern: '*.log'
         input:
             tuple val(id_ip), file(ip_bed), file(peaks_bed) from ALLPEAKSTOPP
         output:
-            tuple val(id_ip), file("*normpeaks.bedgraph"), file("*normpeaks.tab") into NORMPEAKS
-            file('*.normpeaks.log') into normpeakslog
+            tuple val(id_ip), file("*normpeaks.bedgraph"), file("*normpeaks.tab")
+            file('*.normpeaks.log')
             val('ok') into normalizePeaks_ok
         script:
         """
@@ -1715,7 +1798,7 @@ if (!params.with_idr) {
     }
 
     //IF RUNNING WITH REPLICATES, THEN MERGE FINAL PEAKS FROM  REPLICATES
-    if (params.nb_replicates >= 2) {
+    if (params.nb_replicates == 2) {
 
     //CREATE CHANNEL TO GROUP SAMPLES BY REPLICATES
     //The final channel is composed of (1+nb_replicates) elements : sampleID, nb_replicates*(peak bed file)
@@ -1733,13 +1816,13 @@ if (!params.with_idr) {
         process mergeFinalPeaks {
             tag "${id_ip}"
             label 'process_low'
-            publishDir "${params.outdir}/finalpeaks",  mode: 'copy', pattern: '*.bed'
-            publishDir "${params.outdir}/finalpeaks/log",  mode: 'copy', pattern: '*.log'
+            publishDir "${params.outdir}/finalpeaks",  mode: params.publishdir_mode, pattern: '*.bed'
+            publishDir "${params.outdir}/finalpeaks/log",  mode: params.publishdir_mode, pattern: '*.log'
             input:
                 tuple val(id_ip), file(R1peaks), file(R2peaks) from ALLPEAKSTOPP2
             output:
-                file('*mergePeaks.bed') into mergePeaks
-                file('*.log') into mergeBed_log
+                file('*mergePeaks.bed')
+                file('*.log')
                 val('ok') into mergeFinalPeaks_ok
             script:
             """
@@ -1760,14 +1843,14 @@ else if ( params.nb_replicates == 2 ) {
    process normalizePeaks_idr {
         tag "${id_ip}"
         label 'process_basic'
-        publishDir "${params.outdir}/normpeaks",  mode: 'copy', pattern: '*.bedgraph'
-        publishDir "${params.outdir}/normpeaks",  mode: 'copy', pattern: '*.tab'
-        publishDir "${params.outdir}/normpeaks/log",  mode: 'copy', pattern: '*.log'
+        publishDir "${params.outdir}/normpeaks",  mode: params.publishdir_mode, pattern: '*.bedgraph'
+        publishDir "${params.outdir}/normpeaks",  mode: params.publishdir_mode, pattern: '*.tab'
+        publishDir "${params.outdir}/normpeaks/log",  mode: params.publishdir_mode, pattern: '*.log'
         input:
             tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(peaks_bed) from ALLPEAKSTOPPIDR
         output:
-            tuple val(id_ip), file("*normpeaks.bedgraph"), file("*normpeaks.tab") into NORMPEAKSIDR
-            file('*.normpeaks.log') into normpeakslog
+            tuple val(id_ip), file("*normpeaks.bedgraph"), file("*normpeaks.tab")
+            file('*.normpeaks.log')
             val('ok') into normalizePeaks_idr_ok
         script:
         """
@@ -1797,12 +1880,12 @@ if (params.satcurve) {
         tag "${outNameStem}"
         label 'process_basic'
         conda "${baseDir}/environment_callpeaks.yml"
-        publishDir "${params.outdir}/saturation_curve",  mode: 'copy'
+        publishDir "${params.outdir}/saturation_curve",  mode: params.publishdir_mode
         input:
             file(saturation_curve_data) from allbed.collect()
         output:
-            path("*satCurve.tab", emit: table) into satcurve_table
-            path("*.png", emit: png) into curve
+            path("*satCurve.tab", emit: table)
+            path("*.png", emit: png)
             val 'ok' into makeSatCurve_ok
         script:
         """
@@ -1818,6 +1901,7 @@ if (params.satcurve) {
 //***************************************************************************//
 
 // Get flags indicating the end of conditionnal processes for all samples
+// To tell process multiqc to wait for all process before execution
 if (params.kbrick_bigwig) {
     process createCheckPointKbrickBigwig {
         tag "${outNameStem}"
@@ -1866,13 +1950,13 @@ if (params.with_idr && params.nb_replicates == 2 ) {
     }
 }
 
-//if (!params.with_idr) {
-else {
+else if (params.nb_replicates == 2 ) {
     process createCheckPointNoIDR {
         tag "${outNameStem}"
         label 'process_basic'
         input:
             val 'ok' from mergeFinalPeaks_ok.collect()
+            val 'ok' from normalizePeaks_ok.collect()
         output:
             val 'ok' into idr_ok
         script:
@@ -1881,6 +1965,22 @@ else {
         """
     }
 }
+
+else  {
+    process createCheckPointNoIDRNoReplicates {
+        tag "${outNameStem}"
+        label 'process_basic'
+        input:
+            val 'ok' from normalizePeaks_ok.collect()
+        output:
+            val 'ok' into idr_ok
+        script:
+        """
+        echo "No IDR analysis was run and no replicates."
+        """
+    }
+}
+
 
 if (params.satcurve) {
     process createCheckPointSatCurve {
@@ -1965,7 +2065,7 @@ process general_multiqc {
         val('bigwig_ok') from bigwig_ok.collect()
         val('makefingerprint_ok') from makefingerprint_ok.collect()
     output:
-	file('*') into generalmultiqc_report
+	file('*')
     script:
     """
     multiqc -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC \
@@ -1979,11 +2079,21 @@ process general_multiqc {
 //                                                                           //
 //                          END OF PIPELINE !!                               //
 //                                                                           //
-// **************************************************************************//
+//***************************************************************************//
 
 // PRINT LOG MESSAGE ON COMPLETION        
 workflow.onComplete {
     scrdir.deleteDir()
-    println ( workflow.success ? "Well Done!" : "Oops .. something went wrong" )
-}
+    println "Pipeline completed at: $workflow.complete"
+    println "Pipeline duration: $workflow.duration"
+    println "Execution status: ${ workflow.success ? 'OK' : 'failed' }"
+    println "Command line: $workflow.commandLine"
+    println "Execution profile: $workflow.profile"
+    println "Script ID: $workflow.scriptId"
+    println "Run name: $workflow.runName"
 
+}
+workflow.onError {
+    println "Oops... Pipeline execution stopped with the following message: ${workflow.errorMessage}"
+    println "Error report: ${workflow.errorReport}"
+}

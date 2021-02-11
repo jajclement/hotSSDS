@@ -1,12 +1,10 @@
 # TODO list for ssds nextflow pipeline
 ## Little tasks
 * Rename pipeline... or not ? ssds_chipseq
-* Check if output files in processes match publishDir files
 * Gzip output files ?
 * Check the blist files from ENCODE IDR : what is it
 
 ## Medium tasks
-* Implement log.info with parameters or reorder parameters in report
 * **Make a changelog file** started 2020-10-29
 * Update README with examples & output description
 * Test with nexflow latest version
@@ -14,6 +12,7 @@
 * Homogenize conda env calling in processes
 * Set python and perl version in processes with own conda env
 * Developp MutliQC report
+* Update test command-line in README
 
 ## Big tasks
 * Implement a Global and pretty QC
@@ -36,6 +35,8 @@
 * SRA inputs
 
 ## Done
+* **Implement log.info with parameters or reorder parameters in report** ok 2021-02-11
+* **Check if output files in processes match publishDir files** ok 2021-02-11
 * **Make normalizePeaks process outside of callPeaks process** ok 2021-01-28
 * **Add fingerprint plot for all filtered bam files** ok 2021-02-04
 * **Add conditional bigwig process for T1(+T2) for R1(+R2) and normalization with all library size** ok 2021-01-28

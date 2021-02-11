@@ -1,6 +1,6 @@
 ## **SSDS nextflow pipeline version 2.0**
-### **Parse, Align and Call peaks from SSDS data**
-**\/!\ Work in progress /!\ **
+### **Parse, Align and Call Hotspots from single stranded DNA reads from SSDS ChIP-Seq**
+**\/!\ Work in progress /!\**
 
 
 ### **Welcome**
@@ -9,34 +9,52 @@ See [initial paper](https://genome.cshlp.org/content/22/5/957.long) and [technic
 The pipeline uses [Nextflow]( https://www.nextflow.io/) > 20.04.1  
 Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**, input modification, callpeaks and IDR procedure addition, and global nextflow homogeneisation.  
 
+### **Important :** The pipeline takes **paired-end** reads as input, in fastq(.gz) format.
+
 *Please report any bug occured during the installation to pauline.auffret at igh dot cnrs dot fr*  
   
-The pipeline is composed of 25 processes :  
-* PROCESS 1 : check_design (CHECK INPUT DESIGN FILE)
-* PROCESS 2 : makeScreenConfigFile (MAKE CONFIGURATION FILE FOR FASTQSCREEN)
-* PROCESS 3 : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES)
-* PROCESS 4 : fastqc (QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
-* PROCESS 5 : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
-* PROCESS 6 : filterBam (MARK DUPLICATES, REMOVE SUPPLEMENTARY ALIGNMENTS, SORT AND INDEX)
-* PROCESS 7 : parseITRs (PARSE BAM FILES TO GET THE 5 DIFFERENT SSDS TYPES : SSTYPE1, SSTYPE2, DS, DSSTRICT, UNCLASSIFIED)
-* PROCESS 8 : makeBigwig (GENERATE NORMALIZED BIGWIG FILES FOR T1 AND T1+T2 BED FILES)
-* PROCESS 9 : makeBigwigReplicates (optional, GENERATE NORMALIZED BIGWIG FILES FOR MERGED REPLICATES T1 AND T1+T2 BED FILES)
-* PROCESS 10 : makeDeeptoolsBigWig (optional, GENERATES BIGWIG FILES, COVERAGE AND CUMULATIVE COVERAGE PLOTS)
-* PROCESS 11 : toFRBigWig (optional, GENERATES FWD/REV BIGWIG FILES)
-* PROCESS 12 : samStats (GENERATES SAMSTATS REPORTS)
-* PROCESS 13 : makeSSreport (COMPUTE STATS FROM SSDS PARSING)
-* PROCESS 14 : ssds_multiqc (MAKE MULTIQC REPORT FOR SSDS FILES)
-* PROCESS 15 : makeFingerPrint (MAKE DEEPTOOLS FINGERPRINT PLOTS)
-* PROCESS 16 : shufBEDs (T1 BED SHUFFLING)
-* PROCESS 17 : callPeaks (PEAK CALLING ON T1 WITH MACS2)
-* PROCESS 18 : createPseudoReplicates (optional, CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
-* PROCESS 19 : callPeaksForIDR (optional, CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
-* PROCESS 20 : IDRanalysis (optional, PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES
-* PROCESS 21 : IDRpostprocess (optional, IDR PEAKS POST PROCESSING)
-* PROCESS 22 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
-* PROCESS 23 ; mergeFinalPeaks (MERGE PEAKS FROM REPLICATES)
-* PROCESS 24 : makeSatCurve (optional, CREATE SATURATION CURVE)
-* PROCESS 25 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)  
+**The main steps of the pipeline include :**   
+* Quality & adapters trimming of paired-end raw fastq files
+* Separate mapping of trimmed R1 and R2 reads to the reference genome using bwa & bwa-ra (right align) algorithms
+* Bam files filtering
+* Parsing of filtered bam files into [!5 main categories](https://genome.cshlp.org/content/22/5/957/F1.large.jpg) : 
+* * type 1 reads (T1) : high confidence single stranded DNA
+* * type 2 reads (T2) : low confidence single stranded DNA
+* * dsDNA : low confidence double stranded DNA
+* * dsDNA strict : higher confidence double stranded DNA
+* * unclassified : other ambiguous DNA
+* Bigwig files generation for visualization through genome browser (for T1 and T2 (optional), options available)
+* Peak calling from shuffled T1 bed files 
+* Optional IDR (Irreproducible Discovery Rate) analysis to assess replicate consistency) **available for n=2 replicates**
+* Peak normalization
+* Saturation curve  
+
+In detail, the pipeline is composed of 25 processes :  
+* PROCESS 1 : check_design (check input design file)
+* PROCESS 2 : makeScreenConfigFile (make configuration file for fastqscreen)
+* PROCESS 3 : trimming (use trimmomatic or trim-galore to quality trim, remove adapters and hard trim sequences)
+* PROCESS 4 : fastqc (quality control on raw reads using fastqc and fastqscreen)
+* PROCESS 5 : bwaAlign (use bwa and custom bwa (bwa right align) to align ssds data)
+* PROCESS 6 : filterBam (mark duplicates, remove supplementary alignments, sort and index)
+* PROCESS 7 : parseITRs (parse bam files to get the 5 different ssds types : sstype1, sstype2, ds, dsstrict, unclassified)
+* PROCESS 8 : makeBigwig (generate normalized bigwig files for T1 and T1+T2 bed files)
+* PROCESS 9 : makeBigwigreplicates (optional, generate normalized bigwig files for merged replicates T1 and T1+T2 bed files)
+* PROCESS 10 : makeDeeptoolsbigwig (optional, generates bigwig files, coverage and cumulative coverage plots)
+* PROCESS 11 : toFRBigwig (optional, generates fwd/rev bigwig files)
+* PROCESS 12 : samStats (generates samstats reports)
+* PROCESS 13 : makeSSreport (compute stats from ssds parsing)
+* PROCESS 14 : ssds_multiqc (make multiqc report for ssds files)
+* PROCESS 15 : makeFingerprint (make deeptools fingerprint plots)
+* PROCESS 16 : shufBEDs (T1 bed shuffling)
+* PROCESS 17 : callPeaks (peak calling on T1 with macs2)
+* PROCESS 18 : createPseudoreplicates (optional, creates all pseudoreplicates and pool for idr analysis)
+* PROCESS 19 : callPeaksforIDR (optional, call peaks with mac2 on all replicates and pseudo replicates)
+* PROCESS 20 : IDRanalysis (optional, perform idr analysis on 4 pairs of replicates or pseudoreplicates
+* PROCESS 21 : IDRpostprocess (optional, idr peaks post processing)
+* PROCESS 22 : normalizePeaks (center and normalize peaks)
+* PROCESS 23 ; mergeFinalPeaks (merge peaks from replicates)
+* PROCESS 24 : makeSatcurve (optional, create saturation curve)
+* PROCESS 25 : general_multiqc (generates general multiqc report)  
 
 ## **How to run the pipeline on IGH cluster**
 ### Requirements
@@ -178,7 +196,7 @@ If so, you use use ````--inputcsv tests/fastq/input.csv```` e.g.
 ````
 cd /home/${USER}/work/ssdsnextflowpipeline
 conda activate nextflow-dev
-sbatch -p computepart -J SSDSnextflowPipeline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --inputcsv /home/${USER}/work/ssdsnextflowpipeline/tests/fastq/input.csv --name your_analysis_name --genome mm10 -profile conda"
+sbatch -p computepart -J SSDSnextflowPipeline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --inputcsv /home/${USER}/work/ssdsnextflowpipeline/tests/fastq/input.csv --name testdata_analysis --genome mm10 -profile conda"
 ````
 or use ``run_pipeline.sh`` script :
 ````
