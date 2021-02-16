@@ -1,8 +1,9 @@
 # TODO list for ssds nextflow pipeline
 ## Little tasks
-* Rename pipeline... or not ? ssds_chipseq
+* Rename pipeline... or not ? ssds-dmc1-chipseq
 * Gzip output files ?
 * Check the blist files from ENCODE IDR : what is it
+* Fix Nextflow version=20.07.1
 
 ## Medium tasks
 * **Make a changelog file** started 2020-10-29
@@ -13,6 +14,7 @@
 * Set python and perl version in processes with own conda env
 * Developp MutliQC report
 * Update test command-line in README
+* Add Bibliography to README
 
 ## Big tasks
 * Implement a Global and pretty QC
@@ -27,7 +29,8 @@
 * bwa job cancelled time limit but only 48h
 * Pipeline do not resume properly when job cancelled by SLURM
 * Check the warnings from normalizePeaks process
-* Check the warnings from flagstat
+* Check the warnings from flagstat (publishDir impossible) in process parseITRs
+* Replicates order in input channel for IDR
 
 ## Features to consider
 * Downstream analyses integration
