@@ -55,7 +55,7 @@ def helpMessage() {
 
     nextflow run main.nf -c conf/igh.config --inputcsv tests/fastq/input.csv  --name "runtest" --trim_cropR1 36 --trim_cropR2 40 --with_trimgalore -profile conda -resume
 
-
+    Runs with Nextflow v20.04.1
 =============================================================================
 
 Input data parameters:
@@ -215,7 +215,10 @@ if(params.satcurve) {
         exit 0
     }
 }
-
+if(params.publishdir_mode!="copy" && params.publishdir_mode!="symlink" && params.publishdir_mode!="rellink" && params.publishdir_mode!="link" && params.publishdir_mode!="copyNoFollow" && params.publishdir_mode!="move") {
+    println("Error : --publishdir_mode must be symlink, rellink, link, copy, copyNoFollow,move, see https://www.nextflow.io/docs/latest/process.html")
+    exit 0
+}
 
 // Pipeline parameters information
 def paramsSection() {
@@ -527,7 +530,7 @@ process bwaAlign {
     # Convert SAM to BAM file
     picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam \
             VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
-    # Sort and inde sam file
+    # Sort and index sam file
     picard SortSam I=${tmpNameStem}.unsorted.tmpbam O=${sampleId}.sorted.bam SO=coordinate \
             VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
     samtools index ${sampleId}.sorted.bam 
@@ -1427,7 +1430,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
             then 
                 cat ${ct_r1} > ${id_ct}_ct_pool.bed
             else
-                # not sure if the merging process is good #todo
+                # check the merging process is good #todo
                 cat ${ct_r1} ${ct_r2} | sort -n | unique > ${id_ct}_ct_pool.bed
             fi
             """

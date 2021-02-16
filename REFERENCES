@@ -1,0 +1,37 @@
+ENCODE-DCC/chip-seq-pipeline2: ENCODE ChIP-seq pipeline. (n.d.). Retrieved February 16, 2021, from https://github.com/ENCODE-DCC/chip-seq-pipeline2
+
+Irreproducible Discovery Rate (IDR) – ENCODE. (n.d.). Retrieved February 16, 2021, from https://www.encodeproject.org/software/idr/
+
+R: The R Project for Statistical Computing. (n.d.). Retrieved February 16, 2021, from https://www.r-project.org/
+
+Babraham Bioinformatics - Trim Galore! (n.d.). Retrieved February 16, 2021, from https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/
+
+Babraham Bioinformatics - FastQC A Quality Control tool for High Throughput Sequence Data. (n.d.). Retrieved February 16, 2021, from https://www.bioinformatics.babraham.ac.uk/projects/fastqc/
+
+Bolger, A. M., Lohse, M., & Usadel, B. (2014). Trimmomatic: A flexible trimmer for Illumina sequence data. Bioinformatics, 30(15), 2114–2120. https://doi.org/10.1093/bioinformatics/btu170
+
+Brick, K., Pratto, F., Sun, C. Y., Camerini-Otero, R. D., & Petukhova, G. (2018). Analysis of Meiotic Double-Strand Break Initiation in Mammals. In Methods in Enzymology (Vol. 601, pp. 391–418). Academic Press Inc. https://doi.org/10.1016/bs.mie.2017.11.037
+
+Broad Institute. (2016). Picard:A set of command line tools (in Java) for manipulating high-throughput sequencing (HTS) data and formats such as SAM/BAM/CRAM and VCF. Http://Broadinstitute.Github.Io/Picard/. https://github.com/broadinstitute/picard
+
+DI Tommaso, P., Chatzou, M., Floden, E. W., Barja, P. P., Palumbo, E., & Notredame, C. (2017). Nextflow enables reproducible computational workflows. In Nature Biotechnology (Vol. 35, Issue 4, pp. 316–319). Nature Publishing Group. https://doi.org/10.1038/nbt.3820
+
+Ewels, P. A., Peltzer, A., Fillinger, S., Patel, H., Alneberg, J., Wilm, A., Garcia, M. U., Di Tommaso, P., & Nahnsen, S. (2020). The nf-core framework for community-curated bioinformatics pipelines. In Nature Biotechnology (Vol. 38, Issue 3, pp. 276–278). Nature Research. https://doi.org/10.1038/s41587-020-0439-x
+
+Ewels, P., Magnusson, M., Lundin, S., & Käller, M. (2016). MultiQC: Summarize analysis results for multiple tools and samples in a single report. Bioinformatics, 32(19), 3047–3048. https://doi.org/10.1093/bioinformatics/btw354
+
+Khil, P. P., Smagulova, F., Brick, K. M., Camerini-Otero, R. D., & Petukhova, G. V. (2012). Sensitive mapping of recombination hotspots using sequencing-based detection of ssDNA. Genome Research, 22(5), 957–965. https://doi.org/10.1101/gr.130583.111
+
+Landt, S. G., Marinov, G. K., Kundaje, A., Kheradpour, P., Pauli, F., Batzoglou, S., Bernstein, B. E., Bickel, P., Brown, J. B., Cayting, P., Chen, Y., DeSalvo, G., Epstein, C., Fisher-Aylor, K. I., Euskirchen, G., Gerstein, M., Gertz, J., Hartemink, A. J., Hoffman, M. M., … Snyder, M. (2012). ChIP-seq guidelines and practices of the ENCODE and modENCODE consortia. In Genome Research (Vol. 22, Issue 9, pp. 1813–1831). Cold Spring Harbor Laboratory Press. https://doi.org/10.1101/gr.136184.111
+
+Li, H., Handsaker, B., Wysoker, A., Fennell, T., Ruan, J., Homer, N., Marth, G., Abecasis, G., & Durbin, R. (2009). The Sequence Alignment/Map format and SAMtools. Bioinformatics, 25(16), 2078–2079. https://doi.org/10.1093/bioinformatics/btp352
+
+Li, Q., Brown, J. B., Huang, H., & Bickel, P. J. (2011). Measuring reproducibility of high-throughput experiments. Annals of Applied Statistics, 5(3), 1752–1779. https://doi.org/10.1214/11-AOAS466
+
+Quinlan, A. R., & Hall, I. M. (2010). BEDTools: a flexible suite of utilities for comparing genomic features. Bioinformatics, 26(6), 841–842. https://doi.org/10.1093/bioinformatics/btq033
+
+Ramírez, F., Ryan, D. P., Grüning, B., Bhardwaj, V., Kilpert, F., Richter, A. S., Heyne, S., Dündar, F., & Manke, T. (2016). deepTools2: a next generation web server for deep-sequencing data analysis. Nucleic Acids Research, 44(W1), W160–W165. https://doi.org/10.1093/nar/gkw257
+
+Wingett, S. W., & Andrews, S. (2018). FastQ Screen: A tool for multi-genome mapping and quality control. F1000Research, 7, 1338. https://doi.org/10.12688/f1000research.15931.2
+
+Zhang, Y., Liu, T., Meyer, C. A., Eeckhoute, J., Johnson, D. S., Bernstein, B. E., Nussbaum, C., Myers, R. M., Brown, M., Li, W., & Shirley, X. S. (2008). Model-based analysis of ChIP-Seq (MACS). Genome Biology, 9(9). https://doi.org/10.1186/gb-2008-9-9-r137

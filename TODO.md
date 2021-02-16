@@ -3,18 +3,15 @@
 * Rename pipeline... or not ? ssds-dmc1-chipseq
 * Gzip output files ?
 * Check the blist files from ENCODE IDR : what is it
-* Fix Nextflow version=20.07.1
 
 ## Medium tasks
-* **Make a changelog file** started 2020-10-29
 * Update README with examples & output description
 * Test with nexflow latest version
 * Consistency of variables calling in ``main.nf``
 * Homogenize conda env calling in processes
 * Set python and perl version in processes with own conda env
 * Developp MutliQC report
-* Update test command-line in README
-* Add Bibliography to README
+* Formatting biblio 
 
 ## Big tasks
 * Implement a Global and pretty QC
@@ -38,6 +35,10 @@
 * SRA inputs
 
 ## Done
+* **Fix Nextflow version=20.04.1** ok 2021-02-16
+* **Add check parameters conformity** ok 2021-02-16
+* **Update test command-line in README** ok 2021-02-16
+* **Add REFERENCES file** ok 2021-02-16
 * **Implement log.info with parameters or reorder parameters in report** ok 2021-02-11
 * **Check if output files in processes match publishDir files** ok 2021-02-11
 * **Make normalizePeaks process outside of callPeaks process** ok 2021-01-28
@@ -65,8 +66,8 @@
 * **git merge branch dev when peak calling is functionnal** ok 2020-12-09
 * **Update  -h option in main.nf** ok 2020-12-02
 * **Comment code in main.nf** ok 2020-12-04
-* *Implement frombam option* no longer considered
+* *Implement frombam (with bam2fastq process) option* no longer considered
 * *Handling of concatenation of SRA files* no longer considered
-
+* **Make a changelog file** no longer considered
 
 

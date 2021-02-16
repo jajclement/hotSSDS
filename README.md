@@ -99,6 +99,7 @@ DMC1-chip,1,/work/${USER}/data/SRR1035576_R1.fastq.gz,/work/${USER}/data/SRR1035
 DMC1-chip,2,/work/${USER}/data/SRR1035577_R1.fastq.gz,/work/${USER}/data/SRR1035577_R2.fastq.gz,antiDMC1,Input
 Input,1,/work/${USER}/data/SRR1035578_R1.fastq.gz,/work/${USER}/data/SRR1035578_R2.fastq.gz,,,
 ````
+Replicate samples must have the same "group" ID.
 
 The reference genome should be in the ``/poolzvs/genomes`` directory on IGH cluster. Currently, the available genomes are mm10, hg19, hg38, sacCer2, sacCer3, dm3, dm6.
 
@@ -132,20 +133,14 @@ The main parameters you need to set are :
 * ``--satcurve`` (true/false) : plot saturation curve
 
 
-
-You can either run the pipeline directly through the command line :
-````
-cd /home/${USER}/work/ssdsnextflowpipeline
-conda activate nextflow-dev
-sbatch -p computepart -J SSDSnextflowPipeline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --inputcsv /path/to/the/input/csv/file --name your_analysis_name --genome mm10 --profile conda --with_control --nb_replicates 2"
-````
-or use ``run_pipeline.sh`` script :
-````
-bash run_pipeline.sh -i inputfile.csv -y "--name your_analysis_name --genome mm10 --profile conda --with_control --nb_replicates 2"
-````
-See the available options before use with 
+Please use the bash launching script ``run_pipeline.sh`` to execute the pipeline. 
+See the available options before use with :
 ````
 bash run_pipeline.sh -h
+````
+Then run the pipeline with :
+````
+bash run_pipeline.sh -i inputfile.csv -y "--name your_analysis_name --genome mm10 --profile conda --with_control --nb_replicates 2"
 ````
 
 **You can use ``-resume`` option (Nextflow native options) to prevent the entire workflow to be relaunch in case you need to relaunch an aborted workflow** 
@@ -194,13 +189,8 @@ You may want to test the installation before going with your own data.
 
 If so, you use use ````--inputcsv tests/fastq/input.csv```` e.g.
 ````
-cd /home/${USER}/work/ssdsnextflowpipeline
-conda activate nextflow-dev
-sbatch -p computepart -J SSDSnextflowPipeline --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "nextflow run main.nf -c conf/igh.config --inputcsv /home/${USER}/work/ssdsnextflowpipeline/tests/fastq/input.csv --name testdata_analysis --genome mm10 -profile conda"
+bash run_pipeline.sh -i /home/${USER}/work/ssdsnextflowpipeline/tests/fastq/input.csv
 ````
-or use ``run_pipeline.sh`` script :
-````
-bash run_pipeline.sh 
-````
-**Note : the default value of ``--with_sds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with_ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
+### Notes
+The default value of ``--with_sds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with_ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
 
