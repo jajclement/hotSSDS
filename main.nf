@@ -570,7 +570,7 @@ process filterBam {
     output:
         tuple val(sampleId), file('*.unparsed.bam') into FILTEREDBAM
         tuple val(sampleId), file('*.unparsed.bed') into INPUTBED
-        //set val(sampleId), file('*.unparsed.bam'), file('*.unparsed.bam.bai') into bamIDX 
+        set val(sampleId), file('*.unparsed.bam'), file('*.unparsed.bam.bai') 
         //set val(sampleId), file('*.unparsed.suppAlignments.bam') into bamAlignedSupp
         //set val(sampleId), file('*.unparsed.suppAlignments.bam.bai') into bamIDXSupp
         val 'ok' into filterbam_ok
