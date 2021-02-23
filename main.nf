@@ -1887,7 +1887,7 @@ if (params.satcurve) {
         input:
             file(saturation_curve_data) from allbed.collect()
         output:
-            path("*satCurve.tab", emit: table)
+            path("*.tab", emit: table)
             path("*.png", emit: png)
             val 'ok' into makeSatCurve_ok
         script:
