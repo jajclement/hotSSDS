@@ -2,6 +2,7 @@
 ## Little tasks
 * Rename pipeline... or not ? ssds-dmc1-chipseq
 * Gzip output files ?
+* Comment runSatCurve.R script
 * Check the blist files from ENCODE IDR : what is it
 
 ## Medium tasks
@@ -33,6 +34,7 @@
 * Downstream analyses integration
 * Handling n>2 replicates for IDR
 * SRA inputs
+* Automate pipeline tests
 
 ## Done
 * **Fix Nextflow version=20.04.1** ok 2021-02-16
