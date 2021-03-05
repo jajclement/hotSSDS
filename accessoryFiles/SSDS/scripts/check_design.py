@@ -164,7 +164,7 @@ def reformat_design(DesignFile,ReadMappingFile,ControlMappingFile):
                     else:
                         #print("{}: Control id not a valid group\nControl id: {}, Valid Groups: {}".format(ERROR_STR,control,sorted(sampleMappingDict.keys())))
                         #sys.exit(1)
-                        print("Warning : no control provided.")
+                        print("Warning : no control provided ; or bad control samples description. Check the input csv file.")
     fout.close()
 
     ## WRITE SAMPLE TO CONTROL MAPPING FILE

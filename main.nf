@@ -226,7 +226,7 @@ log.info """
 ==========================================================================
    SSDS Pipeline version 2.0 : Align, parse and call hotspots from SSDNA  
 ==========================================================================
-Main parameters  
+** Main parameters ** 
 Run name                       : ${params.name}
 Input file                     : ${params.inputcsv}
 Reference genome               : ${params.genome}
@@ -245,7 +245,7 @@ R2 hard trimming               : ${params.trim_cropR2}
 Hard trimming if R1=R2         : ${params.trim_crop}
 Use SSDS custom multiQC        : ${params.with_ssds_multiqc}
 
-Trimming parameters
+** Trimming parameters **
 Trimmomatic adapter file       : ${params.trimmomatic_adapters}
 Trimmomatic quality threshold  : ${params.trimg_quality}
 Trimmomatic stringency         : ${params.trimg_stringency}
@@ -256,25 +256,25 @@ Fastq-screen genomes to screen : ${params.genome2screen}
 MultiQC configuration file     : ${params.multiqc_configfile}
 Trimgalore adapter file        : ${params.trimgalore_adapters}
 
-Mapping and filtering parameters
+** Mapping and filtering parameters **
 Samtools filtering flag        : ${params.filtering_flag}
 Quality threshold              : ${params.bed_trimqual}
 
-Bigwig parameter
+** Bigwig parameter **
 Deeptools bigwig bin size      : ${params.binsize}
 
-Peak calling parameters
+** Peak calling parameters **
 Macs2 bandwidth parameter      : ${params.macs_bw}
 Macs2 slocal parameter         : ${params.macs_slocal}
 Macs2 extsize parameter        : ${params.macs_extsize}
 Macs2 q-value                  : ${params.macs_qv}
 Macs2 p-value                  : ${params.macs_pv}
 
-Saturation curve parameters
+** Saturation curve parameters **
 Saturation curve profile       : ${params.sctype}
 Number of iterations           : ${params.reps}
 
-IDR (Irreproducible Discovery Rate) analysis parameters
+** IDR (Irreproducible Discovery Rate) analysis parameters **
 Peak type                      : ${params.idr_peaktype}
 Pseudo-rep 1 IDR threshold     : ${params.idr_threshold_r1}
 Pseudo-rep 2 IDR threshold     : ${params.idr_threshold_r2}
@@ -284,8 +284,8 @@ IDR rank value                 : ${params.idr_rank}
 IDR macs2 q-value              : ${params.idr_macs_qv}
 IDR macs2 p-value              : ${params.idr_macs_pv}
 IDR filtering pattern          : ${params.idr_filtering_pattern}
-
-Pipeline dependencies
+ 
+** Pipeline dependencies **
 Source directory               : ${params.src}
 Scratch directory              : ${params.scratch}
 Chromosome sizes file          : ${params.chrsize}
@@ -789,7 +789,7 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
         // norm factor file for replicate 2 (R2), T1 bed file for R1, T1 bed for file for R2,
         // T1+T2 bed file for R1, T1+T2 bed file for R2
         BEDtoBWrep
-            .map { it -> [ it[0].split('_')[0..-4].join('_'), it[1], it[2], it[3] ] }
+            .map { it -> [ it[0].split('_')[0..-3].join('_'), it[1], it[2], it[3] ] }
             .groupTuple(by: [0])
             .map { it -> it[0,1,2,3].flatten() }
             .set { BEDtoBWrep }
@@ -1067,7 +1067,7 @@ if (params.with_control) {
         .filter { it[0] == it[5] && it[1] == it[7] }
         .map { it -> it[0,1,6,8].flatten() }
         .into { T1BED_shuffle_ch ; T1BED_replicate_ch }
-
+        //.println()
 
     // PROCESS 16 : shufBEDs (BED SHUFFLING)
     // What it does : quality trims and shuffles type1 bed files from ITR parsing 
@@ -1387,7 +1387,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
             .map { it -> it[0,1,2,3].flatten() }
             .set { T1BED_replicate_ch_renamed }
             //.println()
-    
+
 
         // PROCESS 18 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
         // What it does : creates 2 pseudo replicates per true replicates, then pool the true replicates, and creates 2 pseudo replicates from this pool.
@@ -1519,11 +1519,12 @@ if (params.with_idr && params.nb_replicates == 2 ) {
 
     // CREATE CHANNEL TO GROUP SAMPLE ID WITH ASSOCIATED REPLICATES (BED FILES)
         T1BEDrep
-            .map { it -> [ it[0].split('_')[0..-4].join('_'), it[1] ] }
+            .map { it -> [ it[0].split('_')[0..-3].join('_'), it[1] ] }
             .groupTuple(by: [0])
             .map { it -> it[0,1].flatten() }
             .set { T1BED_replicate_ch }
             //.println()   
+
 
         // PROCESS 18 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
         // What it does : creates 2 pseudo replicates per true replicates, then pool the true replicates, and creates 2 pseudo replicates from this pool.
@@ -1806,11 +1807,11 @@ if (!params.with_idr) {
     //CREATE CHANNEL TO GROUP SAMPLES BY REPLICATES
     //The final channel is composed of (1+nb_replicates) elements : sampleID, nb_replicates*(peak bed file)
         ALLPEAKSTOPP2
-            .map { it -> [ it[0].split('_')[0..-3].join('_'), it[1], it[2] ] }
+            .map { it -> [ it[0].split('_')[0..-2].join('_'), it[1], it[2] ] }
             .groupTuple(by: [0])
             .map { it -> it[0,2].flatten() }
             .set { ALLPEAKSTOPP2 }
-
+            //.println()
 
         // PROCESS 23 ; mergeFinalPeaks (MERGE PEAKS FROM REPLICATES)
         // What it does : Merge peaks bed files from replicates
@@ -1899,6 +1900,7 @@ if (params.satcurve) {
         """
     }
 }
+
 //***************************************************************************//
 //                          SECTION 9 : GENERAL QC                           //
 //***************************************************************************//

@@ -99,7 +99,8 @@ DMC1-chip,1,/work/${USER}/data/SRR1035576_R1.fastq.gz,/work/${USER}/data/SRR1035
 DMC1-chip,2,/work/${USER}/data/SRR1035577_R1.fastq.gz,/work/${USER}/data/SRR1035577_R2.fastq.gz,antiDMC1,Input
 Input,1,/work/${USER}/data/SRR1035578_R1.fastq.gz,/work/${USER}/data/SRR1035578_R2.fastq.gz,,,
 ````
-Replicate samples must have the same "group" ID.
+Replicate samples must have the same "group" ID ; the same "antibody" and the same control group.
+Control (input) samples must have the 2 last fields ("antibody" and "control") empty. 
 
 The reference genome should be in the ``/poolzvs/genomes`` directory on IGH cluster. Currently, the available genomes are mm10, hg19, hg38, sacCer2, sacCer3, dm3, dm6.
 
