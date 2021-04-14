@@ -78,7 +78,7 @@ cd ssdsnextflowpipeline
 ````
 Then install pipeline conda environment through sbatch script : 
 ```` 
-sbatch -p computepart -J "install_conda_env" --export=ALL --mem 5G -t 5-0:0 --mem-per-cpu=1000 --wrap "bash src/install_pipeline.sh"
+sbatch -p computepart -J "install_conda_env" --export=ALL --mem 5G -t 5-0:0 --wrap "bash src/install_pipeline.sh"
 ```` 
 This will create 1 conda environment : **nextflow-dev**.
 Please use ``bash src/install_pipeline.sh -h`` to see details.
@@ -144,7 +144,7 @@ Then run the pipeline with :
 bash run_pipeline.sh -i inputfile.csv -y "--name your_analysis_name --genome mm10 --profile conda --with_control --nb_replicates 2"
 ````
 
-**You can use ``-resume`` option (Nextflow native options) to prevent the entire workflow to be relaunch in case you need to relaunch an aborted workflow** 
+**You can use ``-resume`` option (Nextflow native options) to prevent the entire workflow to be rerun in case you need to relaunch an aborted workflow** 
 
 
 
