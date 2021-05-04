@@ -80,7 +80,7 @@ Then install pipeline conda environment through sbatch script :
 ```` 
 sbatch -p computepart -J "install_conda_env" --export=ALL --mem 5G -t 5-0:0 --wrap "bash src/install_pipeline.sh"
 ```` 
-This will create 1 conda environment : **nextflow-dev**.
+This will create 1 conda environment : **nextflow_dev**.
 Please use ``bash src/install_pipeline.sh -h`` to see details.
 
 ### 2. Pipeline configuration 
@@ -116,7 +116,7 @@ But if you want to use another reference, you will need to set :
 To see all the available parameters, please run :
 ````
 cd /home/${USER}/work/ssdsnextflowpipeline
-conda activate nextflow-dev
+conda activate nextflow_dev
 nextflow run main.nf --help
 ````
 
