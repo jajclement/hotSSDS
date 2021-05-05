@@ -193,7 +193,9 @@ To use it, you can run :
 ````
 bash run_pipeline.sh -t 1
 ````
-Please check -p (pipeline directory) ; -a (conda environment path) and -o (output directory) parameters before run ; use ````bash run_pipeline.sh -h````
+Without -i option. Please check -p (pipeline directory) ; -a (conda environment path) and -o (output directory) parameters before run  
+
+Use ````bash run_pipeline.sh -h````
 
 This should take around 10 minutes to run.
 
