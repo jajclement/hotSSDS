@@ -139,7 +139,7 @@ See the available options before use with :
 ````
 bash run_pipeline.sh -h
 ````
-Then run the pipeline with :
+Then run the pipeline with (please provide all files and directory with **absolute paths**) :
 ````
 bash run_pipeline.sh -i inputfile.csv -y "--name your_analysis_name --genome mm10 --profile conda --with_control --nb_replicates 2"
 ````
