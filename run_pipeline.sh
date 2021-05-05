@@ -49,9 +49,16 @@ fi
 
 #If running pipeline on test dataset, create relevant input csv file
 if [ ${TEST} == "1" ]; then
+	echo "Running SSDS pipeline on test dataset. Creating input file..."
 	echo "group,replicate,fastq_1,fastq_2,antibody,control" > ${PIPELINE_DIRECTORY}/tests/fastq/input.csv
 	echo "TEST_IP,1,${PIPELINE_DIRECTORY}/tests/fastq/ssdsLong.100k.R1.fastq,${PIPELINE_DIRECTORY}/tests/fastq/ssdsLong.100k.R2.fastq,antiDMC1," >> ${PIPELINE_DIRECTORY}/tests/fastq/input.csv
 	INPUT=${PIPELINE_DIRECTORY}/tests/fastq/input.csv
+	if [ -f ${INPUT} ]; then 
+		echo "Input file created ; check ${PIPELINE_DIRECTORY}/tests/fastq/input.csv."
+	else
+		echo "Input file for test data cannot be created."
+		exit 0
+	fi
 fi 
 
 #Create output directory if not existing
