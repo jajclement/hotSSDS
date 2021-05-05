@@ -2052,7 +2052,7 @@ if(params.bigwig_profile == "T1" || params.bigwig_profile == "T12" ) {
 process general_multiqc {
     tag "${outNameStem}"
     label 'process_basic'
-    conda 'bioconda::multiqc=1.9'
+    conda 'bioconda::multiqc=1.9 conda-forge::python=3.8.5'
     publishDir "${params.outdir}/multiqc",  mode: 'copy'
     input:
         val('trimming_ok') from trimming_ok.collect()
