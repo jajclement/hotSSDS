@@ -187,11 +187,16 @@ The QC reports are located in the multiqc folder.
 
 ### Test data
 You may want to test the installation before going with your own data. 
+A small dataset is present in ````tests/fastq```` directory. 
 
-If so, you use use ````--inputcsv tests/fastq/input.csv```` e.g.
+To use it, you can run :
 ````
-bash run_pipeline.sh -i /home/${USER}/work/ssdsnextflowpipeline/tests/fastq/input.csv
+bash run_pipeline.sh -t 1
 ````
+Please check -p (pipeline directory) ; -a (conda environment path) and -o (output directory) parameters before run ; use ````bash run_pipeline.sh -h````
+
+This should take around 10 minutes to run.
+
 ### Notes
 The default value of ``--with_sds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with_ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
 

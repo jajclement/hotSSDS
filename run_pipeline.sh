@@ -12,20 +12,21 @@ export OMP_NUM_THREADS=1
 export SINGULARITY_BINDPATH="/work,/poolzfs"
 
 #Pipeline default parameters
-ANALYSIS_NAME="SSDS_pipeline_Nore-may2019_17144-05_TEST-MOCK-REPLICATES"
+ANALYSIS_NAME="SSDS_pipeline"
 PIPELINE_DIRECTORY="/home/${USER}/work/ssdsnextflowpipeline"
 OUTPUT_DIRECTORY="/home/${USER}/work/results/${ANALYSIS_NAME}.outdir"
 CONF="${PIPELINE_DIRECTORY}/conf/igh.config"
-CENV=/home/${USER}/work/bin/miniconda3/envs/nextflow_dev
+CENV="/home/${USER}/work/bin/miniconda3/envs/nextflow_dev"
 JOBNAME='SSDS_main'
 INPUT=""
-OPTIONS="-profile conda " # -with-tower"
+OPTIONS="-profile conda "
+TEST="0"
 
 #Get command line arguments
-while getopts hp:o:c:a:i:n:y: flag
+while getopts hp:o:c:a:i:n:y:t: flag
 do
 	case "${flag}" in
-		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; echo "Options : "; echo "-h display help message"; echo "-i REQUIRED Absolute path to input csv file"; echo "-p Path to ssds nextflow pipeline base directory (default : ${PIPELINE_DIRECTORY})"; echo "-o Path to output directory (default : ${OUTPUT_DIRECTORY})"; echo "-c Path to IGH cluster configuration file (default : ${CONF})"; echo "-a Path to conda environment for nextflow (default : ${CENV})"; echo "-n Analysis name (default : ${ANALYSIS_NAME})"; echo "-y Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; echo ""; exit 0;;
+		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; echo "Options : "; echo "-h display help message"; echo "-i REQUIRED Absolute path to input csv file"; echo "-p Path to ssds nextflow pipeline base directory (default : ${PIPELINE_DIRECTORY})"; echo "-o Path to output directory (default : ${OUTPUT_DIRECTORY})"; echo "-c Path to IGH cluster configuration file (default : ${CONF})"; echo "-a Path to conda environment for nextflow (default : ${CENV})"; echo "-n Analysis name (default : ${ANALYSIS_NAME})"; echo "-y Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; echo "-t set to 1 if running pipeline on test data located in ${PIPELINE_DIRECTORY}/tests/fastq (default : ${TEST})"; echo ""; exit 0;;
 		p) PIPELINE_DIRECTORY=${OPTARG};if [ ! -d ${PIPELINE_DIRECTORY} ]; then echo "Directory ${PIPELINE_DIRECTORY} not found!" ; exit 0; fi;;
 		o) OUTPUT_DIRECTORY=${OPTARG};;
 		c) CONF=${OPTARG};if [ ! -f ${CONF} ]; then echo "File ${CONF} not found!" ; exit 0; fi;;
@@ -33,6 +34,7 @@ do
 		i) INPUT=${OPTARG};if [ ! -f ${INPUT} ]; then echo "File ${INPUT} not found!" ; exit 0; fi;;
 		y) OPTIONS=${OPTARG};;
 		n) ANALYSIS_NAME=${OPTARG};;
+		t) TEST=${OPTARG};;
 		\? ) echo "Unknown option: -$OPTARG" >&2; exit 1;;
         	:  ) echo "Missing option argument for -$OPTARG" >&2; exit 1;;
         	*  ) echo "Unimplemented option: -$OPTARG" >&2; exit 1;;
@@ -40,13 +42,19 @@ do
 done
 
 #Option -i is mandatory
-if [ "x" == "x$INPUT" ]; then
+if [[ "x" == "x$INPUT" && ${TEST} == "0" ]] ; then
   echo "-i [input csv file] is required"
   exit
 fi
 
+#If running pipeline on test dataset, create relevant input csv file
+if [ ${TEST} == "1" ]; then
+	echo "group,replicate,fastq_1,fastq_2,antibody,control" > ${PIPELINE_DIRECTORY}/tests/fastq/input.csv
+	echo "TEST_IP,1,${PIPELINE_DIRECTORY}/tests/fastq/ssdsLong.100k.R1.fastq,${PIPELINE_DIRECTORY}/tests/fastq/ssdsLong.100k.R2.fastq,antiDMC1," >> ${PIPELINE_DIRECTORY}/tests/fastq/input.csv
+	INPUT=${PIPELINE_DIRECTORY}/tests/fastq/input.csv
+fi 
+
 #Create output directory if not existing
-OUTPUT_DIRECTORY="/home/${USER}/work/results/${ANALYSIS_NAME}.outdir"
 mkdir -p ${OUTPUT_DIRECTORY}
 cd ${OUTPUT_DIRECTORY}
 

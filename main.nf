@@ -191,7 +191,7 @@ if (params.blacklist) { println("Checking blacklist file...") ; f_blacklist = fi
 if (params.multiqc_configfile) { println("Checking multiqc_configfile...") ; f_multiqc_configfile = file(params.multiqc_configfile, checkIfExists: true) } ; println("Ok")
 if (params.trimgalore_adapters) { println("Checking trimgalore_adapters file...") ; f_trimgalore_adapters = file(params.trimgalore_adapters, checkIfExists: true) } ; println("Ok")
 if (params.trimmomatic_adapters) { println("Checking trimmomatic_adapters file...") ; f_blacklist = file(params.trimmomatic_adapters, checkIfExists: true) } ; println("Ok")
-if (params.multiqc_dev_conda_env) { println("Checking multiqc_dev_conda_env directory...") ; d_multiqc_dev_conda_env = file(params.multiqc_dev_conda_env, checkIfExists: true ) } ; println("Ok")
+if (params.with_ssds_multiqc && params.multiqc_dev_conda_env) { println("Checking multiqc_dev_conda_env directory...") ; d_multiqc_dev_conda_env = file(params.multiqc_dev_conda_env, checkIfExists: true ) } ; println("Ok")
 
 // Check if genome exists in the config file
 if (params.genomes && params.genome && !params.genomes.containsKey(params.genome)) {
