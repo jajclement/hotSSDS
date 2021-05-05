@@ -193,7 +193,7 @@ To use it, you can run :
 ````
 bash run_pipeline.sh -t 1
 ````
-Without -i option. Please check -p (pipeline directory) ; -a (conda environment path) and -o (output directory) parameters before run  
+**Without -i option**. Please check -p (pipeline directory) ; -a (conda environment path) and -o (output directory) parameters before run  
 
 Use ````bash run_pipeline.sh -h````
 
