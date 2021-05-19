@@ -107,10 +107,11 @@ The reference genome should be in the ``/poolzvs/genomes`` directory on IGH clus
 You can use ````-- genome 'mm10'```` and you won't need to worry about the other genome parameters like fasta path etc.
 
 But if you want to use another reference, you will need to set : 
-- path to genome ````--genomedir /path/to/genome````
-- path to fasta file. Indexes for BWA SHOULD EXIST in the same directory ````--genome_fasta /path/to/genome.fa````
+- absolute path to genome ````--genomedir /path/to/genome````
+- absolute path to fasta file. Indexes for BWA SHOULD EXIST in the same directory ````--genome_fasta /path/to/genome.fa````
 - the name of the genome ````--genome_name mm11````
-- the path to the fai index ````--fai /path/to/genome.fai.fai````
+- absolute path to the fai index ````--fai /path/to/genome.fa.fai````
+- absolute path the chromosome size file ````--chrsize /path/to/genome.chrom.size````  
 
 ### 4. Run the pipeline !
 To see all the available parameters, please run :
