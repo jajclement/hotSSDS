@@ -715,7 +715,7 @@ process parseITRs {
 
     ## CHECK IF TYPE 1 BAM FILE IS EMPTY AFTER PARSING
     samtools flagstat ${bam}.md.ssDNA_type1.bam > ${bam}.md.ssDNA_type1.bam.flagstat
-    if grep -q "0 + 0 mapped" ${bam}.md.ssDNA_type1.bam.flagstat
+    if grep -q "^0 + 0 mapped" ${bam}.md.ssDNA_type1.bam.flagstat
     then
         echo "Type 1 bam file ${bam}.md.ssDNA_type1.bam is empty. Check genome parameter."
         exit 1
