@@ -68,6 +68,8 @@ Input data parameters:
     --fai			FILE	PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
     --genome2screen 		STRING	GENOMES TO SCREEN FOR FASTQC SCREENING (default : ['mm10','hg19','dm3','dm6','hg38','sacCer2','sacCer3'], comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
     --chrsize                   FILE    Chromosome sizes file, default : ${baseDir}/accessoryFiles/SSDS/mm10/mm10.chrom.sizes (downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.chrom.sizes 2021-01-11)
+     --hotspots                  DIR     PATH TO HOTSPOTS FILES DIRECTORY (default : ${baseDir}/accessoryFiles/SSDS/hotspots)
+     --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : ${baseDir}/accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
     
 Output and temporary directory parameters:                            
     --name      		STRING  ANALYSIS NAME (default : "SSDS_pipeline")      
@@ -79,8 +81,6 @@ Pipeline dependencies:
     --src	        	DIR	PATH TO SOURCE DIRECTORY (default : ${baseDir}/accessoryFiles/SSDS/scripts ; contains perl scripts)
     --custom_bwa        	EXE	PATH TO CUSTOM BWA EXEC (default : ${baseDir}/accessoryFiles/SSDS/bwa_0.7.12)
     --custom_bwa_ra		EXE	PATH TO CUSTOM BWA_SRA EXEC (default : ${baseDir}/accessoryFiles/SSDS/bwa_ra_0.7.12)
-    --hotspots	        	DIR	PATH TO HOTSPOTS FILES DIRECTORY (default : ${baseDir}/accessoryFiles/SSDS/hotspots)
-    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : ${baseDir}/accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
 
 Trimming parameters:
     --with_trimgalore		BOOL	Use trim-galore instead of Trimmomatic for quality trimming process (default : false)
@@ -97,7 +97,7 @@ Trimming parameters:
 
 Mapping parameters:
     --no_multimap               BOOL    Remove multimapping reads from bam (default : false)
-    --bamPGline			STRING	bam header (default '@PG\\tID:ssDNAPipeline1.8_nxf_KBRICK')
+    --bamPGline			STRING	bam header (default '@PG\\tID:ssDNAPipeline2.0_PAUFFRET')
     --filtering_flag            INT     SAM flag for filtering bam files (default : 2052 ; see https://broadinstitute.github.io/picard/explain-flags.html)
 
 Bigwig parameter:
@@ -230,6 +230,8 @@ log.info """
 Run name                       : ${params.name}
 Input file                     : ${params.inputcsv}
 Reference genome               : ${params.genome}
+Blacklist file                 : ${params.blacklist}
+Hotspots file                  : ${params.hotspots}
 Output directory               : ${params.outdir}
 Use input control files        : ${params.with_control}
 Filter out multimappers        : ${params.no_multimap}
@@ -292,8 +294,6 @@ Chromosome sizes file          : ${params.chrsize}
 BWA bin                        : ${params.custom_bwa}
 BWA-ra bin                     : ${params.custom_bwa_ra}
 BAM custom header              : ${params.bamPGline}
-Blacklist file                 : ${params.blacklist}
-Hotspots file                  : ${params.hotspots}
 SSDS multiQC dev bin           : ${params.custom_multiqc}
 SSDS multiQC custom conda env  : ${params.multiqc_dev_conda_env}
 Nextflow Tover token           : ${params.tower_token}
@@ -748,7 +748,7 @@ process makeBigwig {
         val('ok') into makeBigwig_ok
     script:
     """
-    ## Compute normalization factor (i.e, for T1 : normfactor=librarySizeT1/librarySizeTotal*1000000)
+    ## Compute normalization factor (i.e, for T1 : normfactor=librarySizeT1/librarySizeTotal/1000000)
     # Get total library sizes
     libsizeTot=`cat ${libsizeTotal}`
     
@@ -756,7 +756,7 @@ process makeBigwig {
     libsizeT1=`wc -l ${ssDNA_type1_bed} | grep -v "_random"| awk '{print \$1}'`
 
     # Get normalization factors
-    normfactT1=`python -c "print(round(((\$libsizeT1)/(\$libsizeTot))*1000000,2))"`
+    normfactT1=`python -c "print(round(((\$libsizeT1)/(\$libsizeTot))/1000000,2))"`
 
     # Compute bedgraph and bigwig
     genomeCoverageBed -i ${ssDNA_type1_bed} -g ${params.chrsize} -scale \$normfactT1 -bga > ${sampleId}_ssDNA_type1_RPM.bedgraph
@@ -768,7 +768,7 @@ process makeBigwig {
     then  
         # Get normalization factors
         libsizeT12=`wc -l ${ssDNA_type12_bed} | grep -v "_random"| awk '{print \$1}'`
-        normfactT12=`python -c "print(round(((\$libsizeT12)/(\$libsizeTot))*1000000,2))"`
+        normfactT12=`python -c "print(round(((\$libsizeT12)/(\$libsizeTot))/1000000,2))"`
 
         # Compute bedgraph and bigwig
         genomeCoverageBed -i ${ssDNA_type12_bed} -g ${params.chrsize} -scale \$normfactT12 -bga > ${sampleId}_ssDNA_type12_RPM.bedgraph
@@ -815,7 +815,7 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
                 val('ok') into makeBigwigReplicates_ok
             script:
             """
-            ## Compute normalization factor (i.e, for T1 : normfactor=librarySizeT1/librarySizeTotal*1000000)
+            ## Compute normalization factor (i.e, for T1 : normfactor=librarySizeT1/librarySizeTotal/1000000)
             # Get total library sizes
             R1libsizeTot=`cat ${R1_libsizeTotal}`
             R2libsizeTot=`cat ${R2_libsizeTotal}`
@@ -825,7 +825,7 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
             R2libsizeT1=`wc -l ${R2_ssDNA_type1_bed} | grep -v "_random"| awk '{print \$1}'`
             
             # Compute normalization factor
-            R1R2normfactT1=`python -c "print(round(((\$R1libsizeT1+\$R2libsizeT1)/(\$R1libsizeTot+\$R2libsizeTot))*1000000,2))"`
+            R1R2normfactT1=`python -c "print(round(((\$R1libsizeT1+\$R2libsizeT1)/(\$R1libsizeTot+\$R2libsizeTot))/1000000,2))"`
             
             ## Compute bedgraphs and bigwig for T1 and T12
             # Merge T1 bed files from the 2 replicates
@@ -846,7 +846,7 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
                 R2libsizeT12=`wc -l ${R2_ssDNA_type12_bed} | grep -v "_random"| awk '{print \$1}'`
                 
                 # Compute normalization factor
-                R1R2normfactT12=`python -c "print(round(((\$R1libsizeT12+\$R2libsizeT12)/(\$R1libsizeTot+\$R2libsizeTot))*1000000,2))"`
+                R1R2normfactT12=`python -c "print(round(((\$R1libsizeT12+\$R2libsizeT12)/(\$R1libsizeTot+\$R2libsizeTot))/1000000,2))"`
                 
                 # Merge T1+T2 bed files from the 2 replicates
                 cat ${R1_ssDNA_type12_bed} ${R2_ssDNA_type12_bed} | grep -v "_random" | sort -k1,1 -k2,2n > ${sampleId}_R1R2_ssDNA_type12.bed
