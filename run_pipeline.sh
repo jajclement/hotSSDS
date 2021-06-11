@@ -22,6 +22,7 @@ INPUT=""
 OPTIONS="-profile conda "
 TEST="0"
 FORCE="0"
+PARAMS_FILE="${PIPELINE_DIRECTORY}/conf/mm10.config"
 
 #Get command line arguments
 while getopts hp:b:n:c:a:i:o:t:f: flag

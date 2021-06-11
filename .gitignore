@@ -12,3 +12,4 @@ testing/
 *.outdir
 # slurm log files
 *.out
+*COPY
