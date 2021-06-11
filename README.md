@@ -29,7 +29,7 @@ Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**
 * Peak normalization
 * Saturation curve  
 
-In detail, the pipeline is composed of 25 processes :  
+In details, the pipeline is composed of 25 processes :  
 * PROCESS 1 : check_design (check input design file)
 * PROCESS 2 : makeScreenConfigFile (make configuration file for fastqscreen)
 * PROCESS 3 : trimming (use trimmomatic or trim-galore to quality trim, remove adapters and hard trim sequences)
@@ -106,7 +106,7 @@ The reference genome should be in the ``/poolzvs/genomes`` directory on IGH clus
 
 You can use ````-- genome 'mm10'```` and you won't need to worry about the other genome parameters like fasta path etc.
 
-But if you want to use another reference, you will need to set : 
+But if you want to use **another reference**, you will need to set : 
 - absolute path to genome ````--genomedir /path/to/genome````
 - absolute path to fasta file. Indexes for BWA SHOULD EXIST in the same directory ````--genome_fasta /path/to/genome.fa````
 - the name of the genome ````--genome_name mm11````
@@ -121,12 +121,12 @@ conda activate nextflow_dev
 nextflow run main.nf --help
 ````
 
-The main parameters you need to set are :
-* ``--inputcsv`` : path to the input csv file, see section 3
-* ``--profile conda`` : Run within conda environment (only available option at the moment)
+The main parameters that need to be set are :
+* ``--inputcsv`` : path to the input csv file, see section 3. This option matches the ``-i`` argument in ``run_pipeline.sh`` script.
+* ``-profile conda`` : Run within conda environment (only available option at the moment)
 * ``--genome`` : the reference genome, see section 3
-* ``--name`` : analysis name, e.g. "SSDS_SRA5678_DMC1"
-* ``--outdir`` : path to output directory
+* ``--name`` : analysis name, e.g. "SSDS_SRA5678_DMC1". This option matches the ``-n`` argument in ``run_pipeline.sh`` script.
+* ``--outdir`` : path to output directory. This option matches base-directory/analysis-name.outdir (i.e. defined by ``-b`` and ``-n`` arguments in ``run_pipeline.sh`` script).
 * ``--with_control`` (true/false) : use input control files, see section 3
 * ``--no_multimap`` (true/false) : remove multimappers from bam files
 * ``--nb_replicates`` : number of biological replicates you are running with (maximum 2)
@@ -142,10 +142,11 @@ bash run_pipeline.sh -h
 ````
 Then run the pipeline with (please provide all files and directory with **absolute paths**) :
 ````
-bash run_pipeline.sh -i inputfile.csv -y "--name your_analysis_name --genome mm10 --profile conda --with_control --nb_replicates 2"
+bash run_pipeline.sh -i inputfile.csv -n your-analysis-name -b my-base-directory -o "--genome mm10 -profile conda --with_control --nb_replicates 2"
 ````
+The results will be located in a directory named after the analyis name (-n argument) suffixed with .outdir, in the base directory.
 
-**You can use ``-resume`` option (Nextflow native options) to prevent the entire workflow to be rerun in case you need to relaunch an aborted workflow** 
+**You can use ``-resume`` option (Nextflow native options) to prevent the entire workflow to be rerun in case you need to relaunch an aborted workflow. To do so, set ``-o -resume`` to ``run_pipeline.sh`` pipeline** 
 
 
 
@@ -155,7 +156,7 @@ You can use ``-with-tower`` option to monitor your jobs through [nextflow tower 
 You first need to sign in to get your key, then add it to your parameters with the ``--tower-token 'yourkey'`` option.
 
 ### 5. Output
-The main output folder is specified through the ````--outdir```` parameter.
+The main output folder is specified through the ````-b```` and ````-n```` arguments in ``run_pipeline.sh`` ; i.e. base-directory/analysis-name.outdir 
 This folder will contain the following directories :
 * **pipeline_info** with input csv files rearranged for the pipeline
 * **trim_fastqc** with fastQC reports for trimmed fastq files
@@ -194,7 +195,7 @@ To use it, you can run :
 ````
 bash run_pipeline.sh -t 1
 ````
-**Without -i option**. Please check -p (pipeline directory) ; -a (conda environment path) and -o (output directory) parameters before run  
+**Without -i option**. Please check ``-p`` (pipeline directory) ; ``-a`` (conda environment path) ; ``-n`` (analysis name) and ``-b`` (base directory for output) parameters before run  
 
 Use ````bash run_pipeline.sh -h````
 
