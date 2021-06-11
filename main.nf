@@ -96,7 +96,7 @@ Trimming parameters:
     --trimmomatic_adapters      FILE    PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default ${baseDir}/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
 
 Mapping parameters:
-    --no_multimap               BOOL    Remove multimapping reads from bam (default : false)
+    --with_multimap             BOOL    Keep multimapping reads from bam (default : false)
     --bamPGline			STRING	bam header (default '@PG\\tID:ssDNAPipeline2.0_PAUFFRET')
     --filtering_flag            INT     SAM flag for filtering bam files (default : 2052 ; see https://broadinstitute.github.io/picard/explain-flags.html)
 
@@ -234,7 +234,7 @@ Blacklist file                 : ${params.blacklist}
 Hotspots file                  : ${params.hotspots}
 Output directory               : ${params.outdir}
 Use input control files        : ${params.with_control}
-Filter out multimappers        : ${params.no_multimap}
+Keep multimappers              : ${params.with_multimap}
 Number of replicates           : ${params.nb_replicates}
 Bigwig profile                 : ${params.bigwig_profile}
 Generate deeptools bigwig      : ${params.kbrick_bigwig}
@@ -374,13 +374,21 @@ process makeScreenConfigFile {
         File conf  = new File("${params.outdir}/conf.fqscreen")
         conf.write "This is a config file for FastQ Screen\n\n"
         conf << "THREADS ${task.cpus}\n\n"
+        def present = 'false'
         //Output list of genomes to screen in config file
         for (item in glist) {
 	    if (params.genomes.containsKey(item)) {
             	fasta=params.genomes[ item ].genome_fasta
             	name=params.genomes[ item ].genome_name
             	conf << "DATABASE  ${name}    ${fasta}\n"
+            }
+            if (item == params.genome_name) {
+                present = 'true' 
 	    }
+        }
+        //Add params.genome to genome to screen if not present in default list
+        if (present == 'false') {
+            conf << "DATABASE  ${params.genome_name}    ${params.genome_fasta}\n"
         }
         //Test if file has been correctly created, if not, exit pipeline.
 	"""
@@ -389,7 +397,7 @@ process makeScreenConfigFile {
                 mkdir -p "${params.outdir}/fastqscreen"
                 mv "${params.outdir}/conf.fqscreen" "${params.outdir}/fastqscreen/"
 	else
-                echo "The configuration file for fastqscreen could not be generated. Please check your genome2screen parameter."
+                echo "The configuration file for fastqscreen could not be generated. Please check genome2screen parameter."
 		exit 1
 	fi
 	"""
@@ -543,9 +551,9 @@ process bwaAlign {
         exit 1
     fi
 
-    ## REMOVE MULTIMAPPERS IF OPTION --no_multimap IS TRUE
+    ## REMOVE MULTIMAPPERS IF OPTION --with_multimap IS FALSE
     ## ! It's important that the final bam files are named *.sorted.bam for the next processes.
-    if [[ ${params.no_multimap} == "true" ]]
+    if [[ ${params.with_multimap} == "false" ]]
     then
         # from https://bioinformatics.stackexchange.com/questions/508/obtaining-uniquely-mapped-reads-from-bwa-mem-alignment
         # samtools view -h ${sampleId}.sorted.bam | grep -v -e 'XA:Z:' -e 'SA:Z:' | samtools view -b > ${sampleId}.final.bam
