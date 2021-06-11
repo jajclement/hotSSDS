@@ -104,7 +104,7 @@ Control (input) samples must have the 2 last fields ("antibody" and "control") e
 
 The reference genome should be in the ``/poolzvs/genomes`` directory on IGH cluster. Currently, the available genomes are mm10, hg19, hg38, sacCer2, sacCer3, dm3, dm6.
 
-You can use ````-- genome 'mm10'```` and you won't need to worry about the other genome parameters like fasta path etc.
+You can use ````--genome 'mm10'```` and you won't need to worry about the other genome parameters like fasta path etc.
 
 But if you want to use **another reference**, you will need to set : 
 - absolute path to genome ````--genomedir /path/to/genome````
