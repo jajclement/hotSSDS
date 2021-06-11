@@ -14,27 +14,29 @@ export SINGULARITY_BINDPATH="/work,/poolzfs"
 #Pipeline default parameters
 ANALYSIS_NAME="SSDS_pipeline"
 PIPELINE_DIRECTORY="/home/${USER}/work/ssdsnextflowpipeline"
-OUTPUT_DIRECTORY="/home/${USER}/work/results/${ANALYSIS_NAME}.outdir"
+BASE_DIRECTORY="/home/${USER}/work/results"
 CONF="${PIPELINE_DIRECTORY}/conf/igh.config"
 CENV="/home/${USER}/work/bin/miniconda3/envs/nextflow_dev"
 JOBNAME='SSDS_main'
 INPUT=""
 OPTIONS="-profile conda "
 TEST="0"
+FORCE="0"
 
 #Get command line arguments
-while getopts hp:o:c:a:i:n:y:t: flag
+while getopts hp:b:n:c:a:i:o:t:f: flag
 do
 	case "${flag}" in
-		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; echo "Options : "; echo "-h display help message"; echo "-i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) "; echo "-p Absolute path to ssds nextflow pipeline base directory (default : ${PIPELINE_DIRECTORY})"; echo "-o Absolute path to output directory (default : ${OUTPUT_DIRECTORY})"; echo "-c Absolute path to IGH cluster configuration file (default : ${CONF})"; echo "-a Absolute path to conda environment for nextflow (default : ${CENV})"; echo "-n Analysis name (default : ${ANALYSIS_NAME})"; echo "-y Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; echo "-t set to 1 if running pipeline on test data located in ${PIPELINE_DIRECTORY}/tests/fastq (default : ${TEST})"; echo ""; exit 0;;
+		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; echo "Options : "; echo "-h display help message"; echo "-i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) "; echo "-p Absolute path to ssds nextflow pipeline base directory (default : ${PIPELINE_DIRECTORY})"; echo "-b Absolute path to base directory where the output directory will be created (default : ${BASE_DIRECTORY})"; echo "-n Analysis name (default : ${ANALYSIS_NAME}) INFO : by default, this parameter will match the --name option in nextflow command line"; echo "-c Absolute path to IGH cluster configuration file (default : ${CONF})"; echo "-a Absolute path to conda environment for nextflow (default : ${CENV})"; echo "-o Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; echo "-t set to 1 if running pipeline on test data located in ${PIPELINE_DIRECTORY}/tests/fastq (default : ${TEST})"; echo "-f set to 1 to force pipeline to run without checking rsume/output directory (default : ${FORCE})" ; echo "INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir)"; echo ""; exit 0;;
 		p) PIPELINE_DIRECTORY=${OPTARG};if [ ! -d ${PIPELINE_DIRECTORY} ]; then echo "Directory ${PIPELINE_DIRECTORY} not found!" ; exit 0; fi;;
-		o) OUTPUT_DIRECTORY=${OPTARG};;
+		b) BASE_DIRECTORY=${OPTARG};;
+		n) ANALYSIS_NAME=${OPTARG};;
 		c) CONF=${OPTARG};if [ ! -f ${CONF} ]; then echo "File ${CONF} not found!" ; exit 0; fi;;
 		a) CENV=${OPTARG};if [ ! -d ${CENV} ]; then echo "Environment ${CENV} not found!" ; exit 0; fi;;
 		i) INPUT=${OPTARG};if [ ! -f ${INPUT} ]; then echo "File ${INPUT} not found!" ; exit 0; fi;;
-		y) OPTIONS=${OPTARG};;
-		n) ANALYSIS_NAME=${OPTARG};;
+		o) OPTIONS=${OPTARG};;
 		t) TEST=${OPTARG};;
+		f) FORCE=${OPTARG};;
 		\? ) echo "Unknown option: -$OPTARG" >&2; exit 1;;
         	:  ) echo "Missing option argument for -$OPTARG" >&2; exit 1;;
         	*  ) echo "Unimplemented option: -$OPTARG" >&2; exit 1;;
@@ -46,6 +48,77 @@ if [[ "x" == "x$INPUT" && ${TEST} == "0" ]] ; then
   echo "-i [input csv file] is required"
   exit
 fi
+
+#Create base directory if not existing
+echo "Checking base directory..."
+mkdir -p ${BASE_DIRECTORY}
+
+#Test if a project with the same name already exists and if the option -resume is properly set
+if [[ $FORCE == 0 ]] 
+then
+	echo "Checking output directory."
+	if [[ -d ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir && $OPTIONS == *"-resume"* ]]
+	then
+		echo "WARNING : Output directory already exists for project ${ANALYSIS_NAME} in ${BASE_DIRECTORY}, are you sure you want to resume this run ? (y/n)"
+		read answer1
+		case $answer1 in
+			[yYoO]*) echo "Ok; run will be resumed.";;
+			[nN]*) echo "Ok; quitting. Bye, see you soon !"; exit 0;;
+			*) echo "ABORT. Please enter y (yes) or n (no) next time. Bye, see you soon !"; exit 1;;
+		esac
+	elif [[ -d ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir && ! $OPTIONS == *"-resume"* ]]
+	then
+		echo "WARNING : Output directory already exists for project ${ANALYSIS_NAME} in ${BASE_DIRECTORY}, are you sure you want to run the pipeline from the beginning (this will erase previous results from this project) ? (y/n)"
+		read answer2
+		case $answer2 in
+			[yYoO]*) echo "Ok; previous results located in ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir will be erased.";;
+			[nN]*) echo "Ok; quitting. Consider using another analysis name (-n argument) or using the option -resume in the -o argument next time. Bye, see you soon !"; exit 0;;
+			*) echo "ABORT. Please enter y (yes) or n (no) next time. Bye, see you soon !"; exit 1;;
+		esac
+	else
+		echo "Ok, creating ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir output project directory."
+		mkdir ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir
+	fi
+else
+	echo "Forcing the creation of ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir output project directory."
+	mkdir -p ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir
+fi
+
+#Go to the output directory
+cd ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir
+
+
+#Check conda environment.
+echo "Checking conda environment..."
+if [ ! -d ${CENV} ]; 
+then echo "ABORT : environment ${CENV} not found! Check -a argument. Bye, see you soon !" ; exit 0; 
+else echo "Ok.";
+fi
+
+#Check pipeline directory
+echo "Checking pipeline directory..."
+if [ ! -d ${PIPELINE_DIRECTORY} ];
+then echo "ABORT : pipeline directory ${PIPELINE_DIRECTORY} not found! Check -p argument. Bye, see you soon !" ; exit 0;
+else echo "Ok.";
+fi
+
+#Checking configuration file
+echo "Checking configuration file..."
+if [ ! -f ${CONF} ] ;
+then echo "ABORT : configuration file ${CONF} not found! Check -c argument. Bye, see you soon !" ; exit 0;
+else echo "Ok.";
+fi
+
+#Activate conda environment
+echo "Activate conda environment ${CENV}."
+eval "$(conda shell.bash hook)"
+conda activate ${CENV}
+
+#Run pipeline
+echo "Run pipeline !"
+if [ ${TEST} == "0" ]; then
+echo "Running SSDS pipeline from ${PIPELINE_DIRECTORY} on ${INPUT##*/} data within ${CENV##*/} conda environment. Check output directory ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir"
+fi 
 
 #If running pipeline on test dataset, create relevant input csv file
 if [ ${TEST} == "1" ]; then
@@ -59,18 +132,7 @@ if [ ${TEST} == "1" ]; then
 		echo "Input file for test data cannot be created."
 		exit 0
 	fi
-fi 
-
-#Create output directory if not existing
-mkdir -p ${OUTPUT_DIRECTORY}
-cd ${OUTPUT_DIRECTORY}
-
-#Activate conda environment
-eval "$(conda shell.bash hook)"
-conda activate ${CENV}
-
-#Run pipeline
-echo "Running SSDS pipeline from ${PIPELINE_DIRECTORY} on ${INPUT##*/} data within ${CENV##*/} conda environment. Check output directory ${OUTPUT_DIRECTORY}"
+fi
 
 #Cheat lines for dev, do not use
 #OPTIONBASE="--with_control --satcurve false --kbrick_bigwig false -with-tower --bigwig_profile T12rep  --genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --nb_replicates 2 --with_ssds_multiqc --multiqc_dev_conda_env /work/demassyie/bin/miniconda2/envs/SSDSnextflowPipeline -resume"
@@ -79,7 +141,7 @@ OPTIONBASE=""
 
 sbatch -p computepart -J ${JOBNAME} --export=ALL -n 1 --mem 7G -t 5-0:0  \
 --wrap "export MKL_NUM_THREADS=1 ; export NUMEXPR_NUM_THREADS=1 ; export OMP_NUM_THREADS=1 ; \
-nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} --name ${ANALYSIS_NAME} --outdir ${OUTPUT_DIRECTORY} --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"
+nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} --name ${ANALYSIS_NAME} --outdir ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"
 
 #Deactivate conda environment
 conda deactivate
