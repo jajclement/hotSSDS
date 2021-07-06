@@ -186,7 +186,7 @@ if (params.inputcsv) { println("Checking input sample file...") ; input_ch = fil
 
 // Check if other input files/directories exist
 if (params.chrsize) { println("Checking chrsize input file...") ; f_chrsize = file(params.chrsize, checkIfExists: true) } ; println("Ok")
-if (params.hotspots) { println("Checking hotspots directory...") ; d_hotspots = file(params.hotspots, checkIfExists: true) } ; println("Ok")
+if (params.hotspots && params.hotspots != "None") { println("Checking hotspots directory...") ; d_hotspots = file(params.hotspots, checkIfExists: true) } ; println("Ok")
 if (params.blacklist && params.blacklist != "None") { println("Checking blacklist file...") ; f_blacklist = file(params.blacklist, checkIfExists: true) } ; println("Ok") 
 if (params.multiqc_configfile) { println("Checking multiqc_configfile...") ; f_multiqc_configfile = file(params.multiqc_configfile, checkIfExists: true) } ; println("Ok")
 if (params.trimgalore_adapters) { println("Checking trimgalore_adapters file...") ; f_trimgalore_adapters = file(params.trimgalore_adapters, checkIfExists: true) } ; println("Ok")

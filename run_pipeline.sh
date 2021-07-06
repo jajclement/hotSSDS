@@ -16,6 +16,7 @@ ANALYSIS_NAME="SSDS_pipeline"
 PIPELINE_DIRECTORY="/home/${USER}/work/ssdsnextflowpipeline"
 BASE_DIRECTORY="/home/${USER}/work/results"
 CONF="${PIPELINE_DIRECTORY}/conf/igh.config"
+GENOME_PROFILE="${PIPELINE_DIRECTORY}/conf/mm10.json"
 CENV="/home/${USER}/work/bin/miniconda3/envs/nextflow_dev"
 JOBNAME='SSDS_main'
 INPUT=""
@@ -25,13 +26,14 @@ FORCE="0"
 PARAMS_FILE="${PIPELINE_DIRECTORY}/conf/mm10.config"
 
 #Get command line arguments
-while getopts hp:b:n:c:a:i:o:t:f: flag
+while getopts hp:b:n:c:a:i:o:t:f:g: flag
 do
 	case "${flag}" in
-		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; echo "Options : "; echo "-h display help message"; echo "-i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) "; echo "-p Absolute path to ssds nextflow pipeline base directory (default : ${PIPELINE_DIRECTORY})"; echo "-b Absolute path to base directory where the output directory will be created (default : ${BASE_DIRECTORY})"; echo "-n Analysis name (default : ${ANALYSIS_NAME}) INFO : by default, this parameter will match the --name option in nextflow command line"; echo "-c Absolute path to IGH cluster configuration file (default : ${CONF})"; echo "-a Absolute path to conda environment for nextflow (default : ${CENV})"; echo "-o Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; echo "-t set to 1 if running pipeline on test data located in ${PIPELINE_DIRECTORY}/tests/fastq (default : ${TEST})"; echo "-f set to 1 to force pipeline to run without checking rsume/output directory (default : ${FORCE})" ; echo "INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir)"; echo ""; exit 0;;
+		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; echo "Options : "; echo "-h display help message"; echo "-i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) "; echo "-g Absolute path to the genome config file (default : ${GENOME_PROFILE})" ;echo "-p Absolute path to ssds nextflow pipeline base directory (default : ${PIPELINE_DIRECTORY})"; echo "-b Absolute path to base directory where the output directory will be created (default : ${BASE_DIRECTORY})"; echo "-n Analysis name (default : ${ANALYSIS_NAME}) INFO : by default, this parameter will match the --name option in nextflow command line"; echo "-c Absolute path to IGH cluster configuration file (default : ${CONF})"; echo "-a Absolute path to conda environment for nextflow (default : ${CENV})"; echo "-o Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; echo "-t set to 1 if running pipeline on test data located in ${PIPELINE_DIRECTORY}/tests/fastq (default : ${TEST})"; echo "-f set to 1 to force pipeline to run without checking resume/output directory (default : ${FORCE})" ; echo "INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir)"; echo ""; exit 0;;
 		p) PIPELINE_DIRECTORY=${OPTARG};if [ ! -d ${PIPELINE_DIRECTORY} ]; then echo "Directory ${PIPELINE_DIRECTORY} not found!" ; exit 0; fi;;
 		b) BASE_DIRECTORY=${OPTARG};;
 		n) ANALYSIS_NAME=${OPTARG};;
+		g) GENOME_PROFILE=${OPTARG};if [ ! -f ${GENOME_PROFILE} ]; then echo "File ${GENOME_PROFILE} not found!" ; exit 0; fi;;
 		c) CONF=${OPTARG};if [ ! -f ${CONF} ]; then echo "File ${CONF} not found!" ; exit 0; fi;;
 		a) CENV=${OPTARG};if [ ! -d ${CENV} ]; then echo "Environment ${CENV} not found!" ; exit 0; fi;;
 		i) INPUT=${OPTARG};if [ ! -f ${INPUT} ]; then echo "File ${INPUT} not found!" ; exit 0; fi;;
@@ -103,12 +105,16 @@ then echo "ABORT : pipeline directory ${PIPELINE_DIRECTORY} not found! Check -p 
 else echo "Ok.";
 fi
 
-#Checking configuration file
-echo "Checking configuration file..."
+#Checking configuration files
+echo "Checking configuration files..."
 if [ ! -f ${CONF} ] ;
 then echo "ABORT : configuration file ${CONF} not found! Check -c argument. Bye, see you soon !" ; exit 0;
 else echo "Ok.";
 fi
+if [ ! -f ${GENOME_PROFILE} ];
+then echo "ABORT : configuration file ${GENOME_PROFILE} not found! Check -c argument. Bye, see you soon !" ; exit 0; 
+else echo "Ok.";
+fi 
 
 #Activate conda environment
 echo "Activate conda environment ${CENV}."
@@ -142,7 +148,7 @@ OPTIONBASE=""
 
 sbatch -p computepart -J ${JOBNAME} --export=ALL -n 1 --mem 7G -t 5-0:0  \
 --wrap "export MKL_NUM_THREADS=1 ; export NUMEXPR_NUM_THREADS=1 ; export OMP_NUM_THREADS=1 ; \
-nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} --name ${ANALYSIS_NAME} --outdir ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"
+nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} -params-file ${GENOME_PROFILE} --name ${ANALYSIS_NAME} --outdir ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"
 
 #Deactivate conda environment
 conda deactivate
