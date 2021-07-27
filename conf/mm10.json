@@ -1,7 +1,6 @@
 {"name":"SSDS_pipeline_mm10",
 "publishdir_mode":"copy",
 "genome":"mm10",
-"genome2screen":"['mm10','hg19','dm3','dm6','hg38','sacCer2','sacCer3']",
 "with_trimgalore":false,
 "trimgalore_adapters":"",
 "trimg_quality":10,

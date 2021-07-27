@@ -19,8 +19,8 @@ Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align, Parse and call Peaks in 
 Pipeline overview:
 PROCESS 1 : check_design (CHECK INPUT DESIGN FILE)
 PROCESS 2 : makeScreenConfigFile (MAKE CONFIGURATION FILE FOR FASTQSCREEN)
-PROCESS 3 : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES)
-PROCESS 4 : fastqc (QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
+PROCESS 3 : crop (HARD TRIMMING AND QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
+PROCESS 4 : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM AND REMOVE ADAPTERS FROM RAW SEQUENCES)
 PROCESS 5 : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
 PROCESS 6 : filterBam (MARK DUPLICATES, REMOVE SUPPLEMENTARY ALIGNMENTS, SORT AND INDEX)
 PROCESS 7 : parseITRs (PARSE BAM FILES TO GET THE DIFFERENT SSDS TYPES)
@@ -88,7 +88,6 @@ Trimming parameters:
     --trimg_quality		INT	trim-galore : minimum quality (default 10)
     --trimg_stringency		INT	trim-galore : trimming stringency (default 6)
     --trim_minlen		INT	trimmomatic : minimum length of reads after trimming (default 25)
-    --trim_crop         	INT	trimmomatic : Cut the read to that specified length (default 50, set to initial length of reads if you want a different crop length for R1 and R2)
     --trim_cropR1		INT	fastx : Cut the R1 read to that specified length (default 50)
     --trim_cropR2		INT	fastx : Cut the R2 read to that specified length (default 50)
     --trim_slidingwin		STRING	trimmomatic : perform a sliding window trimming, cutting once the average quality within the window falls below a threshold (default "4:15")
@@ -244,7 +243,6 @@ Plot saturation curve          : ${params.satcurve}
 Use trimgalore                 : ${params.with_trimgalore}
 R1 hard trimming               : ${params.trim_cropR1}
 R2 hard trimming               : ${params.trim_cropR2}
-Hard trimming if R1=R2         : ${params.trim_crop}
 Use SSDS custom multiQC        : ${params.with_ssds_multiqc}
 
 ** Trimming parameters **
@@ -406,85 +404,33 @@ process makeScreenConfigFile {
 //***************************************************************************//
 //                           SECTION 2 : TRIMMING                            //
 //***************************************************************************//
-
-// PROCESS 3 : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM, REMOVE ADAPTERS AND HARD TRIM SEQUENCES)
-// What it does : runs trimmomatic (default) or Trim Galore (if option --with_trimagalore is set) for adapter & quality trimming.
-// Several parameters can be set for the trimming, see help section.
-// For trimmomatic an adapter file need to be set, and for trim galore the choice is yours.
-// Finally hard trimming is done using fastx-trimmer on trimmed fastq files and QC is done with fastqc.
-// Input : channel fq_ch with couple of raw fastq files
-// Output : channel trim_ch with couple of trimmed fastq files and all QC reports from fastqc
-process trimming {
-    tag "${sampleId}" 
-    label 'process_low'
-    publishDir "${params.outdir}/trim_fastqc", mode: params.publishdir_mode, pattern: "*_report.txt"
-    publishDir "${params.outdir}/trim_fastqc", mode: params.publishdir_mode, pattern: "*.html"
-    publishDir "${params.outdir}/trim_fastqc", mode: params.publishdir_mode, pattern: "*.zip"
-    publishDir "${params.outdir}/trim_fastq", mode: params.publishdir_mode, pattern: "*trim_crop_R1.fastq.gz"
-    publishDir "${params.outdir}/trim_fastq", mode: params.publishdir_mode, pattern: "*trim_crop_R2.fastq.gz"
-    input:
-        tuple val(sampleId), file(reads) from fq_ch
-    output:
-        tuple val("${sampleId}"), file(reads) into fqc_ch
-        tuple val("${sampleId}"), file('*crop_R1.fastq.gz'), file('*crop_R2.fastq.gz') into trim_ch
-        file('*') 
-        val 'ok' into trimming_ok
-    script:
-    	if (params.with_trimgalore && params.trimgalore_adapters)
-	"""
-	trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} \
-                --cores ${task.cpus} --adapter "file:${params.trimgalore_adapters}" --gzip --paired --basename ${sampleId} ${reads}
-        mv ${sampleId}_val_1.fq.gz ${sampleId}_trim_R1.fastq.gz
-        mv ${sampleId}_val_2.fq.gz ${sampleId}_trim_R2.fastq.gz
-        zcat ${sampleId}_trim_R1.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR1} -o ${sampleId}_trim_crop_R1.fastq.gz
-        zcat ${sampleId}_trim_R2.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR2} -o ${sampleId}_trim_crop_R2.fastq.gz
-        fastqc -t ${task.cpus} ${sampleId}_trim_crop_R1.fastq.gz ${sampleId}_trim_crop_R2.fastq.gz
-        """
-        else if (params.with_trimgalore && !params.trimgalore_adapters)
-        """
-        trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} \
-                --cores ${task.cpus} --gzip --paired --basename ${sampleId} ${reads}
-	mv ${sampleId}_val_1.fq.gz ${sampleId}_trim_R1.fastq.gz
-	mv ${sampleId}_val_2.fq.gz ${sampleId}_trim_R2.fastq.gz
-        zcat ${sampleId}_trim_R1.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR1} -o ${sampleId}_trim_crop_R1.fastq.gz
-        zcat ${sampleId}_trim_R2.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR2} -o ${sampleId}_trim_crop_R2.fastq.gz
-        fastqc -t ${task.cpus} ${sampleId}_trim_crop_R1.fastq.gz ${sampleId}_trim_crop_R2.fastq.gz
-	"""
-	else
-	"""
-    	trimmomatic PE -threads ${task.cpus} ${reads} \
-                ${sampleId}_trim_R1.fastq.gz R1_unpaired.fastq.gz \
-                ${sampleId}_trim_R2.fastq.gz R2_unpaired.fastq.gz \
-                ILLUMINACLIP:${params.trimmomatic_adapters}:${params.trim_illuminaclip} SLIDINGWINDOW:${params.trim_slidingwin} \
-                MINLEN:${params.trim_minlen} >& ${sampleId}_trim_${outNameStem}_trimmomatic_report.txt 2>&1
-        zcat ${sampleId}_trim_R1.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR1} -o ${sampleId}_trim_crop_R1.fastq.gz
-        zcat ${sampleId}_trim_R2.fastq.gz | fastx_trimmer -z -f 1 -l ${params.trim_cropR2} -o ${sampleId}_trim_crop_R2.fastq.gz
-        fastqc -t ${task.cpus} ${sampleId}_trim_crop_R1.fastq.gz ${sampleId}_trim_crop_R2.fastq.gz
-        """
-}
-
-// MAP FASTQC CHANNEL (Need to flat the raw files R1.fq(.gz) and R2.fq(.gz) for process 4)
+// MAP FASTQ CHANNEL (Need to flat the raw files R1.fq(.gz) and R2.fq(.gz) for process 4)
 // The resulting channel is composed of 3 elements : sampleID, fastq1, fastq2
-fqc_ch
+fq_ch
     .map { it -> it[0,1].flatten() }
-    .set { fqc_tuple }
+    .set { fq_tuple }
 
-// PROCESS 4 : fastqc (QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
-// What it does : runs fastqc and fastqscreen on raw reads
+// PROCESS 3 : crop (HARD TRIMMING AND QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
+// What it does : uses fastx_trimmer to hard trim raw reads then runs fastqc and fastqscreen on cropped reads
 // Input : raw reads and config file from fastqscreen created in process 2
 // Output : QC reports
-process fastqc {
+process crop {
     tag "${sampleId}"
     label 'process_low'
+    publishDir "${params.outdir}/trim_fastqc", mode: params.publishdir_mode, pattern: "*_crop_R*"
     publishDir "${params.outdir}/raw_fastqc", mode: params.publishdir_mode, pattern: "*.html"
     publishDir "${params.outdir}/raw_fastqc", mode: params.publishdir_mode, pattern: "*.zip"
     publishDir "${params.outdir}/fastqscreen", mode: params.publishdir_mode, pattern: "*.png"
     publishDir "${params.outdir}/raw_fastqc", mode: params.publishdir_mode, pattern: "*.txt"
     input:
-        tuple val(sampleId), file(read1), file(read2) from fqc_tuple 
+        tuple val(sampleId), file(read1), file(read2) from fq_tuple 
         file(ok) from fqscreen_conf_ok
     output:
-	file('*') 
+        tuple val("${sampleId}"), file("*_crop_R1.fastq.gz"), file("*_crop_R2.fastq.gz") into fqcrop_tuple
+	file('*.html')
+	file('*.zip')
+	file('*.png')
+	file('*.txt') 
         val 'ok' into fastqc_ok
     script:
     // Get fastq files extension (for properly rename files)
@@ -494,11 +440,71 @@ process fastqc {
     if [[ ${ext} == "gz" ]] ; then ext="fastq.gz" ; fi
     mv ${read1} ${sampleId}_raw_R1.${ext}   
     mv ${read2} ${sampleId}_raw_R2.${ext}
+    
+    # Crop raw reads
+    zcat ${sampleId}_raw_R1.${ext} | fastx_trimmer -z -f 1 -l ${params.trim_cropR1} -o ${sampleId}_crop_R1.fastq.gz
+    zcat ${sampleId}_raw_R2.${ext} | fastx_trimmer -z -f 1 -l ${params.trim_cropR2} -o ${sampleId}_crop_R2.fastq.gz
+
     # Run fastqc and fastqscreen
-    fastqc -t ${task.cpus} *raw* 
-    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${params.outdir}/fastqscreen/conf.fqscreen *raw*
+    fastqc -t ${task.cpus} ${sampleId}_crop_R1.fastq.gz ${sampleId}_crop_R2.fastq.gz
+ 
+    fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${params.outdir}/fastqscreen/conf.fqscreen ${sampleId}_crop_R1.fastq.gz ${sampleId}_crop_R2.fastq.gz
     """
 }
+
+// PROCESS 4 : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM AND REMOVE ADAPTERS FROM RAW SEQUENCES)
+// What it does : runs trimmomatic (default) or Trim Galore (if option --with_trimagalore is set) for adapter & quality trimming.
+// Several parameters can be set for the trimming, see help section.
+// For trimmomatic an adapter file need to be set, and for trim galore the choice is yours.
+// Finally QC is done on trimmed reads with fastqc.
+// Input : channel fqcrop_tuple with couple of cropped fastq files
+// Output : channel trim_ch with couple of trimmed fastq files and all QC reports from fastqc
+process trimming {
+    tag "${sampleId}" 
+    label 'process_low'
+    publishDir "${params.outdir}/trim_fastqc", mode: params.publishdir_mode, pattern: "*_report.txt"
+    publishDir "${params.outdir}/trim_fastqc", mode: params.publishdir_mode, pattern: "*.html"
+    publishDir "${params.outdir}/trim_fastqc", mode: params.publishdir_mode, pattern: "*.zip"
+    publishDir "${params.outdir}/trim_fastq", mode: params.publishdir_mode, pattern: "*crop_trim_R1.fastq.gz"
+    publishDir "${params.outdir}/trim_fastq", mode: params.publishdir_mode, pattern: "*crop_trim_R2.fastq.gz"
+    input:
+	tuple val(sampleId), file(cropread1), file(cropread2) from fqcrop_tuple
+    output:
+        tuple val("${sampleId}"), file('*crop_trim_R1.fastq.gz'), file('*crop_trim_R2.fastq.gz') into trim_ch
+        file('*') 
+        val 'ok' into trimming_ok
+    script:
+    	if (params.with_trimgalore && params.trimgalore_adapters)
+	"""
+	trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} \
+                --cores ${task.cpus} --adapter "file:${params.trimgalore_adapters}" --gzip --paired --basename ${sampleId} ${cropread1} ${cropread2}
+        mv ${sampleId}_val_1.fq.gz ${sampleId}_crop_trim_R1.fastq.gz
+        mv ${sampleId}_val_2.fq.gz ${sampleId}_crop_trim_R2.fastq.gz
+        
+        fastqc -t ${task.cpus} ${sampleId}_crop_trim_R1.fastq.gz ${sampleId}_crop_trim_R2.fastq.gz
+        """
+        else if (params.with_trimgalore && !params.trimgalore_adapters)
+        """
+        trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} \
+                --cores ${task.cpus} --gzip --paired --basename ${sampleId} ${cropread1} ${cropread2}
+	mv ${sampleId}_val_1.fq.gz ${sampleId}_crop_trim_R1.fastq.gz
+	mv ${sampleId}_val_2.fq.gz ${sampleId}_crop_trim_R2.fastq.gz
+
+        fastqc -t ${task.cpus} ${sampleId}_crop_trim_R1.fastq.gz ${sampleId}_crop_trim_R2.fastq.gz
+	"""
+	else
+	"""
+ 		
+    	trimmomatic PE -threads ${task.cpus} ${cropread1} ${cropread2} \
+                ${sampleId}_crop_trim_R1.fastq.gz R1_unpaired.fastq.gz \
+                ${sampleId}_crop_trim_R2.fastq.gz R2_unpaired.fastq.gz \
+                ILLUMINACLIP:${params.trimmomatic_adapters}:${params.trim_illuminaclip} SLIDINGWINDOW:${params.trim_slidingwin} \
+                MINLEN:${params.trim_minlen} >& ${sampleId}_crop_trim_${outNameStem}_trimmomatic_report.txt 2>&1
+        
+        fastqc -t ${task.cpus} ${sampleId}_crop_trim_R1.fastq.gz ${sampleId}_crop_trim_R2.fastq.gz
+        """
+}
+
 
 //***************************************************************************//
 //                      SECTION 3 : MAPPING AND PARSING                      //

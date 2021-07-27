@@ -32,8 +32,8 @@ Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**
 In details, the pipeline is composed of 25 processes :  
 * PROCESS 1 : check_design (check input design file)
 * PROCESS 2 : makeScreenConfigFile (make configuration file for fastqscreen)
-* PROCESS 3 : trimming (use trimmomatic or trim-galore to quality trim, remove adapters and hard trim sequences)
-* PROCESS 4 : fastqc (quality control on raw reads using fastqc and fastqscreen)
+* PROCESS 3 : crop (hard trim raw sequences and run quality control)
+* PROCESS 4 : trimming (remove adapters and quality trim cropped sequences)
 * PROCESS 5 : bwaAlign (use bwa and custom bwa (bwa right align) to align ssds data)
 * PROCESS 6 : filterBam (mark duplicates, remove supplementary alignments, sort and index)
 * PROCESS 7 : parseITRs (parse bam files to get the 5 different ssds types : sstype1, sstype2, ds, dsstrict, unclassified)
