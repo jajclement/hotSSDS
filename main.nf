@@ -179,6 +179,7 @@ def reverse_script = "${params.src}/reverseStrandsForOriCalling.pl" // MISSING /
 def getPeaksBedFiles_script = "${params.src}/getPeaksBedFiles.pl" //Author Kevin Brick, script adapted by Pauline Auffret
 def runSatCurve_script = "${params.src}/runSatCurve.R" //Author Pauline Auffret
 def encode_idr_script= "${params.src}/encode-dcc_chip-seq-pipeline2_src/encode_task_idr.py" //Author Jin Lee from https://github.com/ENCODE-DCC/chip-seq-pipeline2
+def get_frip_script = "${params.src}/compute_frip.py" //Author Pauline Auffret
 
 // Check if input csv file exists
 if (params.inputcsv) { println("Checking input sample file...") ; input_ch = file(params.inputcsv, checkIfExists: true) } else { exit 1, 'Samples design file not specified!' }
@@ -437,9 +438,16 @@ process crop {
     ext=("${read1.getExtension()}")
     """
     # Rename raw files so that they contain the sampleID in the name (will be useful for the QC names)
-    if [[ ${ext} == "gz" ]] ; then ext="fastq.gz" ; fi
-    mv ${read1} ${sampleId}_raw_R1.${ext}   
-    mv ${read2} ${sampleId}_raw_R2.${ext}
+    if [[ ${ext} == "gz" ]]
+    then 
+        ext="fastq.gz"
+        mv ${read1} ${sampleId}_raw_R1.${ext}
+        mv ${read2} ${sampleId}_raw_R2.${ext}
+    else
+        ext="fastq.gz"
+        gzip -c ${read1} > ${sampleId}_raw_R1.${ext}
+        gzip -c ${read2} > ${sampleId}_raw_R2.${ext}
+    fi
     
     # Crop raw reads
     zcat ${sampleId}_raw_R1.${ext} | fastx_trimmer -z -f 1 -l ${params.trim_cropR1} -o ${sampleId}_crop_R1.fastq.gz
@@ -522,12 +530,14 @@ process bwaAlign {
     publishDir "${params.outdir}/bam",  mode: params.publishdir_mode, pattern: "*.sorted.bam*"
     publishDir "${params.outdir}/bam",  mode: params.publishdir_mode, pattern: "*.flagstat"
     publishDir "${params.outdir}/bam/log",  mode: params.publishdir_mode, pattern: "*.log"
+    publishDir "${params.outdir}/bam/log",  mode: params.publishdir_mode, pattern: "*.out"
     input:
         tuple val(sampleId), file(fqR1), file(fqR2) from trim_ch
     output:
         tuple val(sampleId), file('*.sorted.bam') into SORTEDBAM
         file('*.flagstat')
         file('*.log')
+	file('*.out')
         val 'ok' into bwa_ok
     script:
     """
@@ -543,10 +553,10 @@ process bwaAlign {
             ${fqR2} >${tmpNameStem}.unsorted.sam 2> ${tmpNameStem}.unsorted.sam.log
     # Convert SAM to BAM file
     picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam \
-            VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+            VALIDATION_STRINGENCY=LENIENT >& ${tmpNameStem}.unsorted.picardSFC.out 2>&1
     # Sort and index sam file
     picard SortSam I=${tmpNameStem}.unsorted.tmpbam O=${sampleId}.sorted.bam SO=coordinate \
-            VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+            VALIDATION_STRINGENCY=LENIENT >& ${sampleId}.sorted.picardSS.out 2>&1
     samtools index ${sampleId}.sorted.bam 
     
     ## CHECK IF BAM FILE IS EMPTY AFTER MAPPING (if so, exit pipeline)
@@ -578,7 +588,8 @@ process bwaAlign {
 process filterBam {
     tag "${sampleId}"
     label 'process_medium'
-    publishDir "${params.outdir}/filterbam",  mode: params.publishdir_mode
+    publishDir "${params.outdir}/filterbam",      mode: params.publishdir_mode, pattern: "*.b*"
+    publishDir "${params.outdir}/filterbam/log",  mode: params.publishdir_mode, pattern: "*.out"
     input:
         tuple val(sampleId), file(bam) from SORTEDBAM
     output:
@@ -589,24 +600,26 @@ process filterBam {
         //set val(sampleId), file('*.unparsed.suppAlignments.bam.bai') into bamIDXSupp
         val 'ok' into filterbam_ok
         val 'ok' into filterbam_tofingerprint
+	file('*.txt')
+	file('*.out')
     script:
     """
     # Remove unmapped and supplementary, then mark duplicates and index
     samtools view -F ${params.filtering_flag} -hb ${bam} > ${bam.baseName}.ok.bam
     picard MarkDuplicatesWithMateCigar I=${bam.baseName}.ok.bam O=${bam.baseName}.unparsed.bam \
         PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.MDmetrics.txt MINIMUM_DISTANCE=400 \
-        CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam.baseName}.unparsed.picardMD.out 2>&1
     samtools index ${bam.baseName}.unparsed.bam
 
     # Convert bam to bed (usefull for the control input files which will not be parsed into 5 bed files through parseITRs process)
     bedtools bamtobed -i ${bam.baseName}.unparsed.bam > ${bam.baseName}.unparsed.bed
 
-    # Get the the supplementary, then mark duplicates and index
+    # Get the supplementary, then mark duplicates and index
     samtools view -f 2048 -hb ${bam} > ${bam.baseName}.supp.bam
     picard MarkDuplicatesWithMateCigar I=${bam.baseName}.supp.bam O=${bam.baseName}.unparsed.suppAlignments.bam \
         PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.suppAlignments.MDmetrics.txt \
         MINIMUM_DISTANCE=400 CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate \
-        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        VALIDATION_STRINGENCY=LENIENT >& ${bam.baseName}.supp.picardMD.out 2>&1
     samtools index ${bam.baseName}.unparsed.suppAlignments.bam
     """
 }
@@ -630,26 +643,31 @@ if (params.with_control) {
 // External tool : perl scripts from K. Brick (original pipeline, 2012) 
 process parseITRs {
     tag "${sampleId}"
-    label 'process_medium'
+    label 'process_high'
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
     publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.txt"
     publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.bed"
     publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.md*.bam*"
     publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.flagstat"
     publishDir "${params.outdir}/parse_itr/log",  mode: params.publishdir_mode, pattern: "*.log"
+    publishDir "${params.outdir}/parse_itr/log",  mode: params.publishdir_mode, pattern: "*.out"
     publishDir "${params.outdir}/parse_itr", mode: params.publishdir_mode, pattern: "*norm_factors.txt"
     input:
         tuple val(sampleId), file(bam) from FILTEREDBAM
     output:
         tuple val(sampleId), file("${bam}"), file('*.ssDNA_type1.bed'), file('*.ssDNA_type2.bed'), \
             file('*.dsDNA.bed'), file('*.dsDNA_strict.bed'), file('*.unclassified.bed')  into ITRBED
+        tuple val(sampleId), file("${bam}"), file("${bam}.bai"), file('*md.ssDNA_type1.bam'), file('*md.ssDNA_type1.bam.bai'), file('*md.ssDNA_type2.bam'), \
+            file('*md.ssDNA_type2.bam.bai'), file('*md.dsDNA.bam'), file('*md.dsDNA.bam.bai'), file('*md.dsDNA_strict.bam'), \
+            file('*md.dsDNA_strict.bam.bai'), file('*md.unclassified.bam'), file('*md.unclassified.bam.bai')  into ITRBAM
         tuple val(sampleId), file('*ssDNA_type1.bed') into T1BED, T1BEDrep
         tuple val(sampleId), file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
         tuple val(sampleId), file('*.md.ssDNA_type1.bam'), file('*.md.ssDNA_type1.bam.bai') into T1BAMwithIDXfr, T1BAMwithIDXdt mode flatten
         tuple val(sampleId), file('*norm_factors.txt'), file('*.ssDNA_type1.bed'), \
                 file('*.ssDNA_type12.bed') into BEDtoBW, BEDtoBWrep
-        file ('*.flagstat')
-        file ('*.log')
+        file('*.flagstat')
+        file('*.log')
+	file('*.out')
         val 'ok' into parseitr_ok
     script:
     """
@@ -695,32 +713,33 @@ process parseITRs {
     samtools view -Shb ${bam}.unclassified.RH.sam >${bam}.unclassified.US.bam
     # Sort bam files
     picard SortSam I=${bam}.ssDNA_type1.US.bam  O=${bam}.ssDNA_type1.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& {bam}.ssDNA_type1.picardSS.out 2>&1
     picard SortSam I=${bam}.ssDNA_type2.US.bam  O=${bam}.ssDNA_type2.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.ssDNA_type2.picardSS.out 2>&1
     picard SortSam I=${bam}.dsDNA.US.bam O=${bam}.dsDNA.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.dsDNA.picardSS.out 2>&1
     picard SortSam I=${bam}.dsDNA_strict.US.bam O=${bam}.dsDNA_strict.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.dsDNA_strict.picardSS.out 2>&1
     picard SortSam I=${bam}.unclassified.US.bam O=${bam}.unclassified.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.unclassified.picardSS.out 2>&1
     # Mark duplicates
     picard MarkDuplicatesWithMateCigar I=${bam}.ssDNA_type1.bam O=${bam}.md.ssDNA_type1.bam \
         PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.ssDNA_type1.MDmetrics.txt  CREATE_INDEX=false \
-        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        VALIDATION_STRINGENCY=LENIENT >& ${bam}.ssDNA_type1.picardMD.out 2>&1
     picard MarkDuplicatesWithMateCigar I=${bam}.ssDNA_type2.bam O=${bam}.md.ssDNA_type2.bam \
         PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.ssDNA_type2.MDmetrics.txt  CREATE_INDEX=false \
-        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        VALIDATION_STRINGENCY=LENIENT >& ${bam}.ssDNA_type2.picardMD.out 2>&1
     picard MarkDuplicatesWithMateCigar I=${bam}.dsDNA.bam O=${bam}.md.dsDNA.bam \
         PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.dsDNA.MDmetrics.txt  CREATE_INDEX=false \
-        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        VALIDATION_STRINGENCY=LENIENT >& ${bam}.dsDNA.picardMD.out 2>&1
     picard MarkDuplicatesWithMateCigar I=${bam}.dsDNA_strict.bam O=${bam}.md.dsDNA_strict.bam \
         PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.dsDNA_strict.MDmetrics.txt  CREATE_INDEX=false \
-        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        VALIDATION_STRINGENCY=LENIENT >& ${bam}.dsDNA_strict.picardMD.out 2>&1
     picard MarkDuplicatesWithMateCigar I=${bam}.unclassified.bam O=${bam}.md.unclassified.bam \
         PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.unclassified.MDmetrics.txt  CREATE_INDEX=false \
-        VALIDATION_STRINGENCY=LENIENT >& ${params.scratch}/picard.out 2>&1
+        VALIDATION_STRINGENCY=LENIENT >& ${bam}.unclassified.picardMD.out 2>&1
     # Index bam files
+    samtools index ${bam}
     samtools index ${bam}.md.ssDNA_type1.bam
     samtools index ${bam}.md.ssDNA_type2.bam
     samtools index ${bam}.md.dsDNA.bam
@@ -752,17 +771,19 @@ process makeBigwig {
     tag "${sampleId}"
     label 'process_basic'
     publishDir "${params.outdir}/bigwig",  mode: params.publishdir_mode, pattern: "*.bw"
+    publishDir "${params.outdir}/bigwig",  mode: params.publishdir_mode, pattern: "*.bedgraph"
     publishDir "${params.outdir}/bigwig/log",  mode: params.publishdir_mode, pattern: "*.log"
     input:
         tuple val(sampleId), file(libsizeTotal), file(ssDNA_type1_bed), \
             file(ssDNA_type12_bed) from BEDtoBW
     output:
         file('*.bw')
+        file('*.bedgraph')
         file('*.log')
         val('ok') into makeBigwig_ok
     script:
     """
-    ## Compute normalization factor (i.e, for T1 : normfactor=librarySizeT1/librarySizeTotal/1000000)
+    ## Compute normalization factor (i.e, for T1 : normfactor=librarySizeT1/librarySizeTotal*1000000)
     # Get total library sizes
     libsizeTot=`cat ${libsizeTotal}`
     
@@ -770,7 +791,7 @@ process makeBigwig {
     libsizeT1=`wc -l ${ssDNA_type1_bed} | grep -v "_random"| awk '{print \$1}'`
 
     # Get normalization factors
-    normfactT1=`python -c "print(round(((\$libsizeT1)/(\$libsizeTot))/1000000,2))"`
+    normfactT1=`python -c "print(round(((\$libsizeT1)/(\$libsizeTot))*1000000,5))"`
 
     # Compute bedgraph and bigwig
     genomeCoverageBed -i ${ssDNA_type1_bed} -g ${params.chrsize} -scale \$normfactT1 -bga > ${sampleId}_ssDNA_type1_RPM.bedgraph
@@ -782,7 +803,7 @@ process makeBigwig {
     then  
         # Get normalization factors
         libsizeT12=`wc -l ${ssDNA_type12_bed} | grep -v "_random"| awk '{print \$1}'`
-        normfactT12=`python -c "print(round(((\$libsizeT12)/(\$libsizeTot))/1000000,2))"`
+        normfactT12=`python -c "print(round(((\$libsizeT12)/(\$libsizeTot))*1000000,5))"`
 
         # Compute bedgraph and bigwig
         genomeCoverageBed -i ${ssDNA_type12_bed} -g ${params.chrsize} -scale \$normfactT12 -bga > ${sampleId}_ssDNA_type12_RPM.bedgraph
@@ -819,12 +840,14 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
             tag "${sampleId}"
             label 'process_basic'
             publishDir "${params.outdir}/bigwig",  mode: params.publishdir_mode, pattern: "*.bw"
+            publishDir "${params.outdir}/bigwig",  mode: params.publishdir_mode, pattern: "*.bedgraph"
             publishDir "${params.outdir}/bigwig/log",  mode: params.publishdir_mode, pattern: "*.log"
             input:
                 tuple val(sampleId), file(R1_libsizeTotal), file(R2_libsizeTotal), file(R1_ssDNA_type1_bed), file(R2_ssDNA_type1_bed), \
                     file(R1_ssDNA_type12_bed), file(R2_ssDNA_type12_bed) from BEDtoBWrep
             output:
                 file('*.bw')
+		file('*.bedgraph')
                 file('*.log')
                 val('ok') into makeBigwigReplicates_ok
             script:
@@ -839,7 +862,7 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
             R2libsizeT1=`wc -l ${R2_ssDNA_type1_bed} | grep -v "_random"| awk '{print \$1}'`
             
             # Compute normalization factor
-            R1R2normfactT1=`python -c "print(round(((\$R1libsizeT1+\$R2libsizeT1)/(\$R1libsizeTot+\$R2libsizeTot))/1000000,2))"`
+            R1R2normfactT1=`python -c "print(round(((\$R1libsizeT1+\$R2libsizeT1)/(\$R1libsizeTot+\$R2libsizeTot))*1000000,5))"`
             
             ## Compute bedgraphs and bigwig for T1 and T12
             # Merge T1 bed files from the 2 replicates
@@ -860,7 +883,7 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
                 R2libsizeT12=`wc -l ${R2_ssDNA_type12_bed} | grep -v "_random"| awk '{print \$1}'`
                 
                 # Compute normalization factor
-                R1R2normfactT12=`python -c "print(round(((\$R1libsizeT12+\$R2libsizeT12)/(\$R1libsizeTot+\$R2libsizeTot))/1000000,2))"`
+                R1R2normfactT12=`python -c "print(round(((\$R1libsizeT12+\$R2libsizeT12)/(\$R1libsizeTot+\$R2libsizeTot))*1000000,5))"`
                 
                 # Merge T1+T2 bed files from the 2 replicates
                 cat ${R1_ssDNA_type12_bed} ${R2_ssDNA_type12_bed} | grep -v "_random" | sort -k1,1 -k2,2n > ${sampleId}_R1R2_ssDNA_type12.bed
@@ -965,7 +988,7 @@ process samStats {
 }
 
 // PROCESS 13 : makeSSreport (COMPUTE STATS FROM SSDS PARSING)
-// What it does : Compile alignement stats from the 5 types of bed for a gievn sample
+// What it does : Compile alignement stats from the 5 types of bed for a given sample
 // and compute FRIP scores (the fraction of reads that fall into a peak)
 // Input : Total bam file and parsed bed files (T1, T2, ds, ds_strict and unclassified)
 // Output : text report
@@ -974,21 +997,20 @@ process makeSSreport {
     tag "${sampleId}"
     label 'process_basic'
     publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode, patten: '*SSDSreport*'
-    publishDir "${params.outdir}/multiqc/log",  mode: params.publishdir_mode, patten: '*.log'
     input:
         set val(sampleId), file(bam), file(T1), file(T2), file(ds), file(dss), file(unclassified) from ITRBED 
     output:
-        set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqc
-        file('*.log')
+        set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqc, SSDSreport2ssdsmultiqc2
         val 'ok' into ssreport_ok
     script:
-        """
-        perl ${makeSSMultiQCReport_nextFlow_script} ${bam} ${T1} ${T2} ${ds} ${dss} ${unclassified} \
-            --g ${params.genome} --h ${params.hotspots} >& ${sampleId}_makeSSreport.log 2>&1
-        """
+    """
+    perl ${makeSSMultiQCReport_nextFlow_script} ${bam} ${T1} ${T2} ${ds} ${dss} ${unclassified} \
+        --g ${params.genome} --h ${params.hotspots} 
+    """
 }
 
-if (params.with_ssds_multiqc) {
+
+if (params.with_ssds_multiqc && params.hotspots != "None") {
     // PROCESS 14 : ssds_multiqc (MAKE MULTIQC REPORT FOR SSDS FILES)
     // What it does : For each sample, wompute a multiqc quality control report
     // Input : QC report from SSDSreport2ssdsmultiqc
@@ -996,8 +1018,8 @@ if (params.with_ssds_multiqc) {
     // External tool : custom multiqc python library and conda environment
     process ssds_multiqc {
         tag "${sampleId}"
-    	label 'process_basic'
-    	conda "${params.multiqc_dev_conda_env}" 
+        label 'process_basic'
+        conda "${params.multiqc_dev_conda_env}" 
         publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode
         input:
             set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
@@ -1007,7 +1029,7 @@ if (params.with_ssds_multiqc) {
         """
         multiqc -m ssds -n ${sampleId}.multiQC .
         """
-    }
+        }
 }
 
 // PROCESS 15 : makeFingerPrint (MAKE DEEPTOOLS FINGERPRINT PLOTS)
@@ -1146,6 +1168,7 @@ if (params.with_control) {
             tuple val(id_ip), file(ip_bed), file("*peaks.bed") optional true into ALLPEAKSTOPP, ALLPEAKSTOPP2
             stdout into gsize
             val 'ok' into callPeaks_ok
+            tuple val(id_ip), path("*finalPeaks_noIDR.bed") into FINALPEAKSNOIDR
         script:
         """
         ## SELECT N LINES FROM IP BED FILE ACCORDING TO satCurve parameter 
@@ -1289,6 +1312,7 @@ else {
             tuple val(id_ip), file(ip_bed), file("*peaks.bed") optional true into ALLPEAKSTOPP, ALLPEAKSTOPP2
             stdout into gsize
             val 'ok' into callPeaks_ok
+            tuple val(id_ip), path("*finalPeaks_noIDR.bed") into FINALPEAKSNOIDR
         script:
         """
         ## SELECT N LINES FROM IP BED FILE ACCORDING TO satCurve parameter
@@ -2058,7 +2082,72 @@ if(params.bigwig_profile == "T1" || params.bigwig_profile == "T12" ) {
         """
     }
 }
-        
+
+// PROCESS 13bis : computeFRIP (COMPUTE FRIP SCORE FOR PARSED BAM FILE FOR NEW GENOMES)
+// What it does : Use deeptools to compute DE NOVO FRIP scores (the fraction of reads from bam that fall into a peak)
+// Input : Parsed bed files (T1, T2, ds, ds_strict and unclassified); final but not merged peak bed file and SSDS qc report from process 13
+// Output : text report
+// External tool : Python script 
+if (params.hotspots == "None") {
+
+    ITRBAM
+        .combine(FINALPEAKSNOIDR)
+        .combine(SSDSreport2ssdsmultiqc2)
+        .map { it -> [ it[0].split('_')[0..-1].join('_'),it[1], it[2], it[3], it[4], it[5], it[6], it[7], it[8], it[9], it[10], it[11], it[12], it[13], it[14], it[15], it[16] ] }
+        .groupTuple(by: [0])
+        .map { it -> it[0,1,2,3,4,5,6,7,8,9,10,11,12,14,16].flatten() }
+        .set { ITRBAMANDPEAKS }
+
+    process computeFRIP {
+        tag "${sampleId}"
+        label 'process_low'
+        conda 'bioconda::deeptools=3.5.1'
+        publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode, patten: '*SSDSreport*'
+        input:
+            set val(sampleId), file(bam), file(bai), file(T1), file(T1bai), file(T2), file(T2bai), file(ds), file(dsbai), \
+                file(dss), file(dssbai), file(unc), file(uncbai), file(peaks), file(report) from ITRBAMANDPEAKS
+        output:
+            set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqcdenovo
+        script:
+        """
+        #python ${get_frip_script} ${peaks} ${bam} ${task.cpus} total ${params.genome_name} ${sampleId}_total.frip
+        python ${get_frip_script} ${peaks} ${T1} ${task.cpus} ssType1 ${params.genome_name} ${sampleId}_T1.frip
+        python ${get_frip_script} ${peaks} ${T2} ${task.cpus} ssType2 ${params.genome_name} ${sampleId}_T2.frip
+        python ${get_frip_script} ${peaks} ${ds} ${task.cpus} dsDNA ${params.genome_name} ${sampleId}_ds.frip
+        #python ${get_frip_script} ${peaks} ${dss} ${task.cpus} dsDNA_strict ${params.genome_name} ${sampleId}_dss.frip
+	python ${get_frip_script} ${peaks} ${dss} ${task.cpus} dsDNA ${params.genome_name} ${sampleId}_dss.frip
+        python ${get_frip_script} ${peaks} ${unc} ${task.cpus} unclassified ${params.genome_name} ${sampleId}_unc.frip
+
+        #cat ${report} ${sampleId}_total.frip ${sampleId}_T1.frip ${sampleId}_T2.frip ${sampleId}_ds.frip ${sampleId}_dss.frip ${sampleId}_unc.frip > ${sampleId}_denovo.SSDSreport.tab 
+        cat ${report} ${sampleId}_T1.frip ${sampleId}_T2.frip ${sampleId}_ds.frip ${sampleId}_dss.frip ${sampleId}_unc.frip > ${sampleId}_denovo.SSDSreport.tab
+	"""
+    }
+
+
+    if (params.with_ssds_multiqc) {
+        // PROCESS 14 : ssds_multiqc_denovo (MAKE MULTIQC REPORT FOR SSDS FILES)
+        // What it does : For each sample, wompute a multiqc quality control report
+        // Input : QC report from SSDSreport2ssdsmultiqc
+        // Ouptut : multiQC HTML report
+        // External tool : custom multiqc python library and conda environment
+        process ssds_multiqc_denovo {
+            tag "${sampleId}"
+    	    label 'process_basic'
+    	    conda "${params.multiqc_dev_conda_env}" 
+            publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode
+            input:
+                set val(sampleId), file(report) from SSDSreport2ssdsmultiqcdenovo
+            output:
+                file('*')
+            script:
+            """
+            multiqc -m ssds -n ${sampleId}.multiQC .
+            """
+        }
+    }
+}
+
+       
 // PROCESS 25 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
 // What it does : Compute multiCQ report for the analysis based on output folder content
 // Input : all termination tags of processes so that this process only runs at the end of the pipeline

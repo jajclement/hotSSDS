@@ -6,8 +6,11 @@ results/
 tests/
 testing/
 *.pyc
+*test*
 # deprecated scripts
 *UNUSED
+*OLD
+*old*
 # output directories
 *.outdir
 # slurm log files
