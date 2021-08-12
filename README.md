@@ -10,7 +10,7 @@ See [review](https://pubmed.ncbi.nlm.nih.gov/24136506/) to learn more about meio
 
      
 ⚠️ **Work in progress** ⚠️   
-🚧🚧🚧🚧🚧🚧🚧
+
 
 *Please give me some feedback if you are using this pipeline, thank you* :blush:    
 
@@ -206,7 +206,7 @@ One **important thing to note**, in Nextflow command lines, the **native options
 
 ### 3. Input data
 
-1. **Raw reads**
+1. **Raw reads**     
 The pipeline will only process **paired-end data** in fastq(.gz) format.
 The input data must be described in an input csv file with the 6 following fields (see template in ``/home/${USER}/work/ssdsnextflowpipeline//tests/fastq/input.csv``)
 ````
@@ -218,7 +218,7 @@ Input,1,/work/${USER}/data/SRR1035578_R1.fastq.gz,/work/${USER}/data/SRR1035578_
 **Replicate samples** must have the **same "group" ID** ; the **same "antibody"** and the **same control group**.    
 Control (input) samples must have the 2 last fields ("antibody" and "control") empty. 
 
-2. **Reference genome**
+2. **Reference genome**    
 The reference genome should be in the ``/poolzvs/genomes`` directory on IGH cluster. Currently, the available genomes are mm10, hg19, hg38, sacCer2, sacCer3, dm3, dm6.
 
 You can use ````--genome 'mm10'```` and you won't need to worry about the other genome parameters like fasta path etc.
@@ -239,17 +239,17 @@ There are **2 ways** for running the pipeline.
 
 Usage :  ``bash run_pipeline.sh -i input_file [options]``   
 Options :     
-	- -h display help message    
-	- -i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) **This option matches ``--inputcsv`` parameter in nextflow command line**    
-	- -g Absolute path to the genome config file (default : ``/home/${USER}/work/ssdsnextflowpipeline/conf/mm10.json``) **This option matches ``-params_file`` parameter in nextflow command line**   
-	- -p Absolute path to ssds nextflow pipeline base directory (default : ``/home/${USER}/work/ssdsnextflowpipeline``)    
-	- -b Absolute path to base directory where the output directory will be created (default : ``/home/${USER}/work/results``) **This option matches ``--outdir`` parameter in nextflow command line**   
-	- -n Analysis name (default : SSDS_pipeline) **this option matches ``--name`` parameter in nextflow command line**    
-	- -c Absolute path to IGH cluster configuration file (default :`` /home/${USER}/work/ssdsnextflowpipeline/conf/igh.config``) **This option matches ``-c`` parameter in nextflow command line**     
-	- -a Absolute path to conda environment for nextflow (default : ``/home/${USER}/work/bin/miniconda3/envs/nextflow_dev``)     
-	- -o Optional arguments for the pipeline (for example ``"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50"`` ;  default : ``"-profile conda "``) **Be cautious with the ``--`` or ``-``, see section 2.      
-	- -t set to 1 if running pipeline on test data located in ``/home/${USER}/work/ssdsnextflowpipeline/tests/fastq`` (default : 0)      
-	- -f set to 1 to force pipeline to run without checking resume/output directory (default : 0)       
+	- ``-h`` display help message    
+	- ``-i`` Absolute path to input csv file (REQUIRED except in case of run test on test dataset) **This option matches ``--inputcsv`` parameter in nextflow command line**    
+	- ``-g`` Absolute path to the genome config file (default : ``/home/${USER}/work/ssdsnextflowpipeline/conf/mm10.json``) **This option matches ``-params_file`` parameter in nextflow command line**   
+	- ``-p`` Absolute path to ssds nextflow pipeline base directory (default : ``/home/${USER}/work/ssdsnextflowpipeline``)    
+	- ``-b`` Absolute path to base directory where the output directory will be created (default : ``/home/${USER}/work/results``) **This option matches ``--outdir`` parameter in nextflow command line**   
+	- ``-n`` Analysis name (default : SSDS_pipeline) **this option matches ``--name`` parameter in nextflow command line**    
+	- ``-c`` Absolute path to IGH cluster configuration file (default :`` /home/${USER}/work/ssdsnextflowpipeline/conf/igh.config``) **This option matches ``-c`` parameter in nextflow command line**     
+	- ``-a`` Absolute path to conda environment for nextflow (default : ``/home/${USER}/work/bin/miniconda3/envs/nextflow_dev``)     
+	- ``-o`` Optional arguments for the pipeline (for example ``"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50"`` ;  default : ``"-profile conda "``) **Be cautious with the ``--`` or ``-``, see section 2.      
+	- ``-t`` set to 1 if running pipeline on test data located in ``/home/${USER}/work/ssdsnextflowpipeline/tests/fastq`` (default : 0)      
+	- ``-f`` set to 1 to force pipeline to run without checking resume/output directory (default : 0)       
 INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ``/home/${USER}/work/results/SSDS_pipeline.outdir``)     
 
     
@@ -333,10 +333,10 @@ Use ````bash run_pipeline.sh -h```` to see available options.
 
 This should take around 10 minutes to run.
 
-## Notes and current developpments
+## Notes and future developpments
 The default value of ``--with_sds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with_ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
 
-See WIP directory.   
+See WIP (work in progress) directory.   
 - Singularity container
 - Jupyter notebooks for beautiful QC
 
