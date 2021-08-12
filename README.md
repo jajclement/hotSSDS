@@ -1,36 +1,34 @@
-## 🐁 **SSDS nextflow pipeline version 2.0** 🐭
-### **Parse, Align and Call Hotspots from single stranded DNA reads originated from SSDS (Single Stranded Dna Sequencing)**
-### **Context**  
-The objective of **SSDS method** is to map **double-strand breaks** (DSBs) genome wide.
-In this method, chromatin is extracted from adult testes and then immunoprecipitated with an antibody against the **protein DMC1**, which is a meiosis-specific recombinase. DMC1 covers the **single-stranded DNA** resulting from the **resection of double-strand breaks (DSBs)**.  
+# 🐁 **SSDS nextflow pipeline version 2.0** 🐭
+**Parse, Align and Call Hotspots from single stranded DNA reads originated from SSDS (Single Stranded Dna Sequencing)**   
 
-SSDS is different from classic ChIP-Seq because it targets single-stranded DNA.   
+## **Context**  
+**SSDS method** was originally published by [Khil et al., 2012](https://genome.cshlp.org/content/22/5/957.long).  
+The objective is to map **double-strand breaks** (DSBs) along the genome.   
+In this method, chromatin is extracted from adult testes and then immunoprecipitated with an antibody against **DMC1 protein**, which is a meiosis-specific recombinase. DMC1 covers the **single-stranded DNA** resulting from the **resection of double-strand breaks (DSBs)**. SSDS uses the ability of single-stranded DNA to form hairpins. The pipeline processes these specific data and identifies **recombination hotspots**.      
 
-SSDS uses the ability of single-stranded DNA to form hairpins.    
 See [review](https://pubmed.ncbi.nlm.nih.gov/24136506/) to learn more about meiotic recombination.
 
      
-⚠️ **Work in progress** ⚠️
-🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧🚧
+⚠️ **Work in progress** ⚠️   
+🚧🚧🚧🚧🚧🚧🚧
 
-### **SSDS [Nextflow](https://www.nextflow.io/)  Pipeline**
+*Please give me some feedback if you are using this pipeline, thank you* :blush:    
+
+## **Pipeline overview**  
 **This pipeline is based on  [SSDS pipeline](https://github.com/kevbrick/SSDSnextflowPipeline) and [SSDS call peaks pipeline](https://github.com/kevbrick/callSSDSpeaks) by [Kevin Brick, PhD (NIH)](https://www.researchgate.net/profile/Kevin-Brick), updated and adapted to IGH cluster.**  
 See [initial paper](https://genome.cshlp.org/content/22/5/957.long) and [technical paper](https://www.sciencedirect.com/science/article/pii/S0076687917303750?via%3Dihub).  
 The pipeline uses [Nextflow]( https://www.nextflow.io/) > 20.04.1  
 Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**, input modification, callpeaks, post-processing and IDR procedure addition, and global nextflow homogeneisation.   
 
-### **Important :** The pipeline takes **paired-end** reads as input, in fastq(.gz) format.
-
-*Please give me some feedback if you are using this pipeline, thank you* :blush:       
   
-**The main steps of the pipeline include :**   
+**The main steps of the pipeline include :**
 - Quality check, hard & adapters trimming of paired-end raw fastq files
 - Three-step mapping of trimmed R1 and R2 reads to the reference genome :        
-	- aligns R1 reads (fully complementary to the genome) with **bwa aln**
-	- aligns R2 reads (potentially contain fill-in ITR part at the end of the 5') with **bwa-ra aln** (custom version of bwa that search for the longest mappable suffix in the query)
-	- merge with **bwa sampe**
+	- aligns R1 reads (fully complementary to the genome) with *bwa aln*
+	- aligns R2 reads (potentially contain fill-in ITR part at the end of the 5') with *bwa-ra aln* (custom version of bwa that search for the longest mappable suffix in the query)
+	- merge with *bwa sampe*
 - Bam files filtering for duplicates, unmapped and unpaired reads
-- Parsing of filtered bam files into [!5 main categories](https://genome.cshlp.org/content/22/5/957/F1.large.jpg) : 
+- Parsing of filtered bam files into [5 main categories](https://genome.cshlp.org/content/22/5/957/F1.large.jpg) : 
 	- type 1 reads (T1) : high confidence single stranded DNA (ITR > 5bp AND microHomology > 0bp AND fill-in > 2bp)
 	- type 2 reads (T2) : low confidence single stranded DNA (ITR > 5bp AND microHomology > 0bp AND fill-in < 3bp)
 	- dsDNA : low confidence double stranded DNA (ITR < 3bp)
@@ -40,11 +38,11 @@ Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**
 - Peak calling from shuffled T1 bed files 
 - Optional IDR (Irreproducible Discovery Rate) analysis to assess replicate consistency) **available for n=2 replicates**
 - Peak normalization
-- Saturation curve  
-- Extensive Quality control
+- Saturation curve   
+     
 
-In details, the pipeline is composed of 26 processes :  
-**Section 1 : INPUT SETTINGS**      
+**In details, the pipeline is composed of 26 processes :**      
+**Section 1 : INPUT SETTINGS**
 - Process 1  : check_design (check input design file)
 - Process 2  : makeScreenConfigFile (make configuration file for fastqscreen)   
 **Section 2 : TRIMMING**         
@@ -82,8 +80,8 @@ In details, the pipeline is composed of 26 processes :
 
     
 ## **How to run the pipeline on IGH cluster**
-### Requirements
-Get [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) if not installed on your system. First, download the installation script (for example in /home/${USER}/work/bin directory) :
+### 0. Requirements
+Get [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) if not installed on your system. First, download the installation script (for example in ``/home/${USER}/work/bin`` directory) :
 ````sh
 mkdir -p /home/${USER}/work/bin
 cd /home/${USER}/work/bin
@@ -95,7 +93,7 @@ bash Miniconda3-latest-Linux-x86_64.sh
 ````
 
 ### 1. Get the pipeline and set up conda environment
-First you need to clone the pipeline in your working directory (in the following instructions /home/${USER}/work/ will refer to your working directory. Please substitute with the according path if different) :
+First you need to clone the pipeline in your working directory (in the following instructions, ``/home/${USER}/work/`` will refer to your working directory. Please substitute with the according path if different) :
 ````sh
 cd /home/${USER}/work
 git clone https://gitlab.igh.cnrs.fr/pauline.auffret/ssdsnextflowpipeline.git
@@ -110,7 +108,7 @@ This will create 1 conda environment : **nextflow_dev** containing **nextflow ve
 You can use your own conda environment as long as it contains that version of Nextflow.   
 
 ### 2. Pipeline configuration 
-There are currently 3 configuration files :
+There are currently **3 configuration files** :
 - ````./conf/igh.config```` contains cluster resources requirements & reference genomes info. You don't need to edit this file unless you want to custom the requirements for CPU/memory usage and compute queue (see [IGH cluster documentation](https://kojiki.igh.cnrs.fr/doku.php?id=cluster,)). If a new genome is available on the cluster and does not appear in this file, please contact me or Aubin Thomas, manager of bioinformatics resources at the IGH. If you are running the pipeline on an other computing cluster, you need to specify the relevant configuration file.
 - ````./nextflow.config```` contains default pipeline parameters (it's better to **not** edit this file, default parameters will be overwritten by your custom json parameter file, see next point).
 - ````./conf/mm10.json```` custom parameters file, you can use your own json file following the same template.    
@@ -203,11 +201,13 @@ Nextflow Tower parameter:
 
 ````
      
-One **important thing to note**, in Nextflow command lines, the **native options** are preceded with one **single hyphen** (e.g. ``-profile``), while **parameters specific to SSDS pipeline** are preceded with **2 hyphens** (e.g. --genome 'mm10').   
+One **important thing to note**, in Nextflow command lines, the **native options** are preceded with one **single hyphen** (e.g. ``-profile``), while **parameters specific to SSDS pipeline** are preceded with **2 hyphens** (e.g. ``--genome 'mm10'``).   
    
 
 ### 3. Input data
-The pipeline will only process **paired-end data**.
+
+1. **Raw reads**
+The pipeline will only process **paired-end data** in fastq(.gz) format.
 The input data must be described in an input csv file with the 6 following fields (see template in ``/home/${USER}/work/ssdsnextflowpipeline//tests/fastq/input.csv``)
 ````
 group,replicate,fastq_1,fastq_2,antibody,control
@@ -218,6 +218,7 @@ Input,1,/work/${USER}/data/SRR1035578_R1.fastq.gz,/work/${USER}/data/SRR1035578_
 **Replicate samples** must have the **same "group" ID** ; the **same "antibody"** and the **same control group**.    
 Control (input) samples must have the 2 last fields ("antibody" and "control") empty. 
 
+2. **Reference genome**
 The reference genome should be in the ``/poolzvs/genomes`` directory on IGH cluster. Currently, the available genomes are mm10, hg19, hg38, sacCer2, sacCer3, dm3, dm6.
 
 You can use ````--genome 'mm10'```` and you won't need to worry about the other genome parameters like fasta path etc.
@@ -235,22 +236,21 @@ Do not forget to set accordingly the parameters for ``--hotspots`` and ``--black
    
 There are **2 ways** for running the pipeline.
 1. **Run through bash script ``run_pipeline.sh`` (RECOMMENDED)**
-The available options are :   
 
-Usage: bash run_pipeline.sh -i input_file [options]   
+Usage: ``bash run_pipeline.sh -i input_file [options]``   
 Options :     
 -h display help message    
--i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) **This option matches ``--inputcsv`` parameter in nextflow command line**
--g Absolute path to the genome config file (default : /home/${USER}/work/ssdsnextflowpipeline/conf/mm10.json) **This option matches ``-params_file`` parameter in nextflow command line**
--p Absolute path to ssds nextflow pipeline base directory (default : /home/${USER}/work/ssdsnextflowpipeline) 
--b Absolute path to base directory where the output directory will be created (default : /home/${USER}/work/results) **This option matches ``--outdir`` parameter in nextflow command line**
--n Analysis name (default : SSDS_pipeline) **this option matches ``--name`` parameter in nextflow command line**
--c Absolute path to IGH cluster configuration file (default : /home/${USER}/work/ssdsnextflowpipeline/conf/igh.config) **This option matches ``-c`` parameter in nextflow command line**
--a Absolute path to conda environment for nextflow (default : /home/${USER}/work/bin/miniconda3/envs/nextflow_dev)
--o Optional arguments for the pipeline (for example "--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50" ;  default : "-profile conda ") **Be cautious with the ``--`` or ``-``, see section 2
--t set to 1 if running pipeline on test data located in /home/${USER}/work/ssdsnextflowpipeline/tests/fastq (default : 0)
--f set to 1 to force pipeline to run without checking resume/output directory (default : 0)
-INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default /home/${USER}/work/results/SSDS_pipeline.outdir)
+-i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) **This option matches ``--inputcsv`` parameter in nextflow command line**    
+-g Absolute path to the genome config file (default : ``/home/${USER}/work/ssdsnextflowpipeline/conf/mm10.json``) **This option matches ``-params_file`` parameter in nextflow command line**   
+-p Absolute path to ssds nextflow pipeline base directory (default : ``/home/${USER}/work/ssdsnextflowpipeline``)    
+-b Absolute path to base directory where the output directory will be created (default : ``/home/${USER}/work/results``) **This option matches ``--outdir`` parameter in nextflow command line**   
+-n Analysis name (default : SSDS_pipeline) **this option matches ``--name`` parameter in nextflow command line**    
+-c Absolute path to IGH cluster configuration file (default :`` /home/${USER}/work/ssdsnextflowpipeline/conf/igh.config``) **This option matches ``-c`` parameter in nextflow command line**     
+-a Absolute path to conda environment for nextflow (default : ``/home/${USER}/work/bin/miniconda3/envs/nextflow_dev``)     
+-o Optional arguments for the pipeline (for example ``"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50"`` ;  default : ``"-profile conda "``) **Be cautious with the ``--`` or ``-``, see section 2.      
+-t set to 1 if running pipeline on test data located in ``/home/${USER}/work/ssdsnextflowpipeline/tests/fastq`` (default : 0)      
+-f set to 1 to force pipeline to run without checking resume/output directory (default : 0)       
+INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ``/home/${USER}/work/results/SSDS_pipeline.outdir``)     
 
     
 Please provide all files and directories with **absolute paths**.   
@@ -261,7 +261,9 @@ bash run_pipeline.sh -i inputfile.csv -g custom_params.json -n your-analysis-nam
 The results will be located in a directory named after the analyis name (-n argument) suffixed with .outdir, in the base directory.
 
 Example : 
-````bash run_pipeline.sh -i /home/demassyie/work/results/ChIP_Dmc1_cKO_Hells.outdir/infos/input_M_WT_D1_HE_KO.csv -g /home/demassyie/work/results/ChIP_Dmc1_cKO_Hells.outdir/infos/mm10.json -n ChIP_Dmc1_cKO_Hells_newtrim -a /home/demassyie/work/bin/miniconda3/envs/nextflow-dev -o "-profile conda -resume" ````    
+````
+bash run_pipeline.sh -i /home/demassyie/work/results/ChIP_Dmc1_cKO_Hells.outdir/infos/input_M_WT_D1_HE_KO.csv -g /home/demassyie/work/results/ChIP_Dmc1_cKO_Hells.outdir/infos/mm10.json -n ChIP_Dmc1_cKO_Hells_newtrim -a /home/demassyie/work/bin/miniconda3/envs/nextflow-dev -o "-profile conda -resume" 
+````    
 
 2. **Run directly with Nextflow**
 The main parameters that need to be set are :
@@ -270,7 +272,7 @@ The main parameters that need to be set are :
 	- ``-profile conda`` : Run within conda environment (only available option at the moment)
 	- ``-resume`` : Prevent the entire workflow to be rerun in case you need to relaunch an aborted workflow
 	- ``--name`` : analysis name, e.g. "SSDS_SRA5678_DMC1". This option matches the ``-n`` argument in ``run_pipeline.sh`` script.
-	- ``--outdir`` : path to output directory. This option matches base-directory/analysis-name.outdir (i.e. defined by ``-b`` and ``-n`` arguments in ``run_pipeline.sh`` script).    
+	- ``--outdir`` : path to output directory. This option matches ``base-directory/analysis-name.outdir`` (i.e. defined by ``-b`` and ``-n`` arguments in ``run_pipeline.sh`` script).    
 And, if not set in json file :    
 	- ``--genome`` : the reference genome, see section 3
 	- ``--with_control`` (true/false) : use input control files, see section 3
@@ -281,11 +283,11 @@ And, if not set in json file :
 	- ``--satcurve`` (true/false) : plot saturation curve     
 
 
-### 5.Monitor the pipeline with Nextflow Tower
+### 5. Monitor the pipeline with Nextflow Tower
 You can use ``-with-tower`` option to monitor your jobs through [nextflow tower web interface](https://tower.nf/).   
 You first need to sign in to get your key, then add it to your parameters with the ``--tower-token 'yourkey'`` option.
 
-### 5. Output
+### 6. Output
 The main output folder is specified through the ````-b```` and ````-n```` arguments in ``run_pipeline.sh`` ; i.e. ``base-directory/analysis-name.outdir``    
 This folder will contain the following directories :
 * **pipeline_info** with input csv files rearranged for the pipeline
@@ -317,7 +319,7 @@ This folder will contain the following directories :
 The execution reports are in ``nxfReports`` folder created in your output directory.
 The QC reports are located in the multiqc folder.
 
-### 6. Test data
+## Test data
 You may want to test the installation before going with your own data. 
 A small dataset is present in ````tests/fastq```` directory. 
 
@@ -331,7 +333,7 @@ Use ````bash run_pipeline.sh -h```` to see available options.
 
 This should take around 10 minutes to run.
 
-### Notes
+## Notes
 The default value of ``--with_sds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with_ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
 
    
