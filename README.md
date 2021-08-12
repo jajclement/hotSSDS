@@ -235,11 +235,9 @@ Do not forget to set accordingly the parameters for ``--hotspots`` and ``--black
 ### 4. Run the pipeline !
    
 There are **2 ways** for running the pipeline.
-1. **Run through bash script ``run_pipeline.sh`` (RECOMMENDED)**    
-
-Usage :  ``bash run_pipeline.sh -i input_file [options]``   
+1. **Run through bash script ``bash run_pipeline.sh -i input_file [options]`` (RECOMMENDED)**    
 Options :
-	- ``-h`` display help message    
+	-  ``-h`` display help message    
 	- ``-i`` Absolute path to input csv file (REQUIRED except in case of run test on test dataset) **This option matches ``--inputcsv`` parameter in nextflow command line**    
 	- ``-g`` Absolute path to the genome config file (default : ``/home/${USER}/work/ssdsnextflowpipeline/conf/mm10.json``) **This option matches ``-params_file`` parameter in nextflow command line**   
 	- ``-p`` Absolute path to ssds nextflow pipeline base directory (default : ``/home/${USER}/work/ssdsnextflowpipeline``)    
