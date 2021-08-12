@@ -42,41 +42,41 @@ Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**
      
 
 **In details, the pipeline is composed of 26 processes :**      
-**Section 1 : INPUT SETTINGS**
-- Process 1  : check_design (check input design file)
-- Process 2  : makeScreenConfigFile (make configuration file for fastqscreen)   
-**Section 2 : TRIMMING**         
-- Process 3  : crop (hard trimming and quality control on raw reads using fastqc and fastqscreen)
-- Process 4  : trimming (use trimmomatic or trim-galore to quality trim and remove adapters from raw sequences)   
-**Section 3 : MAPPING AND PARSING**   
-- Process 5  : bwaAlign (use bwa and custom bwa (bwa right align) to align ssds data)
-- Process 6  : filterBam (mark duplicates, remove supplementary alignments, sort and index)
-- Process 7  : parseITRs (parse bam files to get the different ssds types)
-- Process 8  : makeBigwig (generate normalized bigwig files for t1 and t1+t2 bed files)   
-**Section 4 : BIGWIG**                
-- Process 9  : makeBigwigReplicates (optional, generate normalized bigwig files for merged replicates t1 and t1+t2 bed files)
-- Process 10 : makeDeeptoolsBigWig (optional, generate bigwig files, coverage and cumulative coverage plots)
-- Process 11 : toFRBigWig (optional, generate fwd/rev bigwig files)   
-**Section 5 : PEAK CALLING**          
-- Process 12 : shufBEDs (bed shuffling)
-- Process 13 : callPeaks (peak calling with macs2)   
-**Section 6 : SSDS QC**               
-- Process 14 : samStats (generates samstats reports)
-- Process 15 : makeSSreport (compute stats from ssds parsing)
-- Process 16 : makeFingerPrint (make deeptools fingerprint plots)
-- Process 17 : computeFRIP (Optional, compute frip score for parsed bam file for new genomes)
-- Process 18 : ssds_multiqc (make multiqc report for ssds files)    
-**Section 7 : OPTIONAL IDR ANALYSIS**      
-- Process 19 : createPseudoReplicates (optional, creates all pseudoreplicates and pool for idr analysis)
-- Process 20 : callPeaksForIDR (optional, call peaks with mac2 on all replicates and pseudo replicates)
-- Process 21 : IDRanalysis (optional, perform idr analysis on 4 pairs of replicates or pseudoreplicates)
-- Process 22 : IDRpost- Process (optional, idr peaks postprocessing)     
-**Section 8 : PEAK POST-PROCESSING**     
-- Process 23 : normalizePeaks (center and normalize peaks)
-- Process 24 : mergeFinalPeaks (merge peaks from replicates)
-- Process 25 : makeSatCurve (optional, create saturation curve)  
-**Section 9 : GENERAL QC**            
-- Process 26 : general_multiqc (generate general multiqc report)    
+- **Section 1 : INPUT SETTINGS**
+	- Process 1  : check_design (check input design file)
+	- Process 2  : makeScreenConfigFile (make configuration file for fastqscreen)   
+- **Section 2 : TRIMMING**         
+	- Process 3  : crop (hard trimming and quality control on raw reads using fastqc and fastqscreen)
+	- Process 4  : trimming (use trimmomatic or trim-galore to quality trim and remove adapters from raw sequences)   
+- **Section 3 : MAPPING AND PARSING**   
+	- Process 5  : bwaAlign (use bwa and custom bwa (bwa right align) to align ssds data)
+	- Process 6  : filterBam (mark duplicates, remove supplementary alignments, sort and index)
+	- Process 7  : parseITRs (parse bam files to get the different ssds types)
+	- Process 8  : makeBigwig (generate normalized bigwig files for t1 and t1+t2 bed files)   
+- **Section 4 : BIGWIG**                
+	- Process 9  : makeBigwigReplicates (optional, generate normalized bigwig files for merged replicates t1 and t1+t2 bed files)
+	- Process 10 : makeDeeptoolsBigWig (optional, generate bigwig files, coverage and cumulative coverage plots)
+	- Process 11 : toFRBigWig (optional, generate fwd/rev bigwig files)   
+- **Section 5 : PEAK CALLING**          
+	- Process 12 : shufBEDs (bed shuffling)
+	- Process 13 : callPeaks (peak calling with macs2)   
+- **Section 6 : SSDS QC**               
+	- Process 14 : samStats (generates samstats reports)
+	- Process 15 : makeSSreport (compute stats from ssds parsing)
+	- Process 16 : makeFingerPrint (make deeptools fingerprint plots)
+	- Process 17 : computeFRIP (Optional, compute frip score for parsed bam file for new genomes)
+	- Process 18 : ssds_multiqc (make multiqc report for ssds files)    
+- **Section 7 : OPTIONAL IDR ANALYSIS**      
+	- Process 19 : createPseudoReplicates (optional, creates all pseudoreplicates and pool for idr analysis)
+	- Process 20 : callPeaksForIDR (optional, call peaks with mac2 on all replicates and pseudo replicates)
+	- Process 21 : IDRanalysis (optional, perform idr analysis on 4 pairs of replicates or pseudoreplicates)
+	- Process 22 : IDRpost- Process (optional, idr peaks postprocessing)     
+- **Section 8 : PEAK POST-PROCESSING**     
+	- Process 23 : normalizePeaks (center and normalize peaks)
+	- Process 24 : mergeFinalPeaks (merge peaks from replicates)
+	- Process 25 : makeSatCurve (optional, create saturation curve)  
+- **Section 9 : GENERAL QC**            
+	- Process 26 : general_multiqc (generate general multiqc report)    
 
     
 ## **How to run the pipeline on IGH cluster**
@@ -235,21 +235,21 @@ Do not forget to set accordingly the parameters for ``--hotspots`` and ``--black
 ### 4. Run the pipeline !
    
 There are **2 ways** for running the pipeline.
-1. **Run through bash script ``run_pipeline.sh`` (RECOMMENDED)**
+1. **Run through bash script ``run_pipeline.sh`` (RECOMMENDED)**    
 
-Usage: ``bash run_pipeline.sh -i input_file [options]``   
+Usage :  ``bash run_pipeline.sh -i input_file [options]``   
 Options :     
--h display help message    
--i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) **This option matches ``--inputcsv`` parameter in nextflow command line**    
--g Absolute path to the genome config file (default : ``/home/${USER}/work/ssdsnextflowpipeline/conf/mm10.json``) **This option matches ``-params_file`` parameter in nextflow command line**   
--p Absolute path to ssds nextflow pipeline base directory (default : ``/home/${USER}/work/ssdsnextflowpipeline``)    
--b Absolute path to base directory where the output directory will be created (default : ``/home/${USER}/work/results``) **This option matches ``--outdir`` parameter in nextflow command line**   
--n Analysis name (default : SSDS_pipeline) **this option matches ``--name`` parameter in nextflow command line**    
--c Absolute path to IGH cluster configuration file (default :`` /home/${USER}/work/ssdsnextflowpipeline/conf/igh.config``) **This option matches ``-c`` parameter in nextflow command line**     
--a Absolute path to conda environment for nextflow (default : ``/home/${USER}/work/bin/miniconda3/envs/nextflow_dev``)     
--o Optional arguments for the pipeline (for example ``"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50"`` ;  default : ``"-profile conda "``) **Be cautious with the ``--`` or ``-``, see section 2.      
--t set to 1 if running pipeline on test data located in ``/home/${USER}/work/ssdsnextflowpipeline/tests/fastq`` (default : 0)      
--f set to 1 to force pipeline to run without checking resume/output directory (default : 0)       
+	- -h display help message    
+	- -i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) **This option matches ``--inputcsv`` parameter in nextflow command line**    
+	- -g Absolute path to the genome config file (default : ``/home/${USER}/work/ssdsnextflowpipeline/conf/mm10.json``) **This option matches ``-params_file`` parameter in nextflow command line**   
+	- -p Absolute path to ssds nextflow pipeline base directory (default : ``/home/${USER}/work/ssdsnextflowpipeline``)    
+	- -b Absolute path to base directory where the output directory will be created (default : ``/home/${USER}/work/results``) **This option matches ``--outdir`` parameter in nextflow command line**   
+	- -n Analysis name (default : SSDS_pipeline) **this option matches ``--name`` parameter in nextflow command line**    
+	- -c Absolute path to IGH cluster configuration file (default :`` /home/${USER}/work/ssdsnextflowpipeline/conf/igh.config``) **This option matches ``-c`` parameter in nextflow command line**     
+	- -a Absolute path to conda environment for nextflow (default : ``/home/${USER}/work/bin/miniconda3/envs/nextflow_dev``)     
+	- -o Optional arguments for the pipeline (for example ``"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50"`` ;  default : ``"-profile conda "``) **Be cautious with the ``--`` or ``-``, see section 2.      
+	- -t set to 1 if running pipeline on test data located in ``/home/${USER}/work/ssdsnextflowpipeline/tests/fastq`` (default : 0)      
+	- -f set to 1 to force pipeline to run without checking resume/output directory (default : 0)       
 INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ``/home/${USER}/work/results/SSDS_pipeline.outdir``)     
 
     
@@ -265,7 +265,7 @@ Example :
 bash run_pipeline.sh -i /home/demassyie/work/results/ChIP_Dmc1_cKO_Hells.outdir/infos/input_M_WT_D1_HE_KO.csv -g /home/demassyie/work/results/ChIP_Dmc1_cKO_Hells.outdir/infos/mm10.json -n ChIP_Dmc1_cKO_Hells_newtrim -a /home/demassyie/work/bin/miniconda3/envs/nextflow-dev -o "-profile conda -resume" 
 ````    
 
-2. **Run directly with Nextflow**
+2. **Run directly with Nextflow**     
 The main parameters that need to be set are :
 	-  ``--inputcsv`` : path to the input csv file, see section 3. This option matches the ``-i`` argument in ``run_pipeline.sh`` script.
 	- ``-params_file`` : json file containing list of parameters
@@ -333,8 +333,12 @@ Use ````bash run_pipeline.sh -h```` to see available options.
 
 This should take around 10 minutes to run.
 
-## Notes
+## Notes and current developpments
 The default value of ``--with_sds_multiqc`` is set to false. If you want to use the SSDS multiQC you need to create a conda environment ; activate the environment, then build the libraries and run the pipeline with ``--with_ssds_multiqc`` and ``--multiqc_dev_conda_env path/to/the/conda/env``** 
+
+See WIP directory.   
+- Singularity container
+- Jupyter notebooks for beautiful QC
 
    
 🐠🌈
