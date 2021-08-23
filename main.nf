@@ -17,31 +17,61 @@
 ----------------------------------------------------------------------------------------
 Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align, Parse and call Peaks in ssDNA
 Pipeline overview:
-PROCESS 1 : check_design (CHECK INPUT DESIGN FILE)
-PROCESS 2 : makeScreenConfigFile (MAKE CONFIGURATION FILE FOR FASTQSCREEN)
-PROCESS 3 : crop (HARD TRIMMING AND QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
-PROCESS 4 : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM AND REMOVE ADAPTERS FROM RAW SEQUENCES)
-PROCESS 5 : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
-PROCESS 6 : filterBam (MARK DUPLICATES, REMOVE SUPPLEMENTARY ALIGNMENTS, SORT AND INDEX)
-PROCESS 7 : parseITRs (PARSE BAM FILES TO GET THE DIFFERENT SSDS TYPES)
-PROCESS 8 : makeBigwig (GENERATE NORMALIZED BIGWIG FILES FOR T1 AND T1+T2 BED FILES)
-PROCESS 9 : makeBigwigReplicates (optional, GENERATE NORMALIZED BIGWIG FILES FOR MERGED REPLICATES T1 AND T1+T2 BED FILES)
+
+*******************************************
+*****   SECTION 1 : INPUT SETTINGS      ***
+*******************************************
+PROCESS 1  : check_design (CHECK INPUT DESIGN FILE)
+PROCESS 2  : makeScreenConfigFile (MAKE CONFIGURATION FILE FOR FASTQSCREEN)
+*******************************************
+***   SECTION 2 : TRIMMING              ***
+*******************************************
+PROCESS 3  : crop (HARD TRIMMING AND QUALITY CONTROL ON RAW READS USING FASTQC AND FASTQSCREEN)
+PROCESS 4  : trimming (USE TRIMMOMATIC OR TRIM-GALORE TO QUALITY TRIM AND REMOVE ADAPTERS FROM RAW SEQUENCES)
+*******************************************
+***   SECTION 3 : MAPPING AND PARSING   ***
+*******************************************
+PROCESS 5  : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
+PROCESS 6  : filterBam (MARK DUPLICATES, REMOVE SUPPLEMENTARY ALIGNMENTS, SORT AND INDEX)
+PROCESS 7  : parseITRs (PARSE BAM FILES TO GET THE DIFFERENT SSDS TYPES)
+PROCESS 8  : makeBigwig (GENERATE NORMALIZED BIGWIG FILES FOR T1 AND T1+T2 BED FILES)
+*******************************************
+***   SECTION 4 : BIGWIG                ***
+*******************************************
+PROCESS 9  : makeBigwigReplicates (optional, GENERATE NORMALIZED BIGWIG FILES FOR MERGED REPLICATES T1 AND T1+T2 BED FILES)
 PROCESS 10 : makeDeeptoolsBigWig (optional, GENERATES BIGWIG FILES, COVERAGE AND CUMULATIVE COVERAGE PLOTS)
 PROCESS 11 : toFRBigWig (optional, GENERATES FWD/REV BIGWIG FILES)
-PROCESS 12 : samStats (GENERATES SAMSTATS REPORTS)
-PROCESS 13 : makeSSreport (COMPUTE STATS FROM SSDS PARSING)
-PROCESS 14 : ssds_multiqc (MAKE MULTIQC REPORT FOR SSDS FILES)
-PROCESS 15 : makeFingerPrint (MAKE DEEPTOOLS FINGERPRINT PLOTS)
-PROCESS 16 : shufBEDs (BED SHUFFLING)
-PROCESS 17 : callPeaks (PEAK CALLING WITH MACS2)
-PROCESS 18 : createPseudoReplicates (optional, CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
-PROCESS 19 : callPeaksForIDR (optional, CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
-PROCESS 20 : IDRanalysis (optional, PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES)
-PROCESS 21 : IDRpostprocess (optional, IDR PEAKS POST PROCESSING)
-PROCESS 22 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
-PROCESS 23 ; mergeFinalPeaks (MERGE PEAKS FROM REPLICATES)
-PROCESS 24 : makeSatCurve (optional, CREATE SATURATION CURVE)
-PROCESS 25 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
+*******************************************
+***   SECTION 5 : PEAK CALLING          ***
+*******************************************
+PROCESS 12 : shufBEDs (BED SHUFFLING)
+PROCESS 13 : callPeaks (PEAK CALLING WITH MACS2)
+*******************************************
+***   SECTION 6 : SSDS QC               ***
+*******************************************
+PROCESS 14 : samStats (GENERATES SAMSTATS REPORTS)
+PROCESS 15 : makeSSreport (COMPUTE STATS FROM SSDS PARSING)
+PROCESS 16 : makeFingerPrint (MAKE DEEPTOOLS FINGERPRINT PLOTS)
+PROCESS 17 : computeFRIP (Optional, COMPUTE FRIP SCORE FOR PARSED BAM FILE FOR NEW GENOMES)
+PROCESS 18 : ssds_multiqc (MAKE MULTIQC REPORT FOR SSDS FILES)
+*******************************************
+***   SECTION 7 : OPTIONAL IDR ANALYSIS ***
+*******************************************
+PROCESS 19 : createPseudoReplicates (optional, CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
+PROCESS 20 : callPeaksForIDR (optional, CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
+PROCESS 21 : IDRanalysis (optional, PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES)
+PROCESS 22 : IDRpostprocess (optional, IDR PEAKS POST PROCESSING)
+*******************************************
+***   SECTION 8 : PEAK POST PROCESSING  ***
+*******************************************
+PROCESS 23 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
+PROCESS 24 : mergeFinalPeaks (MERGE PEAKS FROM REPLICATES)
+PROCESS 25 : makeSatCurve (optional, CREATE SATURATION CURVE)
+*******************************************
+***   SECTION 9 : GENERAL QC            ***
+*******************************************
+PROCESS 26 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
+
 ----------------------------------------------------------------------------------------
 */
 
@@ -53,50 +83,50 @@ def helpMessage() {
 =============================================================================
     Usage:
 
-    nextflow run main.nf -c conf/igh.config --inputcsv tests/fastq/input.csv  --name "runtest" --trim_cropR1 36 --trim_cropR2 40 --with_trimgalore -profile conda -resume
+    nextflow run main.nf -c conf/igh.config --params_file conf/mm10.json --inputcsv tests/fastq/input.csv  --name "runtest" --trim_cropR1 36 --trim_cropR2 40 --with_trimgalore -profile conda -resume
 
     Runs with Nextflow v20.04.1
 =============================================================================
-
 Input data parameters:
-    --inputcsv                  FILE    PATH TO INPUT CSV FILE (template and default : ${baseDir}/tests/fastq/input.csv)       
-    --genomebase		DIR	PATH TO REFERENCE GENOMES (default : "/poolzfs/genomes")
-    --genome    		STRING  REFERENCE GENOME NAME (must correspond to an existing genome in your config file, default : "mm10")
-    --genomedir			DIR     PATH TO GENOME DIRECTORY (required if your reference genome is not present in your config file)
-    --genome_name		STRING	REFERENCE GENOME NAME (e.g ".mm10", required if your reference genome is not present in your config file)
-    --genome_fasta  		FILE	PATH TO FILE GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA (required if your reference genome is not present in your config file)
-    --fai			FILE	PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
-    --genome2screen 		STRING	GENOMES TO SCREEN FOR FASTQC SCREENING (default : ['mm10','hg19','dm3','dm6','hg38','sacCer2','sacCer3'], comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
-    --chrsize                   FILE    Chromosome sizes file, default : ${baseDir}/accessoryFiles/SSDS/mm10/mm10.chrom.sizes (downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.chrom.sizes 2021-01-11)
-     --hotspots                  DIR     PATH TO HOTSPOTS FILES DIRECTORY (default : ${baseDir}/accessoryFiles/SSDS/hotspots)
-     --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : ${baseDir}/accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
-    
-Output and temporary directory parameters:                            
-    --name      		STRING  ANALYSIS NAME (default : "SSDS_pipeline")      
-    --outdir    		DIR     PATH TO OUTPUT DIRECTORY (default : name.outdir)
-    --publishdir_mode           STRING  MODE FOR EXPORTING PROCESS OUTPUT FILES TO OUTPUT DIRECTORY (default : "copy", must be "symlink", "rellink", "link", "copy", "copyNoFollow","move", see https://www.nextflow.io/docs/latest/process.html)           
-    --scratch   		DIR     PATH TO TEMPORARY DIRECTORY (default : scratch)
+    --inputcsv                  FILE    PATH TO INPUT CSV FILE (template and default : /work/${USER}/ssdsnextflowpipeline/tests/fastq/input.csv)
+    -params_file		FILE	PATH TO PARAMETERS JSON FILE (template and default : /work/${USER}/ssdsnextflowpipeline/conf/mm10.json)
+    --genomebase                DIR     PATH TO REFERENCE GENOMES (default : "/poolzfs/genomes")
+    --genome                    STRING  REFERENCE GENOME NAME (must correspond to an existing genome in your config file, default : "mm10")
+    --genomedir                 DIR     PATH TO GENOME DIRECTORY (required if your reference genome is not present in your config file)
+    --genome_name               STRING  REFERENCE GENOME NAME (e.g ".mm10", required if your reference genome is not present in your config file)
+    --genome_fasta              FILE    PATH TO FILE GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA (required if your reference genome is not present in your config file)
+    --fai                       FILE    PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
+    --genome2screen             STRING  GENOMES TO SCREEN FOR FASTQC SCREENING (default : ['mm10','hg19','dm3','dm6','hg38','sacCer2','sacCer3'], comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
+    --chrsize                   FILE    Chromosome sizes file, default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/mm10/mm10.chrom.sizes (downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.chrom.sizes 2021-01-11)
+    --hotspots                  DIR     PATH TO HOTSPOTS FILES DIRECTORY (set to "None" if none provided ; default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/hotspots)
+    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
+
+Output and temporary directory parameters:
+    --name                      STRING  ANALYSIS NAME (default : "SSDS_pipeline")
+    --outdir                    DIR     PATH TO OUTPUT DIRECTORY (default : name.outdir)
+    --publishdir_mode           STRING  MODE FOR EXPORTING PROCESS OUTPUT FILES TO OUTPUT DIRECTORY (default : "copy", must be "symlink", "rellink", "link", "copy", "copyNoFollow","move", see https://www.nextflow.io/docs/latest/process.html)
+    --scratch                   DIR     PATH TO TEMPORARY DIRECTORY (default : scratch)
 
 Pipeline dependencies:
-    --src	        	DIR	PATH TO SOURCE DIRECTORY (default : ${baseDir}/accessoryFiles/SSDS/scripts ; contains perl scripts)
-    --custom_bwa        	EXE	PATH TO CUSTOM BWA EXEC (default : ${baseDir}/accessoryFiles/SSDS/bwa_0.7.12)
-    --custom_bwa_ra		EXE	PATH TO CUSTOM BWA_SRA EXEC (default : ${baseDir}/accessoryFiles/SSDS/bwa_ra_0.7.12)
+    --src                       DIR     PATH TO SOURCE DIRECTORY (default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/scripts ; contains perl scripts)
+    --custom_bwa                EXE     PATH TO CUSTOM BWA EXEC (default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/bwa_0.7.12)
+    --custom_bwa_ra             EXE     PATH TO CUSTOM BWA_SRA EXEC (default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/bwa_ra_0.7.12)
 
 Trimming parameters:
-    --with_trimgalore		BOOL	Use trim-galore instead of Trimmomatic for quality trimming process (default : false)
-    --trimgalore_adapters	FILE	trim-galore : PATH TO ADAPTERS FILE (default : none)
-    --trimg_quality		INT	trim-galore : minimum quality (default 10)
-    --trimg_stringency		INT	trim-galore : trimming stringency (default 6)
-    --trim_minlen		INT	trimmomatic : minimum length of reads after trimming (default 25)
-    --trim_cropR1		INT	fastx : Cut the R1 read to that specified length (default 50)
-    --trim_cropR2		INT	fastx : Cut the R2 read to that specified length (default 50)
-    --trim_slidingwin		STRING	trimmomatic : perform a sliding window trimming, cutting once the average quality within the window falls below a threshold (default "4:15")
-    --trim_illumina_clip	STRING	trimmomatic : Cut adapter and other illumina-specific sequences from the read (default "2:20:10")
-    --trimmomatic_adapters      FILE    PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default ${baseDir}/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
+    --with_trimgalore           BOOL    Use trim-galore instead of Trimmomatic for quality trimming process (default : false)
+    --trimgalore_adapters       FILE    trim-galore : PATH TO ADAPTERS FILE (default : none)
+    --trimg_quality             INT     trim-galore : minimum quality (default 10)
+    --trimg_stringency          INT     trim-galore : trimming stringency (default 6)
+    --trim_minlen               INT     trimmomatic : minimum length of reads after trimming (default 25)
+    --trim_cropR1               INT     fastx : Cut the R1 read to that specified length (default 50)
+    --trim_cropR2               INT     fastx : Cut the R2 read to that specified length (default 50)
+    --trim_slidingwin           STRING  trimmomatic : perform a sliding window trimming, cutting once the average quality within the window falls below a threshold (default "4:15")
+    --trim_illumina_clip        STRING  trimmomatic : Cut adapter and other illumina-specific sequences from the read (default "2:20:10")
+    --trimmomatic_adapters      FILE    PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default /work/${USER}/ssdsnextflowpipeline/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
 
 Mapping parameters:
     --with_multimap             BOOL    Keep multimapping reads from bam (default : false)
-    --bamPGline			STRING	bam header (default '@PG\\tID:ssDNAPipeline2.0_PAUFFRET')
+    --bamPGline                 STRING  bam header (default '@PG\tID:ssDNAPipeline2.0_PAUFFRET')
     --filtering_flag            INT     SAM flag for filtering bam files (default : 2052 ; see https://broadinstitute.github.io/picard/explain-flags.html)
 
 Bigwig parameter:
@@ -128,13 +158,14 @@ Optional IDR analysis parameters (ENCODE procedure, see https://github.com/ENCOD
     --idr_macs_pv               FLOAT   Macs2 callpeak p-value parameter, if not -1, will overrule macs_qv, see macs2 doc (default : 0.1)
 
 QC parameters:
-    --with_ssds_multiqc		BOOL	RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
-    --multiqc_dev_conda_env     DIR	PATH TO MULTIQC-DEV CONDA ENVIRONMENT (used when --with_ssds-multiqc is true ; default : multiqc_dev)
-    --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : ${baseDir}/multiqc_config.yaml)
+    --with_ssds_multiqc         BOOL    RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
+    --multiqc_dev_conda_env     DIR     PATH TO MULTIQC-DEV CONDA ENVIRONMENT (used when --with_ssds-multiqc is true ; default : multiqc_dev)
+    --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : /work/${USER}/ssdsnextflowpipeline/multiqc_config.yaml)
 
 Nextflow Tower parameter:
     -with-tower                 BOOL    Enable job monitoring with Nextflow tower (https://tower.nf/)
     --tower_token               STRING  Nextflow tower key token (see https://tower.nf/ to create your account)
+
 =================================================================================================
 """.stripIndent()
 }
@@ -605,7 +636,7 @@ process filterBam {
     script:
     """
     # Remove unmapped and supplementary, then mark duplicates and index
-    samtools view -F ${params.filtering_flag} -hb ${bam} > ${bam.baseName}.ok.bam
+    samtools view -F ${params.filtering_flag} -f 2 -hb ${bam} > ${bam.baseName}.ok.bam
     picard MarkDuplicatesWithMateCigar I=${bam.baseName}.ok.bam O=${bam.baseName}.unparsed.bam \
         PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.MDmetrics.txt MINIMUM_DISTANCE=400 \
         CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam.baseName}.unparsed.picardMD.out 2>&1
@@ -963,101 +994,9 @@ if ( params.kbrick_bigwig ) {
     }    
 }
 
-//***************************************************************************//
-//                           SECTION 5 : SSDS QC                             //
-//***************************************************************************//
-
-// PROCESS 12 : samStats (GENERATES SAMSTATS REPORTS)
-// What it does : Use Samtools to report comprehensive statistics from alignment file
-// Input : channel BAMwithIDXss containing indexed bam files of the 5 types of bam
-// Ouptut : Comprehensive and summary of statistical reports for bam files
-process samStats {
-    tag "${sampleId}"
-    label 'process_basic'
-    publishDir "${params.outdir}/samstats",  mode: params.publishdir_mode, pattern: "*.tab"
-    input:
-        set val(sampleId), file(bam), file(bamidx) from BAMwithIDXss
-    output:
-        file '*stats.tab'
-        val 'ok' into samstats_ok
-    script:
-        """
-        samtools idxstats ${bam} > ${bam.baseName}.idxstats.tab
-        samtools stats ${bam} > ${bam.baseName}.samstats.tab
-        """
-}
-
-// PROCESS 13 : makeSSreport (COMPUTE STATS FROM SSDS PARSING)
-// What it does : Compile alignement stats from the 5 types of bed for a given sample
-// and compute FRIP scores (the fraction of reads that fall into a peak)
-// Input : Total bam file and parsed bed files (T1, T2, ds, ds_strict and unclassified)
-// Output : text report
-// External tool : Perl script from K. Brick (original pipeline, 2012)
-process makeSSreport {
-    tag "${sampleId}"
-    label 'process_basic'
-    publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode, patten: '*SSDSreport*'
-    input:
-        set val(sampleId), file(bam), file(T1), file(T2), file(ds), file(dss), file(unclassified) from ITRBED 
-    output:
-        set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqc, SSDSreport2ssdsmultiqc2
-        val 'ok' into ssreport_ok
-    script:
-    """
-    perl ${makeSSMultiQCReport_nextFlow_script} ${bam} ${T1} ${T2} ${ds} ${dss} ${unclassified} \
-        --g ${params.genome} --h ${params.hotspots} 
-    """
-}
-
-
-if (params.with_ssds_multiqc && params.hotspots != "None") {
-    // PROCESS 14 : ssds_multiqc (MAKE MULTIQC REPORT FOR SSDS FILES)
-    // What it does : For each sample, wompute a multiqc quality control report
-    // Input : QC report from SSDSreport2ssdsmultiqc
-    // Ouptut : multiQC HTML report
-    // External tool : custom multiqc python library and conda environment
-    process ssds_multiqc {
-        tag "${sampleId}"
-        label 'process_basic'
-        conda "${params.multiqc_dev_conda_env}" 
-        publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode
-        input:
-            set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
-        output:
-            file('*')
-        script:
-        """
-        multiqc -m ssds -n ${sampleId}.multiQC .
-        """
-        }
-}
-
-// PROCESS 15 : makeFingerPrint (MAKE DEEPTOOLS FINGERPRINT PLOTS)
-// What it does : plot a profile of cumulative read coverages (quality control to assess ChIP signal) for all samples
-// Input : filtered & indexed bam files for all samples (control and IP)
-// Output : Plot and tab files for metrics 
-process makeFingerPrint {
-    tag "${outNameStem}"
-    label 'process_low'
-    publishDir "${params.outdir}/fingerprint",  mode: params.publishdir_mode, pattern: '*.png'
-    publishDir "${params.outdir}/fingerprint",  mode: params.publishdir_mode, pattern: '*.tab'
-    input:
-        val('filterbam_ok') from filterbam_tofingerprint.collect()
-    output:
-        file('*.png') //into fingerprint
-        file('*.tab') //into tab_fingerprint
-        val('ok') into makefingerprint_ok
-    script:
-    """
-    #Use deeptools plotFingerprint to plot a profile of cumulative read coverages (quality control to assess ChIP signal from background)
-    plotFingerprint --bamfiles ${params.outdir}/filterbam/*unparsed.bam --smartLabels --numberOfProcessors ${task.cpus} \
-        --minMappingQuality 30 --skipZeros --plotFile ${outNameStem}.deeptools.fingerprints.png \
-        --outRawCounts ${outNameStem}.deeptools.fingerprints.rawcounts.tab --outQualityMetrics ${outNameStem}.deeptools.fingerprints.qual.tab
-    """
-}
 
 //***************************************************************************//
-//                          SECTION 6 : PEAK CALLING                         //
+//                          SECTION 5 : PEAK CALLING                         //
 //***************************************************************************//
 
 // Set saturation curve thresholds for callPeaks and makeSatCurve processes
@@ -1105,13 +1044,13 @@ if (params.with_control) {
         .into { T1BED_shuffle_ch ; T1BED_replicate_ch }
         //.println()
 
-    // PROCESS 16 : shufBEDs (BED SHUFFLING)
+    // PROCESS 12 : shufBEDs (BED SHUFFLING)
     // What it does : quality trims and shuffles type1 bed files from ITR parsing 
     // Input : type1 bed files from ITR parsing
     // Ouptut : shuffled and filtered type1 bed files
     process shufBEDs_ct {
         tag "${id_ip}"
-        label 'process_basic'
+        label 'process_medium'
         publishDir "${params.outdir}/bed_shuffle",  mode: params.publishdir_mode
         input:
             tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed) from T1BED_shuffle_ch
@@ -1140,7 +1079,7 @@ if (params.with_control) {
         .combine(satCurvePCs)
         .set { SQ30BED_satcurve_ch }
 
-    // PROCESS 17 : callPeaks (PEAK CALLING WITH MACS2)
+    // PROCESS 13 : callPeaks (PEAK CALLING WITH MACS2)
     // What it does : call peaks in type1 bed files using macs2. if parameter satCurveReps is > 1,
     // the process will repeat the peak calling satCurveReps-1 times then the resulting bed files will be merged.
     // if satCurve parameter is true, the process will progressively call peaks in downsampled bed files (according to satCurvePCs parameter)
@@ -1168,7 +1107,7 @@ if (params.with_control) {
             tuple val(id_ip), file(ip_bed), file("*peaks.bed") optional true into ALLPEAKSTOPP, ALLPEAKSTOPP2
             stdout into gsize
             val 'ok' into callPeaks_ok
-            tuple val(id_ip), path("*finalPeaks_noIDR.bed") into FINALPEAKSNOIDR
+            tuple val(id_ip), path("*finalPeaks_noIDR.bed") optional true into FINALPEAKSNOIDR
         script:
         """
         ## SELECT N LINES FROM IP BED FILE ACCORDING TO satCurve parameter 
@@ -1252,13 +1191,13 @@ else {
         .map { it ->  [ it[0], it[1].flatten() ] }
         .set { T1BED }
 
-    // PROCESS 16 : shufBEDs (BED SHUFFLING)
+    // PROCESS 12 : shufBEDs (BED SHUFFLING)
     // What it does : quality trims and shuffles type1 bed files from ITR parsing 
     // Input : type1 bed files from ITR parsing
     // Ouptut : shuffled and filtered type1 bed files
     process shufBEDs {
         tag "${id_ip}"
-        label 'process_basic'
+        label 'process_medium'
         publishDir "${params.outdir}/bed_shuffle",  mode: params.publishdir_mode
         input:
             tuple val(id_ip), path(ip_bed) from T1BED
@@ -1283,7 +1222,7 @@ else {
         .combine(satCurvePCs)
         .set { SQ30BED_satcurve_ch }
 
-    // PROCESS 17 : callPeaks (PEAK CALLING WITH MACS2)
+    // PROCESS 13 : callPeaks (PEAK CALLING WITH MACS2)
     // What it does : call peaks in type1 bed files using macs2. if parameter satCurveReps is > 1,
     // the process will repeat the peak calling satCurveReps-1 times then the resulting bed files will be merged.
     // if satCurve parameter is true, 
@@ -1312,7 +1251,7 @@ else {
             tuple val(id_ip), file(ip_bed), file("*peaks.bed") optional true into ALLPEAKSTOPP, ALLPEAKSTOPP2
             stdout into gsize
             val 'ok' into callPeaks_ok
-            tuple val(id_ip), path("*finalPeaks_noIDR.bed") into FINALPEAKSNOIDR
+            tuple val(id_ip), path("*finalPeaks_noIDR.bed") optional true into FINALPEAKSNOIDR
         script:
         """
         ## SELECT N LINES FROM IP BED FILE ACCORDING TO satCurve parameter
@@ -1388,6 +1327,167 @@ else {
     }
 }
 
+//***************************************************************************//
+//                           SECTION 6 : SSDS QC                             //
+//***************************************************************************//
+
+// PROCESS 14 : samStats (GENERATES SAMSTATS REPORTS)
+// What it does : Use Samtools to report comprehensive statistics from alignment file
+// Input : channel BAMwithIDXss containing indexed bam files of the 5 types of bam
+// Ouptut : Comprehensive and summary of statistical reports for bam files
+process samStats {
+    tag "${sampleId}"
+    label 'process_basic'
+    publishDir "${params.outdir}/samstats",  mode: params.publishdir_mode, pattern: "*.tab"
+    input:
+        set val(sampleId), file(bam), file(bamidx) from BAMwithIDXss
+    output:
+        file '*stats.tab'
+        val 'ok' into samstats_ok
+    script:
+        """
+        samtools idxstats ${bam} > ${bam.baseName}.idxstats.tab
+        samtools stats ${bam} > ${bam.baseName}.samstats.tab
+        """
+}
+
+// PROCESS 15 : makeSSreport (COMPUTE STATS FROM SSDS PARSING)
+// What it does : Compile alignement stats from the 5 types of bed for a given sample
+// and compute FRIP scores (the fraction of reads that fall into a peak)
+// Input : Total bam file and parsed bed files (T1, T2, ds, ds_strict and unclassified)
+// Output : text report
+// External tool : Perl script from K. Brick (original pipeline, 2012)
+process makeSSreport {
+    tag "${sampleId}"
+    label 'process_basic'
+    publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode, patten: '*SSDSreport*'
+    input:
+        set val(sampleId), file(bam), file(T1), file(T2), file(ds), file(dss), file(unclassified) from ITRBED 
+    output:
+        set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqc, SSDSreport2ssdsmultiqc2
+        val 'ok' into ssreport_ok
+    script:
+    """
+    perl ${makeSSMultiQCReport_nextFlow_script} ${bam} ${T1} ${T2} ${ds} ${dss} ${unclassified} \
+        --g ${params.genome} --h ${params.hotspots} 
+    """
+}
+
+
+// PROCESS 16 : makeFingerPrint (MAKE DEEPTOOLS FINGERPRINT PLOTS)
+// What it does : plot a profile of cumulative read coverages (quality control to assess ChIP signal) for all samples
+// Input : filtered & indexed bam files for all samples (control and IP)
+// Output : Plot and tab files for metrics 
+process makeFingerPrint {
+    tag "${outNameStem}"
+    label 'process_low'
+    publishDir "${params.outdir}/fingerprint",  mode: params.publishdir_mode, pattern: '*.png'
+    publishDir "${params.outdir}/fingerprint",  mode: params.publishdir_mode, pattern: '*.tab'
+    input:
+        val('filterbam_ok') from filterbam_tofingerprint.collect()
+    output:
+        file('*.png') //into fingerprint
+        file('*.tab') //into tab_fingerprint
+        val('ok') into makefingerprint_ok
+    script:
+    """
+    #Use deeptools plotFingerprint to plot a profile of cumulative read coverages (quality control to assess ChIP signal from background)
+    plotFingerprint --bamfiles ${params.outdir}/filterbam/*unparsed.bam --smartLabels --numberOfProcessors ${task.cpus} \
+        --minMappingQuality 30 --skipZeros --plotFile ${outNameStem}.deeptools.fingerprints.png \
+        --outRawCounts ${outNameStem}.deeptools.fingerprints.rawcounts.tab --outQualityMetrics ${outNameStem}.deeptools.fingerprints.qual.tab
+    """
+}
+
+
+// PROCESS 17 : computeFRIP (COMPUTE FRIP SCORE FOR PARSED BAM FILE FOR NEW GENOMES)
+// What it does : Use deeptools to compute DE NOVO FRIP scores (the fraction of reads from bam that fall into a peak)
+// Input : Parsed bed files (T1, T2, ds, ds_strict and unclassified); final but not merged peak bed file and SSDS QC report from process 13
+// Output : Extended QC report 
+// External tool : Python script (Pauline Auffret, 2021) 
+if (params.hotspots == "None") {
+
+    // First, create channel to combine bam files and peak file and SSDS QC report
+    ITRBAM
+        .combine(FINALPEAKSNOIDR)
+        .combine(SSDSreport2ssdsmultiqc2)
+        .map { it -> [ it[0].split('_')[0..-1].join('_'),it[1], it[2], it[3], it[4], it[5], it[6], it[7], it[8], it[9], it[10], it[11], it[12], it[13], it[14], it[15], it[16] ] }
+        .groupTuple(by: [0])
+        .map { it -> it[0,1,2,3,4,5,6,7,8,9,10,11,12,14,16].flatten() }
+        .set { ITRBAMANDPEAKS }
+
+    process computeFRIP {
+        tag "${sampleId}"
+        label 'process_low'
+        conda 'bioconda::deeptools=3.5.1'
+        publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode, patten: '*SSDSreport*'
+        input:
+            set val(sampleId), file(bam), file(bai), file(T1), file(T1bai), file(T2), file(T2bai), file(ds), file(dsbai), \
+                file(dss), file(dssbai), file(unc), file(uncbai), file(peaks), file(report) from ITRBAMANDPEAKS
+        output:
+            set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqcdenovo
+        script:
+        """
+        # For each bam type, execute python script to compute FRIP score with Deeptools and print results to text file
+        #python ${get_frip_script} ${peaks} ${bam} ${task.cpus} total ${params.genome_name} ${sampleId}_total.frip #Need to edit custom ssds multiQC library to include this in SSDS multiqc  #todo 
+        python ${get_frip_script} ${peaks} ${T1} ${task.cpus} ssType1 ${params.genome_name} ${sampleId}_T1.frip
+        python ${get_frip_script} ${peaks} ${T2} ${task.cpus} ssType2 ${params.genome_name} ${sampleId}_T2.frip
+        python ${get_frip_script} ${peaks} ${ds} ${task.cpus} dsDNA ${params.genome_name} ${sampleId}_ds.frip
+        #python ${get_frip_script} ${peaks} ${dss} ${task.cpus} dsDNA_strict ${params.genome_name} ${sampleId}_dss.frip #Need to edit ssds multiQC library to include this in SSDS multiqc  #todo
+	python ${get_frip_script} ${peaks} ${dss} ${task.cpus} dsDNA ${params.genome_name} ${sampleId}_dss.frip
+        python ${get_frip_script} ${peaks} ${unc} ${task.cpus} unclassified ${params.genome_name} ${sampleId}_unc.frip
+
+        # Concatenate results FRIP text files with SSDS QC report from process 13
+        #cat ${report} ${sampleId}_total.frip ${sampleId}_T1.frip ${sampleId}_T2.frip ${sampleId}_ds.frip ${sampleId}_dss.frip ${sampleId}_unc.frip > ${sampleId}_denovo.SSDSreport.tab 
+        cat ${report} ${sampleId}_T1.frip ${sampleId}_T2.frip ${sampleId}_ds.frip ${sampleId}_dss.frip ${sampleId}_unc.frip > ${sampleId}_denovo.SSDSreport.tab
+	"""
+    }
+
+
+    if (params.with_ssds_multiqc) {
+        // PROCESS 18 : ssds_multiqc_denovo (MAKE MULTIQC REPORT FOR SSDS FILES)
+        // What it does : For each sample, wompute a multiqc quality control report
+        // Input : QC report from SSDSreport2ssdsmultiqcdenovo
+        // Ouptut : multiQC HTML report
+        // External tool : custom multiqc python library and conda environment
+        process ssds_multiqc_denovo {
+            tag "${sampleId}"
+    	    label 'process_basic'
+    	    conda "${params.multiqc_dev_conda_env}" 
+            publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode
+            input:
+                set val(sampleId), file(report) from SSDSreport2ssdsmultiqcdenovo
+            output:
+                file('*')
+            script:
+            """
+            multiqc -m ssds -n ${sampleId}.multiQC .
+            """
+        }
+    }
+}
+
+
+if (params.with_ssds_multiqc && params.hotspots != "None") {
+    // PROCESS 18 : ssds_multiqc (MAKE MULTIQC REPORT FOR SSDS FILES)
+    // What it does : For each sample, wompute a multiqc quality control report
+    // Input : QC report from SSDSreport2ssdsmultiqc
+    // Ouptut : multiQC HTML report
+    // External tool : custom multiqc python library and conda environment
+    process ssds_multiqc {
+        tag "${sampleId}"
+        label 'process_basic'
+        conda "${params.multiqc_dev_conda_env}" 
+        publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode
+        input:
+            set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
+        output:
+            file('*')
+        script:
+        """
+        multiqc -m ssds -n ${sampleId}.multiQC .
+        """
+        }
+}
 
 //***************************************************************************//
 //                     SECTION 7 : OPTIONAL IDR ANALYSIS                     //
@@ -1427,7 +1527,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
             //.println()
 
 
-        // PROCESS 18 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
+        // PROCESS 19 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
         // What it does : creates 2 pseudo replicates per true replicates, then pool the true replicates, and creates 2 pseudo replicates from this pool.
         // Input : bed files from type1 aligned SSDNA, chip and control
         // Output : The 2 true replicates ; the pool of the 2 true replicates ; the 4 pseudo replicates from true replicates; 
@@ -1475,7 +1575,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
         }
 
     
-        // PROCESS 19 : callPeaksForIDR (CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
+        // PROCESS 20 : callPeaksForIDR (CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
         // What it does : uses macs2 callPeak to perform peak-calling on all replicates (2), pseudo replicates (4), pool (1), pool pseudo replicates (2)
         // Input : all 10 bed files from true replicates and pseudo replicates creation; and genome size from process 14 
         // Output : 9 regionPeak files from peak calling
@@ -1564,7 +1664,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
             //.println()   
 
 
-        // PROCESS 18 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
+        // PROCESS 19 : createPseudoReplicates (CREATES ALL PSEUDOREPLICATES AND POOL FOR IDR ANALYSIS)
         // What it does : creates 2 pseudo replicates per true replicates, then pool the true replicates, and creates 2 pseudo replicates from this pool.
         // Input : bed files from type1 aligned SSDNA, chip and control
         // Output : The 2 true replicates ; the pool of the 2 true replicates ; the 4 pseudo replicates from true replicates; 
@@ -1602,7 +1702,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
             """
         }
 
-        // PROCESS 19 : callPeaksForIDR (CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
+        // PROCESS 20 : callPeaksForIDR (CALL PEAKS WITH MAC2 ON ALL REPLICATES AND PSEUDO REPLICATES)
         // What it does : uses macs2 callPeak to perform peak-calling on all replicates (2), pseudo replicates (4), pool (1), pool pseudo replicates (2)
         // Input : all 9 bed files from true replicates and pseudo replicates creation; and genome size from process 14 
         // Output : 9 regionPeak files from peak calling
@@ -1675,7 +1775,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
 
 if (params.with_idr && params.nb_replicates == 2 ) {
 
-    // PROCESS 20 : IDRanalysis (PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES)
+    // PROCESS 21 : IDRanalysis (PERFORM IDR ANALYSIS ON 4 PAIRS OF REPLICATES OR PSEUDOREPLICATES)
     // What it does : performs IDR (Irreproducible Discovery Rate) statistical analysis on 4 pairs of replicates :
     // IDR1 and IDR2 : pseudoreplicates from true replicates ; IDR3 : true replicates ; IDR4 : pseudoreplicates from pooled true replicates ;
     // Input : 9 regionpeak files from idr peak calling  
@@ -1747,7 +1847,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
         """
     }
 
-    // PROCESS 21 : IDRpostprocess (IDR PEAKS POST PROCESSING)
+    // PROCESS 22 : IDRpostprocess (IDR PEAKS POST PROCESSING)
     // What it does : Compute rescue ratio and self consistency ratio to evaluate reproducibility
     // and export reproducible set of peaks
     // Input : peaks called in IDR process
@@ -1812,7 +1912,7 @@ if (params.with_idr && params.nb_replicates == 2 ) {
 //                     SECTION 8 : PEAK POST PROCESSING                      //
 //***************************************************************************//        
 
-// PROCESS 22 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
+// PROCESS 23 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
 // What it does : perform the peak centering using Kevin Brick's method
 // Input : final peak set bed file and mapped T1 bed file
 // Output : bedgraph and tab
@@ -1851,7 +1951,7 @@ if (!params.with_idr) {
             .set { ALLPEAKSTOPP2 }
             //.println()
 
-        // PROCESS 23 ; mergeFinalPeaks (MERGE PEAKS FROM REPLICATES)
+        // PROCESS 24 : mergeFinalPeaks (MERGE PEAKS FROM REPLICATES)
         // What it does : Merge peaks bed files from replicates
         // Input :  peak bed files, grouped by replicates, from call_peaks process
         // Output : merged bed file for all replicates
@@ -1877,7 +1977,7 @@ if (!params.with_idr) {
 }
 
 else if ( params.nb_replicates == 2 ) {
-// PROCESS 22 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
+// PROCESS 23 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
 // What it does : perform the peak centering using Kevin Brick's method
 // Input : final peak set bed file and mapped T1 bed file
 // Output : bedgraph and tab
@@ -1911,7 +2011,7 @@ else if ( params.nb_replicates == 2 ) {
 //                       SECTION 8 : SATURATION  CURVE                       //
 //***************************************************************************//
 
-// PROCESS 24 : makeSatCurve (CREATE SATURATION CURVE)
+// PROCESS 25 : makeSatCurve (CREATE SATURATION CURVE)
 // What it does : Compute saturation curve of the samples 
 // The saturation curve plots the number of peaks called function of the number of reads in the samples
 // Input : All bed files from callPeaks process corresponding to peaks called in progressively downsampled samples
@@ -2083,72 +2183,7 @@ if(params.bigwig_profile == "T1" || params.bigwig_profile == "T12" ) {
     }
 }
 
-// PROCESS 13bis : computeFRIP (COMPUTE FRIP SCORE FOR PARSED BAM FILE FOR NEW GENOMES)
-// What it does : Use deeptools to compute DE NOVO FRIP scores (the fraction of reads from bam that fall into a peak)
-// Input : Parsed bed files (T1, T2, ds, ds_strict and unclassified); final but not merged peak bed file and SSDS qc report from process 13
-// Output : text report
-// External tool : Python script 
-if (params.hotspots == "None") {
-
-    ITRBAM
-        .combine(FINALPEAKSNOIDR)
-        .combine(SSDSreport2ssdsmultiqc2)
-        .map { it -> [ it[0].split('_')[0..-1].join('_'),it[1], it[2], it[3], it[4], it[5], it[6], it[7], it[8], it[9], it[10], it[11], it[12], it[13], it[14], it[15], it[16] ] }
-        .groupTuple(by: [0])
-        .map { it -> it[0,1,2,3,4,5,6,7,8,9,10,11,12,14,16].flatten() }
-        .set { ITRBAMANDPEAKS }
-
-    process computeFRIP {
-        tag "${sampleId}"
-        label 'process_low'
-        conda 'bioconda::deeptools=3.5.1'
-        publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode, patten: '*SSDSreport*'
-        input:
-            set val(sampleId), file(bam), file(bai), file(T1), file(T1bai), file(T2), file(T2bai), file(ds), file(dsbai), \
-                file(dss), file(dssbai), file(unc), file(uncbai), file(peaks), file(report) from ITRBAMANDPEAKS
-        output:
-            set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqcdenovo
-        script:
-        """
-        #python ${get_frip_script} ${peaks} ${bam} ${task.cpus} total ${params.genome_name} ${sampleId}_total.frip
-        python ${get_frip_script} ${peaks} ${T1} ${task.cpus} ssType1 ${params.genome_name} ${sampleId}_T1.frip
-        python ${get_frip_script} ${peaks} ${T2} ${task.cpus} ssType2 ${params.genome_name} ${sampleId}_T2.frip
-        python ${get_frip_script} ${peaks} ${ds} ${task.cpus} dsDNA ${params.genome_name} ${sampleId}_ds.frip
-        #python ${get_frip_script} ${peaks} ${dss} ${task.cpus} dsDNA_strict ${params.genome_name} ${sampleId}_dss.frip
-	python ${get_frip_script} ${peaks} ${dss} ${task.cpus} dsDNA ${params.genome_name} ${sampleId}_dss.frip
-        python ${get_frip_script} ${peaks} ${unc} ${task.cpus} unclassified ${params.genome_name} ${sampleId}_unc.frip
-
-        #cat ${report} ${sampleId}_total.frip ${sampleId}_T1.frip ${sampleId}_T2.frip ${sampleId}_ds.frip ${sampleId}_dss.frip ${sampleId}_unc.frip > ${sampleId}_denovo.SSDSreport.tab 
-        cat ${report} ${sampleId}_T1.frip ${sampleId}_T2.frip ${sampleId}_ds.frip ${sampleId}_dss.frip ${sampleId}_unc.frip > ${sampleId}_denovo.SSDSreport.tab
-	"""
-    }
-
-
-    if (params.with_ssds_multiqc) {
-        // PROCESS 14 : ssds_multiqc_denovo (MAKE MULTIQC REPORT FOR SSDS FILES)
-        // What it does : For each sample, wompute a multiqc quality control report
-        // Input : QC report from SSDSreport2ssdsmultiqc
-        // Ouptut : multiQC HTML report
-        // External tool : custom multiqc python library and conda environment
-        process ssds_multiqc_denovo {
-            tag "${sampleId}"
-    	    label 'process_basic'
-    	    conda "${params.multiqc_dev_conda_env}" 
-            publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode
-            input:
-                set val(sampleId), file(report) from SSDSreport2ssdsmultiqcdenovo
-            output:
-                file('*')
-            script:
-            """
-            multiqc -m ssds -n ${sampleId}.multiQC .
-            """
-        }
-    }
-}
-
-       
-// PROCESS 25 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
+// PROCESS 26 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
 // What it does : Compute multiCQ report for the analysis based on output folder content
 // Input : all termination tags of processes so that this process only runs at the end of the pipeline
 // Output : multiQC HTML report
