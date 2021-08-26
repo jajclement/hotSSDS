@@ -128,6 +128,9 @@ Mapping parameters:
     --with_multimap             BOOL    Keep multimapping reads from bam (default : false)
     --bamPGline                 STRING  bam header (default '@PG\tID:ssDNAPipeline2.0_PAUFFRET')
     --filtering_flag            INT     SAM flag for filtering bam files (default : 2052 ; see https://broadinstitute.github.io/picard/explain-flags.html)
+    --picard_min_distance       INT     Picard parameter for marking duplicates (--MINIMUM_DISTANCE) :  width of the window to search for duplicates of a given alignment, default : -1 (twice the first read's read length)
+    --picard_optdup_distance    INT     Picard parameter for marking duplicates (--OPTICAL_DUPLICATE_PIXEL_DISTANCE) : The maximum offset between two duplicate clusters in order to consider them optical duplicates. The default is appropriate for unpatterned versions of the Illumina platform (HiSeq2500). For the patterned flowcell models (Novaseq 6000), 2500 is more appropriate, default : 100
+    --get_supp                  BOOL    Publish bam files for supplementary aligments, default : false
 
 Bigwig parameter:
     --bigwig_profile            STRING  Bigwig profile using  bedtools (normalization by total library size) : "T1" will produce bigwig for T1 bed files only, one per replicates ; "T12" will also produce bigwig for merged T1+T2, one per replicates ; "T1rep" will also produce T1 bigwig for merged replicates ; "T12rep" will also produce T1+T2 bigwig for merged replicates (default : "T1")
@@ -291,6 +294,9 @@ Trimgalore adapter file        : ${params.trimgalore_adapters}
 ** Mapping and filtering parameters **
 Samtools filtering flag        : ${params.filtering_flag}
 Quality threshold              : ${params.bed_trimqual}
+Picard min dist for markdup    : ${params.picard_min_distance}
+Picard optical dup pixel dist  : ${params.picardoptdup_distance}
+Publish supplementary algnmts  : ${params.get_supp}
 
 ** Bigwig parameter **
 Deeptools bigwig bin size      : ${params.binsize}
@@ -637,21 +643,26 @@ process filterBam {
     """
     # Remove unmapped and supplementary, then mark duplicates and index
     samtools view -F ${params.filtering_flag} -f 2 -hb ${bam} > ${bam.baseName}.ok.bam
-    picard MarkDuplicatesWithMateCigar I=${bam.baseName}.ok.bam O=${bam.baseName}.unparsed.bam \
-        PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.MDmetrics.txt MINIMUM_DISTANCE=400 \
+    picard -Xms8g -Xmx8g MarkDuplicatesWithMateCigar I=${bam.baseName}.ok.bam O=${bam.baseName}.unparsed.bam \
+        PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.MDmetrics.txt MINIMUM_DISTANCE=${params.picard_min_distance} \
+        OPTICAL_DUPLICATE_PIXEL_DISTANCE=${params.picard_optdup_distance} REMOVE_DUPLICATES=true \
         CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam.baseName}.unparsed.picardMD.out 2>&1
     samtools index ${bam.baseName}.unparsed.bam
 
     # Convert bam to bed (usefull for the control input files which will not be parsed into 5 bed files through parseITRs process)
     bedtools bamtobed -i ${bam.baseName}.unparsed.bam > ${bam.baseName}.unparsed.bed
 
-    # Get the supplementary, then mark duplicates and index
-    samtools view -f 2048 -hb ${bam} > ${bam.baseName}.supp.bam
-    picard MarkDuplicatesWithMateCigar I=${bam.baseName}.supp.bam O=${bam.baseName}.unparsed.suppAlignments.bam \
-        PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.suppAlignments.MDmetrics.txt \
-        MINIMUM_DISTANCE=400 CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate \
-        VALIDATION_STRINGENCY=LENIENT >& ${bam.baseName}.supp.picardMD.out 2>&1
-    samtools index ${bam.baseName}.unparsed.suppAlignments.bam
+    if ${params.get_supp} :
+    then
+        # Get the supplementary, then mark duplicates and index
+        samtools view -f 2048 -hb ${bam} > ${bam.baseName}.supp.bam
+        picard -Xms8g -Xmx8g MarkDuplicatesWithMateCigar I=${bam.baseName}.supp.bam O=${bam.baseName}.unparsed.suppAlignments.bam \
+            PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.suppAlignments.MDmetrics.txt \
+            MINIMUM_DISTANCE=${params.picard_min_distance} CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate \
+            OPTICAL_DUPLICATE_PIXEL_DISTANCE=${params.picard_optdup_distance} REMOVE_DUPLICATES=true \
+            VALIDATION_STRINGENCY=LENIENT >& ${bam.baseName}.supp.picardMD.out 2>&1
+        samtools index ${bam.baseName}.unparsed.suppAlignments.bam
+    fi
     """
 }
 
@@ -678,7 +689,7 @@ process parseITRs {
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
     publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.txt"
     publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.bed"
-    publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.md*.bam*"
+    publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.bam*"
     publishDir "${params.outdir}/parse_itr",  mode: params.publishdir_mode, pattern: "*.flagstat"
     publishDir "${params.outdir}/parse_itr/log",  mode: params.publishdir_mode, pattern: "*.log"
     publishDir "${params.outdir}/parse_itr/log",  mode: params.publishdir_mode, pattern: "*.out"
@@ -688,12 +699,12 @@ process parseITRs {
     output:
         tuple val(sampleId), file("${bam}"), file('*.ssDNA_type1.bed'), file('*.ssDNA_type2.bed'), \
             file('*.dsDNA.bed'), file('*.dsDNA_strict.bed'), file('*.unclassified.bed')  into ITRBED
-        tuple val(sampleId), file("${bam}"), file("${bam}.bai"), file('*md.ssDNA_type1.bam'), file('*md.ssDNA_type1.bam.bai'), file('*md.ssDNA_type2.bam'), \
-            file('*md.ssDNA_type2.bam.bai'), file('*md.dsDNA.bam'), file('*md.dsDNA.bam.bai'), file('*md.dsDNA_strict.bam'), \
-            file('*md.dsDNA_strict.bam.bai'), file('*md.unclassified.bam'), file('*md.unclassified.bam.bai')  into ITRBAM
+        tuple val(sampleId), file("${bam}"), file("${bam}.bai"), file('*.ssDNA_type1.bam'), file('*.ssDNA_type1.bam.bai'), file('*.ssDNA_type2.bam'), \
+            file('*.ssDNA_type2.bam.bai'), file('*.dsDNA.bam'), file('*.dsDNA.bam.bai'), file('*.dsDNA_strict.bam'), \
+            file('*.dsDNA_strict.bam.bai'), file('*.unclassified.bam'), file('*.unclassified.bam.bai')  into ITRBAM
         tuple val(sampleId), file('*ssDNA_type1.bed') into T1BED, T1BEDrep
-        tuple val(sampleId), file('*.md.*bam'),file('*.md.*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
-        tuple val(sampleId), file('*.md.ssDNA_type1.bam'), file('*.md.ssDNA_type1.bam.bai') into T1BAMwithIDXfr, T1BAMwithIDXdt mode flatten
+        tuple val(sampleId), file('*.bam'),file('*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
+        tuple val(sampleId), file('*.ssDNA_type1.bam'), file('*.ssDNA_type1.bam.bai') into T1BAMwithIDXfr, T1BAMwithIDXdt mode flatten
         tuple val(sampleId), file('*norm_factors.txt'), file('*.ssDNA_type1.bed'), \
                 file('*.ssDNA_type12.bed') into BEDtoBW, BEDtoBWrep
         file('*.flagstat')
@@ -742,6 +753,7 @@ process parseITRs {
     samtools view -Shb ${bam}.dsDNA.RH.sam        >${bam}.dsDNA.US.bam
     samtools view -Shb ${bam}.dsDNA_strict.RH.sam >${bam}.dsDNA_strict.US.bam
     samtools view -Shb ${bam}.unclassified.RH.sam >${bam}.unclassified.US.bam
+    
     # Sort bam files
     picard SortSam I=${bam}.ssDNA_type1.US.bam  O=${bam}.ssDNA_type1.bam \
         SO=coordinate VALIDATION_STRINGENCY=LENIENT >& {bam}.ssDNA_type1.picardSS.out 2>&1
@@ -753,35 +765,21 @@ process parseITRs {
         SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.dsDNA_strict.picardSS.out 2>&1
     picard SortSam I=${bam}.unclassified.US.bam O=${bam}.unclassified.bam \
         SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.unclassified.picardSS.out 2>&1
-    # Mark duplicates
-    picard MarkDuplicatesWithMateCigar I=${bam}.ssDNA_type1.bam O=${bam}.md.ssDNA_type1.bam \
-        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.ssDNA_type1.MDmetrics.txt  CREATE_INDEX=false \
-        VALIDATION_STRINGENCY=LENIENT >& ${bam}.ssDNA_type1.picardMD.out 2>&1
-    picard MarkDuplicatesWithMateCigar I=${bam}.ssDNA_type2.bam O=${bam}.md.ssDNA_type2.bam \
-        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.ssDNA_type2.MDmetrics.txt  CREATE_INDEX=false \
-        VALIDATION_STRINGENCY=LENIENT >& ${bam}.ssDNA_type2.picardMD.out 2>&1
-    picard MarkDuplicatesWithMateCigar I=${bam}.dsDNA.bam O=${bam}.md.dsDNA.bam \
-        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.dsDNA.MDmetrics.txt  CREATE_INDEX=false \
-        VALIDATION_STRINGENCY=LENIENT >& ${bam}.dsDNA.picardMD.out 2>&1
-    picard MarkDuplicatesWithMateCigar I=${bam}.dsDNA_strict.bam O=${bam}.md.dsDNA_strict.bam \
-        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.dsDNA_strict.MDmetrics.txt  CREATE_INDEX=false \
-        VALIDATION_STRINGENCY=LENIENT >& ${bam}.dsDNA_strict.picardMD.out 2>&1
-    picard MarkDuplicatesWithMateCigar I=${bam}.unclassified.bam O=${bam}.md.unclassified.bam \
-        PG=Picard2.9.2_MarkDuplicates M=${outNameStem}.md.unclassified.MDmetrics.txt  CREATE_INDEX=false \
-        VALIDATION_STRINGENCY=LENIENT >& ${bam}.unclassified.picardMD.out 2>&1
+    
     # Index bam files
     samtools index ${bam}
-    samtools index ${bam}.md.ssDNA_type1.bam
-    samtools index ${bam}.md.ssDNA_type2.bam
-    samtools index ${bam}.md.dsDNA.bam
-    samtools index ${bam}.md.dsDNA_strict.bam
-    samtools index ${bam}.md.unclassified.bam
+    samtools index ${bam}.ssDNA_type1.bam
+    samtools index ${bam}.ssDNA_type2.bam
+    samtools index ${bam}.dsDNA.bam
+    samtools index ${bam}.dsDNA_strict.bam
+    samtools index ${bam}.unclassified.bam
+
 
     ## CHECK IF TYPE 1 BAM FILE IS EMPTY AFTER PARSING
-    samtools flagstat ${bam}.md.ssDNA_type1.bam > ${bam}.md.ssDNA_type1.bam.flagstat
-    if grep -q "^0 + 0 mapped" ${bam}.md.ssDNA_type1.bam.flagstat
+    samtools flagstat ${bam}.ssDNA_type1.bam > ${bam}.ssDNA_type1.bam.flagstat
+    if grep -q "^0 + 0 mapped" ${bam}.ssDNA_type1.bam.flagstat
     then
-        echo "Type 1 bam file ${bam}.md.ssDNA_type1.bam is empty. Check genome parameter."
+        echo "Type 1 bam file ${bam}.ssDNA_type1.bam is empty. Check genome parameter."
         exit 1
     fi
     """

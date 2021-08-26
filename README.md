@@ -121,8 +121,8 @@ nextflow run main.nf --help
 ````
 ````
 Input data parameters:
-    --inputcsv                  FILE    PATH TO INPUT CSV FILE (template and default : /work/${USER}/ssdsnextflowpipeline/tests/fastq/input.csv)
-    -params_file		FILE	PATH TO PARAMETERS JSON FILE (template and default : /work/${USER}/ssdsnextflowpipeline/conf/mm10.json)
+    --inputcsv                  FILE    PATH TO INPUT CSV FILE (template and default : /work/demassyie/ssdsnextflowpipeline/tests/fastq/input.csv)
+    -params_file                FILE    PATH TO PARAMETERS JSON FILE (template and default : /work/demassyie/ssdsnextflowpipeline/conf/mm10.json)
     --genomebase                DIR     PATH TO REFERENCE GENOMES (default : "/poolzfs/genomes")
     --genome                    STRING  REFERENCE GENOME NAME (must correspond to an existing genome in your config file, default : "mm10")
     --genomedir                 DIR     PATH TO GENOME DIRECTORY (required if your reference genome is not present in your config file)
@@ -130,9 +130,9 @@ Input data parameters:
     --genome_fasta              FILE    PATH TO FILE GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA (required if your reference genome is not present in your config file)
     --fai                       FILE    PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
     --genome2screen             STRING  GENOMES TO SCREEN FOR FASTQC SCREENING (default : ['mm10','hg19','dm3','dm6','hg38','sacCer2','sacCer3'], comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
-    --chrsize                   FILE    Chromosome sizes file, default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/mm10/mm10.chrom.sizes (downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.chrom.sizes 2021-01-11)
-    --hotspots                  DIR     PATH TO HOTSPOTS FILES DIRECTORY (set to "None" if none provided ; default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/hotspots)
-    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
+    --chrsize                   FILE    Chromosome sizes file, default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/mm10/mm10.chrom.sizes (downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.chrom.sizes 2021-01-11)
+    --hotspots                  DIR     PATH TO HOTSPOTS FILES DIRECTORY (set to "None" if none provided ; default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/hotspots)
+    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
 
 Output and temporary directory parameters:
     --name                      STRING  ANALYSIS NAME (default : "SSDS_pipeline")
@@ -141,9 +141,9 @@ Output and temporary directory parameters:
     --scratch                   DIR     PATH TO TEMPORARY DIRECTORY (default : scratch)
 
 Pipeline dependencies:
-    --src                       DIR     PATH TO SOURCE DIRECTORY (default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/scripts ; contains perl scripts)
-    --custom_bwa                EXE     PATH TO CUSTOM BWA EXEC (default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/bwa_0.7.12)
-    --custom_bwa_ra             EXE     PATH TO CUSTOM BWA_SRA EXEC (default : /work/${USER}/ssdsnextflowpipeline/accessoryFiles/SSDS/bwa_ra_0.7.12)
+    --src                       DIR     PATH TO SOURCE DIRECTORY (default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/scripts ; contains perl scripts)
+    --custom_bwa                EXE     PATH TO CUSTOM BWA EXEC (default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/bwa_0.7.12)
+    --custom_bwa_ra             EXE     PATH TO CUSTOM BWA_SRA EXEC (default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/bwa_ra_0.7.12)
 
 Trimming parameters:
     --with_trimgalore           BOOL    Use trim-galore instead of Trimmomatic for quality trimming process (default : false)
@@ -155,12 +155,15 @@ Trimming parameters:
     --trim_cropR2               INT     fastx : Cut the R2 read to that specified length (default 50)
     --trim_slidingwin           STRING  trimmomatic : perform a sliding window trimming, cutting once the average quality within the window falls below a threshold (default "4:15")
     --trim_illumina_clip        STRING  trimmomatic : Cut adapter and other illumina-specific sequences from the read (default "2:20:10")
-    --trimmomatic_adapters      FILE    PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default /work/${USER}/ssdsnextflowpipeline/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
+    --trimmomatic_adapters      FILE    PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default /work/demassyie/ssdsnextflowpipeline/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
 
 Mapping parameters:
     --with_multimap             BOOL    Keep multimapping reads from bam (default : false)
-    --bamPGline                 STRING  bam header (default '@PG\tID:ssDNAPipeline2.0_PAUFFRET')
+    --bamPGline                 STRING  bam header (default '@PG        ID:ssDNAPipeline2.0_PAUFFRET')
     --filtering_flag            INT     SAM flag for filtering bam files (default : 2052 ; see https://broadinstitute.github.io/picard/explain-flags.html)
+    --picard_min_distance       INT     Picard parameter for marking duplicates (--MINIMUM_DISTANCE) :  width of the window to search for duplicates of a given alignment, default : -1 (twice the first read's read length)
+    --picard_optdup_distance    INT     Picard parameter for marking duplicates (--OPTICAL_DUPLICATE_PIXEL_DISTANCE) : The maximum offset between two duplicate clusters in order to consider them optical duplicates. The default is appropriate for unpatterned versions of the Illumina platform (HiSeq2500). For the patterned flowcell models (Novaseq 6000), 2500 is more appropriate, default : 100
+    --get_supp                  BOOL    Publish bam files for supplementary aligments, default : false
 
 Bigwig parameter:
     --bigwig_profile            STRING  Bigwig profile using  bedtools (normalization by total library size) : "T1" will produce bigwig for T1 bed files only, one per replicates ; "T12" will also produce bigwig for merged T1+T2, one per replicates ; "T1rep" will also produce T1 bigwig for merged replicates ; "T12rep" will also produce T1+T2 bigwig for merged replicates (default : "T1")
@@ -193,7 +196,7 @@ Optional IDR analysis parameters (ENCODE procedure, see https://github.com/ENCOD
 QC parameters:
     --with_ssds_multiqc         BOOL    RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
     --multiqc_dev_conda_env     DIR     PATH TO MULTIQC-DEV CONDA ENVIRONMENT (used when --with_ssds-multiqc is true ; default : multiqc_dev)
-    --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : /work/${USER}/ssdsnextflowpipeline/multiqc_config.yaml)
+    --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : /work/demassyie/ssdsnextflowpipeline/multiqc_config.yaml)
 
 Nextflow Tower parameter:
     -with-tower                 BOOL    Enable job monitoring with Nextflow tower (https://tower.nf/)
