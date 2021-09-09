@@ -18,7 +18,7 @@ BASE_DIRECTORY="/home/${USER}/work/results"
 CONF="${PIPELINE_DIRECTORY}/conf/igh.config"
 GENOME_PROFILE="${PIPELINE_DIRECTORY}/conf/mm10.json"
 CENV="/home/${USER}/work/bin/miniconda3/envs/nextflow_dev"
-JOBNAME='SSDS_main'
+now=`date +%y-%m-%d-%T`
 INPUT=""
 OPTIONS="-profile conda "
 TEST="0"
@@ -29,7 +29,20 @@ PARAMS_FILE="${PIPELINE_DIRECTORY}/conf/mm10.config"
 while getopts hp:b:n:c:a:i:o:t:f:g: flag
 do
 	case "${flag}" in
-		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; echo "Options : "; echo "-h display help message"; echo "-i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) "; echo "-g Absolute path to the genome config file (default : ${GENOME_PROFILE})" ;echo "-p Absolute path to ssds nextflow pipeline base directory (default : ${PIPELINE_DIRECTORY})"; echo "-b Absolute path to base directory where the output directory will be created (default : ${BASE_DIRECTORY})"; echo "-n Analysis name (default : ${ANALYSIS_NAME}) INFO : by default, this parameter will match the --name option in nextflow command line"; echo "-c Absolute path to IGH cluster configuration file (default : ${CONF})"; echo "-a Absolute path to conda environment for nextflow (default : ${CENV})"; echo "-o Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; echo "-t set to 1 if running pipeline on test data located in ${PIPELINE_DIRECTORY}/tests/fastq (default : ${TEST})"; echo "-f set to 1 to force pipeline to run without checking resume/output directory (default : ${FORCE})" ; echo "INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir)"; echo ""; exit 0;;
+		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; \
+		   echo "Options : "; echo "-h display help message"; \
+		   echo "-i Absolute path to input csv file (REQUIRED except in case of run test on test dataset) "; \
+		   echo "-g Absolute path to the genome config file (default : ${GENOME_PROFILE})" ; \
+		   echo "-p Absolute path to ssds nextflow pipeline base directory (default : ${PIPELINE_DIRECTORY})"; \
+		   echo "-b Absolute path to base directory where the output directory will be created (default : ${BASE_DIRECTORY})"; \
+		   echo "-n Analysis name (default : ${ANALYSIS_NAME}) INFO : by default, this parameter will match the --name option in nextflow command line"; \
+		   echo "-c Absolute path to IGH cluster configuration file (default : ${CONF})"; \
+		   echo "-a Absolute path to conda environment for nextflow (default : ${CENV})"; \
+		   echo "-o Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; \
+		   echo "-t set to 1 if running pipeline on test data located in ${PIPELINE_DIRECTORY}/tests/fastq (default : ${TEST})"; \
+		   echo "-f set to 1 to force pipeline to run without checking resume/output directory (default : ${FORCE})" ; \
+		   echo "INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir)"; \
+		   echo ""; exit 0;;
 		p) PIPELINE_DIRECTORY=${OPTARG};if [ ! -d ${PIPELINE_DIRECTORY} ]; then echo "Directory ${PIPELINE_DIRECTORY} not found!" ; exit 0; fi;;
 		b) BASE_DIRECTORY=${OPTARG};;
 		n) ANALYSIS_NAME=${OPTARG};;
@@ -124,7 +137,7 @@ conda activate ${CENV}
 #Run pipeline
 echo "Run pipeline !"
 if [ ${TEST} == "0" ]; then
-echo "Running SSDS pipeline from ${PIPELINE_DIRECTORY} on ${INPUT##*/} data within ${CENV##*/} conda environment. Check output directory ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir"
+echo "Running SSDS pipeline from ${PIPELINE_DIRECTORY} on ${INPUT##*/} data within ${CENV##*/} conda environment. Check output directory ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir/"
 fi 
 
 #If running pipeline on test dataset, create relevant input csv file
@@ -145,8 +158,9 @@ fi
 #OPTIONBASE="--with_control --satcurve false --kbrick_bigwig false -with-tower --bigwig_profile T12rep  --genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --nb_replicates 2 --with_ssds_multiqc --multiqc_dev_conda_env /work/demassyie/bin/miniconda2/envs/SSDSnextflowPipeline -resume"
 #OPTIONBASE="--genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --binsize 25  -resume"
 OPTIONBASE=""
+JOBNAME="SSDS_main_${ANALYSIS_NAME}_${now}"
 
-sbatch -p computepart -J ${JOBNAME} --export=ALL -n 1 --mem 7G -t 5-0:0  \
+sbatch -p computepart -J ${JOBNAME} -o %x.%j.out --export=ALL -n 1 --mem 7G -t 5-0:0  \
 --wrap "export MKL_NUM_THREADS=1 ; export NUMEXPR_NUM_THREADS=1 ; export OMP_NUM_THREADS=1 ; \
 nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} -params-file ${GENOME_PROFILE} --name ${ANALYSIS_NAME} --outdir ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"
 

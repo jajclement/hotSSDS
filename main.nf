@@ -295,7 +295,7 @@ Trimgalore adapter file        : ${params.trimgalore_adapters}
 Samtools filtering flag        : ${params.filtering_flag}
 Quality threshold              : ${params.bed_trimqual}
 Picard min dist for markdup    : ${params.picard_min_distance}
-Picard optical dup pixel dist  : ${params.picardoptdup_distance}
+Picard optical dup pixel dist  : ${params.picard_optdup_distance}
 Publish supplementary algnmts  : ${params.get_supp}
 
 ** Bigwig parameter **
@@ -603,7 +603,14 @@ process bwaAlign {
         echo "Bam file ${sampleId}.sorted.bam is empty. Check genome parameter."
         exit 1
     fi
-
+    
+    ## MARK DUPLICATES TO HAVE STATISTICS ABOUT DUPLICATION
+    picard -Xms8g -Xmx8g MarkDuplicatesWithMateCigar I=${sampleId}.sorted.bam O=${sampleId}.sorted.md.bam \
+        PG=Picard2.9.2_MarkDuplicates M=${sampleId}.sorted.md.txt MINIMUM_DISTANCE=${params.picard_min_distance} \
+        OPTICAL_DUPLICATE_PIXEL_DISTANCE=${params.picard_optdup_distance} REMOVE_DUPLICATES=false \
+        CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate VALIDATION_STRINGENCY=LENIENT >& ${sampleId}.sorted.md.out 2>&1
+    samtools flagstat ${sampleId}.sorted.md.bam > ${sampleId}.sorted.md.bam.flagstat
+ 
     ## REMOVE MULTIMAPPERS IF OPTION --with_multimap IS FALSE
     ## ! It's important that the final bam files are named *.sorted.bam for the next processes.
     if [[ ${params.with_multimap} == "false" ]]
@@ -699,12 +706,12 @@ process parseITRs {
     output:
         tuple val(sampleId), file("${bam}"), file('*.ssDNA_type1.bed'), file('*.ssDNA_type2.bed'), \
             file('*.dsDNA.bed'), file('*.dsDNA_strict.bed'), file('*.unclassified.bed')  into ITRBED
-        tuple val(sampleId), file("${bam}"), file("${bam}.bai"), file('*.ssDNA_type1.bam'), file('*.ssDNA_type1.bam.bai'), file('*.ssDNA_type2.bam'), \
-            file('*.ssDNA_type2.bam.bai'), file('*.dsDNA.bam'), file('*.dsDNA.bam.bai'), file('*.dsDNA_strict.bam'), \
-            file('*.dsDNA_strict.bam.bai'), file('*.unclassified.bam'), file('*.unclassified.bam.bai')  into ITRBAM
+        tuple val(sampleId), file("${bam}"), file("${bam}.bai"), file('*.f.ssDNA_type1.bam'), file('*.f.ssDNA_type1.bam.bai'), file('*.f.ssDNA_type2.bam'), \
+            file('*.f.ssDNA_type2.bam.bai'), file('*.f.dsDNA.bam'), file('*.f.dsDNA.bam.bai'), file('*.f.dsDNA_strict.bam'), \
+            file('*.f.dsDNA_strict.bam.bai'), file('*.f.unclassified.bam'), file('*.f.unclassified.bam.bai')  into ITRBAM
         tuple val(sampleId), file('*ssDNA_type1.bed') into T1BED, T1BEDrep
-        tuple val(sampleId), file('*.bam'),file('*bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
-        tuple val(sampleId), file('*.ssDNA_type1.bam'), file('*.ssDNA_type1.bam.bai') into T1BAMwithIDXfr, T1BAMwithIDXdt mode flatten
+        tuple val(sampleId), file('*.f.*.bam'),file('*.f.*.bam.bai') into BAMwithIDXfr, BAMwithIDXss, BAMwithIDXdt mode flatten
+        tuple val(sampleId), file('*.f.ssDNA_type1.bam'), file('*.f.ssDNA_type1.bam.bai') into T1BAMwithIDXfr, T1BAMwithIDXdt mode flatten
         tuple val(sampleId), file('*norm_factors.txt'), file('*.ssDNA_type1.bed'), \
                 file('*.ssDNA_type12.bed') into BEDtoBW, BEDtoBWrep
         file('*.flagstat')
@@ -755,31 +762,34 @@ process parseITRs {
     samtools view -Shb ${bam}.unclassified.RH.sam >${bam}.unclassified.US.bam
     
     # Sort bam files
-    picard SortSam I=${bam}.ssDNA_type1.US.bam  O=${bam}.ssDNA_type1.bam \
-        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& {bam}.ssDNA_type1.picardSS.out 2>&1
-    picard SortSam I=${bam}.ssDNA_type2.US.bam  O=${bam}.ssDNA_type2.bam \
+    picard SortSam I=${bam}.ssDNA_type1.US.bam  O=${bam}.f.ssDNA_type1.bam \
+        SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.ssDNA_type1.picardSS.out 2>&1
+    picard SortSam I=${bam}.ssDNA_type2.US.bam  O=${bam}.f.ssDNA_type2.bam \
         SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.ssDNA_type2.picardSS.out 2>&1
-    picard SortSam I=${bam}.dsDNA.US.bam O=${bam}.dsDNA.bam \
+    picard SortSam I=${bam}.dsDNA.US.bam O=${bam}.f.dsDNA.bam \
         SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.dsDNA.picardSS.out 2>&1
-    picard SortSam I=${bam}.dsDNA_strict.US.bam O=${bam}.dsDNA_strict.bam \
+    picard SortSam I=${bam}.dsDNA_strict.US.bam O=${bam}.f.dsDNA_strict.bam \
         SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.dsDNA_strict.picardSS.out 2>&1
-    picard SortSam I=${bam}.unclassified.US.bam O=${bam}.unclassified.bam \
+    picard SortSam I=${bam}.unclassified.US.bam O=${bam}.f.unclassified.bam \
         SO=coordinate VALIDATION_STRINGENCY=LENIENT >& ${bam}.unclassified.picardSS.out 2>&1
     
     # Index bam files
     samtools index ${bam}
-    samtools index ${bam}.ssDNA_type1.bam
-    samtools index ${bam}.ssDNA_type2.bam
-    samtools index ${bam}.dsDNA.bam
-    samtools index ${bam}.dsDNA_strict.bam
-    samtools index ${bam}.unclassified.bam
-
+    samtools index ${bam}.f.ssDNA_type1.bam
+    samtools index ${bam}.f.ssDNA_type2.bam
+    samtools index ${bam}.f.dsDNA.bam
+    samtools index ${bam}.f.dsDNA_strict.bam
+    samtools index ${bam}.f.unclassified.bam
+    
+    # Remove temporary bam and sam files
+    rm -rf *.US.bam
+    rm -rf *.sam
 
     ## CHECK IF TYPE 1 BAM FILE IS EMPTY AFTER PARSING
-    samtools flagstat ${bam}.ssDNA_type1.bam > ${bam}.ssDNA_type1.bam.flagstat
-    if grep -q "^0 + 0 mapped" ${bam}.ssDNA_type1.bam.flagstat
+    samtools flagstat ${bam}.f.ssDNA_type1.bam > ${bam}.f.ssDNA_type1.bam.flagstat
+    if grep -q "^0 + 0 mapped" ${bam}.f.ssDNA_type1.bam.flagstat
     then
-        echo "Type 1 bam file ${bam}.ssDNA_type1.bam is empty. Check genome parameter."
+        echo "Type 1 bam file ${bam}.f.ssDNA_type1.bam is empty. Check genome parameter."
         exit 1
     fi
     """
@@ -1067,8 +1077,14 @@ if (params.with_control) {
                 if (\$Q[0] >= ${params.bed_trimqual} && \$Q[1] >= ${params.bed_trimqual})' ${ip_bed} >${ip_Q30_bed}
             perl -lane '@F = split(/\\t/,\$_); print join("\\t",@F) if (\$F[4] >= ${params.bed_trimqual} )' ${ct_bed} >${ct_Q30_bed}
             # Bed shuffling
-            shuf ${ip_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ip_Q30_shuf_bed}
-            shuf ${ct_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ct_Q30_shuf_bed}
+            if [ ${params.genome_name} == "mm10" ]
+            then
+                shuf ${ip_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ip_Q30_shuf_bed}
+                shuf ${ct_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ct_Q30_shuf_bed}
+            else
+                shuf ${ip_Q30_bed} >${ip_Q30_shuf_bed}
+                shuf ${ct_Q30_bed} >${ct_Q30_shuf_bed}
+            fi
             """
     }
 
@@ -1095,6 +1111,7 @@ if (params.with_control) {
         publishDir "${params.outdir}/peaks",                  mode: params.publishdir_mode, pattern: "*.macs2.log"
         publishDir "${params.outdir}/finalpeaks",            mode: params.publishdir_mode, pattern: "*finalPeaks_noIDR.bed"
         publishDir "${params.outdir}/finalpeaks",            mode: params.publishdir_mode, pattern: "*finalPeaks_noIDR.xls"
+	publishDir "${params.outdir}/peaks",                  mode: params.publishdir_mode, pattern: "*"
         input:
             tuple val(id_ip), val(id_ct), path(ip_bed), path(ct_bed), val(shuffle_percent) from SQ30BED_satcurve_ch
         output:
@@ -1105,6 +1122,7 @@ if (params.with_control) {
             tuple val(id_ip), file(ip_bed), file("*peaks.bed") optional true into ALLPEAKSTOPP, ALLPEAKSTOPP2
             stdout into gsize
             val 'ok' into callPeaks_ok
+	    path("*")
             tuple val(id_ip), path("*finalPeaks_noIDR.bed") optional true into FINALPEAKSNOIDR
         script:
         """
@@ -1211,7 +1229,12 @@ else {
             perl -lane '@F = split(/\\t/,\$_); @Q = split(/_/,\$F[3]); print join("\\t",@F) \
                     if (\$Q[0] >= ${params.bed_trimqual} && \$Q[1] >= ${params.bed_trimqual})' ${ip_bed} >${ip_Q30_bed}
             # Bed shuffling
-            shuf ${ip_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ip_Q30_shuf_bed}
+            if [ ${params.genome_name} == "mm10" ]
+            then
+                shuf ${ip_Q30_bed} |grep -P '^chr[0123456789IVLXYZW]+\\s' >${ip_Q30_shuf_bed}
+            else
+                shuf ${ip_Q30_bed}>${ip_Q30_shuf_bed}
+            fi
             """
     }
 
@@ -1239,6 +1262,7 @@ else {
         publishDir "${params.outdir}/peaks",                  mode: params.publishdir_mode, pattern: "*.macs2.log"
         publishDir "${params.outdir}/finalpeaks",             mode: params.publishdir_mode, pattern: "*finalPeaks_noIDR.bed"
         publishDir "${params.outdir}/finalpeaks",             mode: params.publishdir_mode, pattern: "*finalPeaks_noIDR.xls"
+	publishDir "${params.outdir}/peaks",		      mode: params.publishdir_mode, pattern: "*"
         input:
             tuple val(id_ip), path(ip_bed), val(shuffle_percent) from SQ30BED_satcurve_ch
         output:
@@ -1246,6 +1270,7 @@ else {
             path("*peaks*.xls") optional true
             path("*peaks*.bedgraph") optional true
             path("*.macs2.log")
+	    path("*")
             tuple val(id_ip), file(ip_bed), file("*peaks.bed") optional true into ALLPEAKSTOPP, ALLPEAKSTOPP2
             stdout into gsize
             val 'ok' into callPeaks_ok
@@ -1408,35 +1433,42 @@ if (params.hotspots == "None") {
     ITRBAM
         .combine(FINALPEAKSNOIDR)
         .combine(SSDSreport2ssdsmultiqc2)
-        .map { it -> [ it[0].split('_')[0..-1].join('_'),it[1], it[2], it[3], it[4], it[5], it[6], it[7], it[8], it[9], it[10], it[11], it[12], it[13], it[14], it[15], it[16] ] }
-        .groupTuple(by: [0])
+        .map { it -> [ it[0].split('_')[0..-2].join('_'),it[1], it[2], it[3], it[4], it[5], it[6], it[7], it[8], it[9], it[10], it[11], it[12], it[13], it[14], it[15].split('_')[0..-2].join('_'), it[16] ] }
+        .filter { it[0] == it[13] && it[0] == it[15] }
         .map { it -> it[0,1,2,3,4,5,6,7,8,9,10,11,12,14,16].flatten() }
         .set { ITRBAMANDPEAKS }
+	//.into { ITRBAMANDPEAKS ; test2 }
+
+    // For debugging
+    //test2
+	//.println()
 
     process computeFRIP {
         tag "${sampleId}"
         label 'process_low'
         conda 'bioconda::deeptools=3.5.1'
         publishDir "${params.outdir}/multiqc",  mode: params.publishdir_mode, patten: '*SSDSreport*'
+	publishDir "${params.outdir}/frip",	mode: params.publishdir_mode, patten: '*'
         input:
             set val(sampleId), file(bam), file(bai), file(T1), file(T1bai), file(T2), file(T2bai), file(ds), file(dsbai), \
                 file(dss), file(dssbai), file(unc), file(uncbai), file(peaks), file(report) from ITRBAMANDPEAKS
         output:
             set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqcdenovo
+	    path("*")
         script:
         """
         # For each bam type, execute python script to compute FRIP score with Deeptools and print results to text file
-        #python ${get_frip_script} ${peaks} ${bam} ${task.cpus} total ${params.genome_name} ${sampleId}_total.frip #Need to edit custom ssds multiQC library to include this in SSDS multiqc  #todo 
-        python ${get_frip_script} ${peaks} ${T1} ${task.cpus} ssType1 ${params.genome_name} ${sampleId}_T1.frip
-        python ${get_frip_script} ${peaks} ${T2} ${task.cpus} ssType2 ${params.genome_name} ${sampleId}_T2.frip
+        python ${get_frip_script} ${peaks} ${bam} ${task.cpus} total ${params.genome_name} ${sampleId}_total.frip #Need to edit custom ssds multiQC library to include this in SSDS multiqc  #todo 
+        python ${get_frip_script} ${peaks} ${T1} ${task.cpus} ssType1 ${params.genome_name} ${sampleId}_type1.frip
+        python ${get_frip_script} ${peaks} ${T2} ${task.cpus} ssType2 ${params.genome_name} ${sampleId}_type2.frip
         python ${get_frip_script} ${peaks} ${ds} ${task.cpus} dsDNA ${params.genome_name} ${sampleId}_ds.frip
         #python ${get_frip_script} ${peaks} ${dss} ${task.cpus} dsDNA_strict ${params.genome_name} ${sampleId}_dss.frip #Need to edit ssds multiQC library to include this in SSDS multiqc  #todo
 	python ${get_frip_script} ${peaks} ${dss} ${task.cpus} dsDNA ${params.genome_name} ${sampleId}_dss.frip
         python ${get_frip_script} ${peaks} ${unc} ${task.cpus} unclassified ${params.genome_name} ${sampleId}_unc.frip
 
         # Concatenate results FRIP text files with SSDS QC report from process 13
-        #cat ${report} ${sampleId}_total.frip ${sampleId}_T1.frip ${sampleId}_T2.frip ${sampleId}_ds.frip ${sampleId}_dss.frip ${sampleId}_unc.frip > ${sampleId}_denovo.SSDSreport.tab 
-        cat ${report} ${sampleId}_T1.frip ${sampleId}_T2.frip ${sampleId}_ds.frip ${sampleId}_dss.frip ${sampleId}_unc.frip > ${sampleId}_denovo.SSDSreport.tab
+        #cat ${report} ${sampleId}_total.frip ${sampleId}_type1.frip ${sampleId}_type2.frip ${sampleId}_ds.frip ${sampleId}_dss.frip ${sampleId}_unc.frip > ${sampleId}_denovo.SSDSreport.tab 
+        cat ${report} ${sampleId}_type1.frip ${sampleId}_type2.frip ${sampleId}_ds.frip ${sampleId}_dss.frip ${sampleId}_unc.frip > ${sampleId}_denovo.SSDSreport.tab
 	"""
     }
 
@@ -1911,7 +1943,12 @@ if (params.with_idr && params.nb_replicates == 2 ) {
 //***************************************************************************//        
 
 // PROCESS 23 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
-// What it does : perform the peak centering using Kevin Brick's method
+// What it does : perform the peak centering using Kevin Brick's method :
+// 1. Recenters the peaks by the median of the F/R dists
+// 2. Calculate the in-peak background in a number of ways.
+// 3. Output recentered peaks with strength. Strength is normalized by the number
+//    of wrong-direction fragments (i.e. REV to left, FWD to right) and expressed
+//    as RPKM, using the total normalized in-hotspot tag count as a denominator.
 // Input : final peak set bed file and mapped T1 bed file
 // Output : bedgraph and tab
 // External tool : Perl script from K. Brick (original pipeline, 2012)
@@ -1919,13 +1956,15 @@ if (!params.with_idr) {
     process normalizePeaks {
         tag "${id_ip}"
         label 'process_basic'
-        publishDir "${params.outdir}/normpeaks",  mode: params.publishdir_mode, pattern: '*.bedgraph'
-        publishDir "${params.outdir}/normpeaks",  mode: params.publishdir_mode, pattern: '*.tab'
-        publishDir "${params.outdir}/normpeaks/log",  mode: params.publishdir_mode, pattern: '*.log'
+        publishDir "${params.outdir}/normpeaks",        mode: params.publishdir_mode, pattern: '*.bedgraph'
+        publishDir "${params.outdir}/normpeaks",        mode: params.publishdir_mode, pattern: '*.tab'
+        publishDir "${params.outdir}/normpeaks",        mode: params.publishdir_mode, pattern: '*.bw'
+        publishDir "${params.outdir}/normpeaks/log",    mode: params.publishdir_mode, pattern: '*.log'
         input:
             tuple val(id_ip), file(ip_bed), file(peaks_bed) from ALLPEAKSTOPP
         output:
-            tuple val(id_ip), file("*normpeaks.bedgraph"), file("*normpeaks.tab")
+           tuple val(id_ip), file("*normpeaks.bedgraph"), file("*normpeaks.tab"), \
+                 file("*normpeaks.no_overlapping.bedgraph"), file("*normpeaks.no_overlapping.bw") 
             file('*.normpeaks.log')
             val('ok') into normalizePeaks_ok
         script:
@@ -1934,6 +1973,15 @@ if (!params.with_idr) {
         perl ${norm_script} --bed ${peaks_bed} \
             --in ${ip_bed} --out ${id_ip}.no-idr.normpeaks.bedgraph \
             --rc --rev_src ${reverse_script} > ${id_ip}.no-idr.normpeaks.log 2>&1
+
+        # Convert bedgraph to bigwig
+        # First filter out overlapping peaks (see https://groups.google.com/a/soe.ucsc.edu/g/genome/c/_UqYFuzBwL4)
+        cat ${id_ip}.no-idr.normpeaks.bedgraph \
+            | awk \'BEGIN{OFS=\"\t\"}{if (NR>1 && prev_chr==\$1 && prev_chr_e<=\$2) {print \$0}; prev_chr=\$1; prev_chr_e=\$3;}\' \
+            > ${id_ip}.no-idr.normpeaks.no_overlapping.bedgraph
+        
+        bedGraphToBigWig ${id_ip}.no-idr.normpeaks.no_overlapping.bedgraph ${params.chrsize}  \
+            ${id_ip}.no-idr.normpeaks.no_overlapping.bw > ${id_ip}.no-idr.bedGraphToBigWig.log 2>&1
         """
     }
 
@@ -1976,20 +2024,27 @@ if (!params.with_idr) {
 
 else if ( params.nb_replicates == 2 ) {
 // PROCESS 23 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
-// What it does : perform the peak centering using Kevin Brick's method
+// What it does : perform the peak centering using Kevin Brick's method :
+// 1. Recenters the peaks by the median of the F/R dists
+// 2. Calculate the in-peak background in a number of ways.
+// 3. Output recentered peaks with strength. Strength is normalized by the number
+//    of wrong-direction fragments (i.e. REV to left, FWD to right) and expressed
+//    as RPKM, using the total normalized in-hotspot tag count as a denominator.
 // Input : final peak set bed file and mapped T1 bed file
 // Output : bedgraph and tab
 // External tool : Perl script from K. Brick (original pipeline, 2012)
    process normalizePeaks_idr {
         tag "${id_ip}"
         label 'process_basic'
-        publishDir "${params.outdir}/normpeaks",  mode: params.publishdir_mode, pattern: '*.bedgraph'
-        publishDir "${params.outdir}/normpeaks",  mode: params.publishdir_mode, pattern: '*.tab'
-        publishDir "${params.outdir}/normpeaks/log",  mode: params.publishdir_mode, pattern: '*.log'
+        publishDir "${params.outdir}/normpeaks",        mode: params.publishdir_mode, pattern: '*.bedgraph'
+        publishDir "${params.outdir}/normpeaks",        mode: params.publishdir_mode, pattern: '*.tab'
+        publishDir "${params.outdir}/normpeaks",        mode: params.publishdir_mode, pattern: '*.bw'
+        publishDir "${params.outdir}/normpeaks/log",    mode: params.publishdir_mode, pattern: '*.log'
         input:
             tuple val(id_ip), file(t1_rep1), file(t1_rep2), file(peaks_bed) from ALLPEAKSTOPPIDR
         output:
-            tuple val(id_ip), file("*normpeaks.bedgraph"), file("*normpeaks.tab")
+            tuple val(id_ip), file("*normpeaks.bedgraph"), file("*normpeaks.tab"), \
+                file("*normpeaks.no_overlapping.bedgraph"), file("*normpeaks.no_overlapping.bw")
             file('*.normpeaks.log')
             val('ok') into normalizePeaks_idr_ok
         script:
@@ -2001,6 +2056,15 @@ else if ( params.nb_replicates == 2 ) {
         perl ${norm_script} --bed ${peaks_bed} \
             --in ${id_ip}_rep1_rep2.bed --out ${id_ip}.idr.normpeaks.bedgraph \
             --rc --rev_src ${reverse_script} > ${id_ip}.idr.normpeaks.log 2>&1
+
+        # Convert bedgraph to bigwig
+        # First filter out overlapping peaks (see https://groups.google.com/a/soe.ucsc.edu/g/genome/c/_UqYFuzBwL4) 
+        cat ${id_ip}.idr.normpeaks.bedgraph \
+            | awk \'BEGIN{OFS=\"\t\"}{if (NR>1 && prev_chr==\$1 && prev_chr_e<=\$2) {print \$0}; prev_chr=\$1; prev_chr_e=\$3;}\' \
+             > ${id_ip}.idr.normpeaks.no_overlapping.bedgraph
+        bedGraphToBigWig ${id_ip}.idr.normpeaks.no_overlapping.bedgraph ${params.chrsize} \
+            ${id_ip}.idr.normpeaks.no_overlapping.bw > ${id_ip}.idr.bedGraphToBigWig.log 2>&1
+ 
         """
     }
 }
@@ -2209,8 +2273,9 @@ process general_multiqc {
 	file('*')
     script:
     """
-    multiqc -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC \
-        ${params.outdir}/raw_fastqc ${params.outdir}/trim_fastqc \
+    multiqc -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC.sequencing_quality \
+        ${params.outdir}/raw_fastqc ${params.outdir}/trim_fastqc 
+    multiqc -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC..mapping_quality \
         ${params.outdir}/samstats ${params.outdir}/bigwig ${params.outdir}/fingerprint
     """
 }

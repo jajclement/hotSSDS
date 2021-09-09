@@ -524,7 +524,7 @@ sub printLocus{
 	my ($plCS,$plFrom,$plTo,$plName) = @_;
 
 	$plFrom = 1 if($plFrom < 1);
-	return "" if ($plCS !~ /^chr([0-9]|X|Y)+$/);
+	#return "" if ($plCS !~ /^chr([0-9]|X|Y)+$/); # 2021-09-03 Comment this line to more flexibility with genomes other than mouse
 	return "" if ($plFrom > $plTo);
 	return (join("\t",$plCS,$plFrom,$plTo,$plName)."\n");
 }

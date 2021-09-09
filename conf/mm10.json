@@ -13,7 +13,7 @@
 "trim_illuminaclip":"2:20:10",
 "with_multimap":false,
 "filtering_flag":"2052",
-"picard_optdup_distance":"100"
+"picard_optdup_distance":"100",
 "picard_min_distance":"-1",
 "get_supp":false,
 "bamPGline":"@PG\\tID:ssDNAPipeline2.0_PAUFFRET",
