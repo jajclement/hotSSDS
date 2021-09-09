@@ -649,7 +649,7 @@ process filterBam {
     script:
     """
     # Remove unmapped and supplementary, then mark duplicates and index
-    samtools view -F ${params.filtering_flag} -f 2 -hb ${bam} > ${bam.baseName}.ok.bam
+    samtools view -F ${params.filtering_flag} -f 2 -q ${params.bed_trimqual} -hb ${bam} > ${bam.baseName}.ok.bam
     picard -Xms8g -Xmx8g MarkDuplicatesWithMateCigar I=${bam.baseName}.ok.bam O=${bam.baseName}.unparsed.bam \
         PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.MDmetrics.txt MINIMUM_DISTANCE=${params.picard_min_distance} \
         OPTICAL_DUPLICATE_PIXEL_DISTANCE=${params.picard_optdup_distance} REMOVE_DUPLICATES=true \
