@@ -1,0 +1,1 @@
+chrom   chromStart      chromEnd        name    score   strand  signalValue     p-value q-value  localIDR        globalIDR       rep1_chromStart rep1_chromEnd   rep1_signalValue  rep2_chromStart  rep2_chromEnd   rep2_signalValue

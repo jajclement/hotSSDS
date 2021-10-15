@@ -103,6 +103,8 @@ fi
 #Go to the output directory
 cd ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir
 
+#Create output directory for slurm log files
+mkdir -p ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir/slurm
 
 #Check conda environment.
 echo "Checking conda environment..."
@@ -160,7 +162,7 @@ fi
 OPTIONBASE=""
 JOBNAME="SSDS_main_${ANALYSIS_NAME}_${now}"
 
-sbatch -p computepart -J ${JOBNAME} -o %x.%j.out --export=ALL -n 1 --mem 7G -t 5-0:0  \
+sbatch -p computepart -J ${JOBNAME} -o ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir/slurm/%x.%j.out --export=ALL -n 1 --mem 7G -t 5-0:0  \
 --wrap "export MKL_NUM_THREADS=1 ; export NUMEXPR_NUM_THREADS=1 ; export OMP_NUM_THREADS=1 ; \
 nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} -params-file ${GENOME_PROFILE} --name ${ANALYSIS_NAME} --outdir ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"
 
