@@ -154,7 +154,11 @@ Optional IDR analysis parameters (ENCODE procedure, see https://github.com/ENCOD
     --with_idr                  BOOL    Perform IDR analysis, only possible if nb_replicates=2 (default : false)
     --nb_replicates             INT     Number of replicates per sample (default : 2)
     --idr_peaktype              STRING  The peak file format for IDR (narrowPeak, regionPeak or broadPeak, default : "regionPeak")
-    --idr_threshold             FLOAT   idr p-value threshold (default : 0.1)
+    --idr_setup			STRING	Threshold profile for idr. This will define the thresholds for true replicates, pool replicates, self replicates r1 and self replicates r2. Profile "auto" is based on ENCODE guidelines and profile "custom" allows to set custom thresholds (see parameters --idr_threshold_r1 --idr_threshold_r2 --idr_threshold_truerep and --idr_threshold_poolrep ; default : auto)
+    --idr_threshold_r1		FLOAT	idr threshold for self replicates r1 (used if --idr_setup is "custom" only ; default : 0.05)
+    --idr_threshold_r2		FLOAT   idr threshold for self replicates r2 (used if --idr_setup is "custom" only ; default : 0.05)
+    --idr_threshold_truerep	FLOAT   idr threshold for true replicates (used if --idr_setup is "custom" only ; default : 0.05)
+    --idr_threshold_poolrep	FLOAT   idr threshold for pooled replicates (used if --idr_setup is "custom" only ; default : 0.01)
     --idr_rank                  INT     p.value or q.value (default : p.value)
     --idr_filtering_pattern     STRING  Regex for filtering bed files (default :"chr[1-9X]+" for mouse ; set ".*" to keep everything)
     --idr_macs_qv               FLOAT   Macs2 callpeak q-value parameter (default : -1)
@@ -244,6 +248,10 @@ params.fai = params.genome ? params.genomes[ params.genome ].fai ?: false : fals
 // Check input parameters conformity
 if(params.bigwig_profile != "T1" && params.bigwig_profile != "T12" && params.bigwig_profile != "T1rep" && params.bigwig_profile != "T12rep") {
     println("Error : --bigwig_profile parameter must be either T1 ; T12 ; T1rep or T12rep.")
+    exit 0
+}
+if(params.idr_setup != "auto" && params.idr_setup != "custom") {
+    println("Error : --idr_setup parameter must be either auto or custom.")
     exit 0
 }
 if(params.satcurve) {
