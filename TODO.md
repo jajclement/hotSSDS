@@ -4,6 +4,7 @@
 * Gzip output files ?
 * Comment runSatCurve.R script
 * Check the blist files from ENCODE IDR : what is it
+* Test the existence of genome index in case of new genomes
 
 ## Medium tasks
 * Update README with examples & output description
@@ -13,6 +14,7 @@
 * Set python and perl version in processes with own conda env
 * Developp MutliQC report
 * Formatting biblio 
+* Implement chipR process
 
 ## Big tasks
 * Implement a Global and pretty QC

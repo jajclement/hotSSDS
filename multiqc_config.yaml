@@ -2,52 +2,64 @@ fn_clean_exts:
     - '.gz'
     - '.fastq'
     - '.fq'
+    - '.bam'
+    - '_screen.txt'
+    - '.samstats.tab'
+    - '.idxstats.tab'
+    - '.N*_1.00pc0*'
+    - '.flagstat'
+    - '.md.flagstat'
+
+custom_logo: "/home/${USER}/work/ssdsnextflowpipeline/accessoryFiles/SSDS/logo/ighen.png"
+custom_logo_url: "https://igh.cnrs.fr/fr/recherche/departements/dynamique-du-genome/meiose-et-recombinaison#"
+custom_logo_title: "Institute Of Human Genetics"
+
+report_header_info:
+  - Contact E-mail: "paulineauffret88@gmail.com"
+
+title: "Quality control report for SSDS DMC1 ChiP-seq data"
 
 
-module_order:
-    - fastqc:
-        name: 'FastQC (raw)'
-        anchor: 'fastqc_raw'
-        path_filters:
-            - '*raw*fastqc.zip'
-    - fastq_screen:
-        name: 'Fastq screen'
-        anchor: 'fqscreen'
-        path_filters:
-            - '*screen.txt*'
-    - fastqc:
-        name: 'FastQC (trimmed)'
-        anchor: 'fastqc_trimmed'
-        info: 'This section of the report shows FastQC results after trimming.'
-        target: ''
-        path_filters:
-            - '*trim*fastqc.zip'
-    - samtools:
-        name: 'Samtools idxstats'
-        anchor: 'idxstats'
-        path_filters:
-            - '*idxstats.tab'
-    - samtools:
-        name: 'Samtools samstats'
-        anchor: 'samstats'
-        path_filters:
-            - '*samstats.tab'
-    - deeptools:
-        name: 'Deeptools bigwig'
-        anchor: 'deeptools'
-        path_filters:
-            - '*fingerprints*'
-modules:
-    - fastqc_raw
-    - fqscreen
-    - fastqc_trimmed
-    - idxstats
-    - samstats
-    - deeptools
+extra_fn_clean_exts:
+    - type: remove
+      pattern: .sorted
+    - type: remove
+      pattern: .unparsed
+    - type: remove
+      pattern: f.
+    - type: remove
+      pattern: .bam
+    - type: regex
+      pattern: "_T."
+    - type: remove
+      pattern: _crop
+    - type: remove
+      pattern: _trim
+    - type: remove
+      pattern: .md
 
-report_section_order:
-    fastqc_trimmed:
-        before: fastqc_raw
 
 exclude_modules:
     - cutadapt
+
+sp:
+  my_custom_content_image:
+    fn: "*Curve.png"
+ignore_images: false
+
+custom_data:
+  my_custom_content_image:
+    section_name: "Saturation Curve"
+    description: "The saturation curve shows the number of peaks called in progressively downsampled samples, function of the number of reads in the samples." 
+
+sp:
+  picard/markdups:
+    fn: "*.md.out"
+
+sp:
+  generalstats:
+    fn: "*.f*q*"
+
+sp:
+  macs2:
+    fn: '*peaks.xls'
