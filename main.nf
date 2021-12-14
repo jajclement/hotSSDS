@@ -245,6 +245,15 @@ params.genomedir = params.genome ? params.genomes[ params.genome ].genomedir ?: 
 params.genome_name = params.genome ? params.genomes[ params.genome ].genome_name ?: false : false
 params.fai = params.genome ? params.genomes[ params.genome ].fai ?: false : false
 
+// Check if the bwa index is present in the genome folder
+println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".amb", checkIfExists: true) ; println("Bwaindex .amb OK")
+println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".ann", checkIfExists: true) ; println("Bwaindex .ann OK")
+println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".bwt", checkIfExists: true) ; println("Bwaindex .bwt OK")
+println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".pac", checkIfExists: true) ; println("Bwaindex .pac OK")
+println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".sa", checkIfExists: true) ; println("Bwaindex .sa OK >>>> All BWAindex OK!!!")
+exit 0
+
+
 // Check input parameters conformity
 if(params.bigwig_profile != "T1" && params.bigwig_profile != "T12" && params.bigwig_profile != "T1rep" && params.bigwig_profile != "T12rep") {
     println("Error : --bigwig_profile parameter must be either T1 ; T12 ; T1rep or T12rep.")
@@ -2371,3 +2380,7 @@ workflow.onError {
     println "Oops... Pipeline execution stopped with the following message: ${workflow.errorMessage}"
     println "Error report: ${workflow.errorReport}"
 }
+
+
+
+
