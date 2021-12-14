@@ -1294,7 +1294,7 @@ else {
     // Also outputs genome size parameters (wil be used in post processes)
     process callPeaks {
         tag "${id_ip}"
-        label 'process_basic'
+        label 'process_medium'
         conda "${baseDir}/environment_callpeaks.yml"
         publishDir "${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype}/peaks", mode: params.publishdir_mode, pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/bed",               mode: params.publishdir_mode, pattern: "*1.00pc.0_peaks_sc.bed"
