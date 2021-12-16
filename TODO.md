@@ -4,6 +4,7 @@
 * Gzip output files ?
 * Comment runSatCurve.R script
 * Check the blist files from ENCODE IDR : what is it
+* Put bigwig into separate folders depending on their normalization factor (T1, T12, Tot)
 
 ## Medium tasks
 * Update README with examples & output description
