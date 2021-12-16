@@ -251,7 +251,7 @@ println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".a
 println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".bwt", checkIfExists: true) ; println("Bwaindex .bwt OK")
 println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".pac", checkIfExists: true) ; println("Bwaindex .pac OK")
 println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".sa", checkIfExists: true) ; println("Bwaindex .sa OK >>>> All BWAindex OK!!!")
-exit 0
+
 
 
 // Check input parameters conformity
