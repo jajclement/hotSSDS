@@ -302,10 +302,10 @@ This folder will contain the following directories :
 * **slurm** with log files for main process
 * **work** is the working directory for Nextflow
 
-The execution reports are in ``nxfReports`` folder created in your output directory.
-I recommend to look at ``qc/multiqc/*.multiQC.quality-control.report.html`` file first to have a look at sequencing, mapping, parsing quality.    
-Then you use the bigwig files in your favorite brower or online [IGV](https://igv.org/app/).    
-You can also look at the peaks in ``peaks/with[out]-input/finalpeaks`` .   
+The execution reports are in ``nxfReports`` folder created in your output directory.  
+I recommend to look at ``qc/multiqc/*.multiQC.quality-control.report.html`` file first to have a look at **sequencing, mapping, parsing quality.**   
+Then you use the **bigwig files** in your favorite brower or online [IGV](https://igv.org/app/).    
+You can also look at the **peaks** in ``peaks/with[out]-input/finalpeaks`` .   
 Then, you can run [ssdspostprocess pipeline](https://gitlab.igh.cnrs.fr/pauline.auffret/ssdspostprocess) to go deeper in the peaks analysis.  
 
 ## 7. Test data
