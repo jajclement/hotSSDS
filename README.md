@@ -303,7 +303,10 @@ This folder will contain the following directories :
 * **work** is the working directory for Nextflow
 
 The execution reports are in ``nxfReports`` folder created in your output directory.
-The QC reports are located in the multiqc folder.
+I recommend to look at ``qc/multiqc/*.multiQC.quality-control.report.html`` file first to have a look at sequencing, mapping, parsing quality.    
+Then you use the bigwig files in your favorite brower or online [IGV](https://igv.org/app/).    
+You can also look at the peaks in ``peaks/with[out]-input/finalpeaks`` .   
+Then, you can run [ssdspostprocess pipeline](https://gitlab.igh.cnrs.fr/pauline.auffret/ssdspostprocess) to go deeper in the peaks analysis.  
 
 ## 7. Test data
 You may want to test the installation before going with your own data. 
@@ -357,7 +360,7 @@ For example, for process **trimming**, the associated key is **a7/2b8da0** meani
 - The main causes of pipeline crashed are :    
     * Wrong parameters
     * iles not found
-    * Conda drama
+    * Conda drama (if one tool is not found, that means there is an error with conda. Check that pipeline runs using ``-profile conda``
     * Time/memory limits
     * Exotic parameters unforeseen behavior (if running on a new genome for instance)  
 
