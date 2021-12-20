@@ -16,6 +16,7 @@
 * Formatting biblio 
 * Implement chipR process
 * REVIEW NORMALIZATION OF BIGWIG *
+* Replicates order in input channel for IDR (it's random but need to keep track of file names)
 
 ## Big tasks
 * Implement a Global and pretty QC **currently implementating by Pauline 2021-12-14**
@@ -30,7 +31,6 @@
 * Pipeline do not resume properly when job cancelled by SLURM
 * Check the warnings from normalizePeaks process
 * Check the warnings from flagstat (publishDir impossible) in process parseITRs
-* Replicates order in input channel for IDR
 
 ## Features to consider
 * Downstream analyses integration **currently implementating by Pauline 2021-12-14**

@@ -165,13 +165,11 @@ Optional IDR analysis parameters (ENCODE procedure, see https://github.com/ENCOD
     --idr_macs_pv               FLOAT   Macs2 callpeak p-value parameter, if not -1, will overrule macs_qv, see macs2 doc (default : 0.1)
 
 QC parameters:
-    --with_ssds_multiqc         BOOL    RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
-    --multiqc_dev_conda_env     DIR     PATH TO MULTIQC-DEV CONDA ENVIRONMENT (used when --with_ssds-multiqc is true ; default : multiqc_dev)
+    --with_ssds_multiqc         BOOL    RUN SSDS MULTIQC (default : true)
     --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : /work/${USER}/ssdsnextflowpipeline/multiqc_config.yaml)
 
 Nextflow Tower parameter:
     -with-tower                 BOOL    Enable job monitoring with Nextflow tower (https://tower.nf/)
-    --tower_token               STRING  Nextflow tower key token (see https://tower.nf/ to create your account)
 
 =================================================================================================
 """.stripIndent()
@@ -221,6 +219,8 @@ def getPeaksBedFiles_script = "${params.src}/getPeaksBedFiles.pl" //Author Kevin
 def runSatCurve_script = "${params.src}/runSatCurve.R" //Author Pauline Auffret
 def encode_idr_script= "${params.src}/encode-dcc_chip-seq-pipeline2_src/encode_task_idr.py" //Author Jin Lee from https://github.com/ENCODE-DCC/chip-seq-pipeline2
 def get_frip_script = "${params.src}/compute_frip.py" //Author Pauline Auffret
+def plot_ssds_stat_script = "${params.src}/plotSSDSqc.R" //Author Pauline Auffret
+def runPlotSSDSqc_script = "${params.src}/runPlotSSDSqc.R" //Author Pauline Auffret
 
 // Check if input csv file exists
 if (params.inputcsv) { println("Checking input sample file...") ; input_ch = file(params.inputcsv, checkIfExists: true) } else { exit 1, 'Samples design file not specified!' }
@@ -232,7 +232,6 @@ if (params.blacklist && params.blacklist != "None") { println("Checking blacklis
 if (params.multiqc_configfile) { println("Checking multiqc_configfile...") ; f_multiqc_configfile = file(params.multiqc_configfile, checkIfExists: true) } ; println("Ok")
 if (params.trimgalore_adapters) { println("Checking trimgalore_adapters file...") ; f_trimgalore_adapters = file(params.trimgalore_adapters, checkIfExists: true) } ; println("Ok")
 if (params.trimmomatic_adapters) { println("Checking trimmomatic_adapters file...") ; f_blacklist = file(params.trimmomatic_adapters, checkIfExists: true) } ; println("Ok")
-if (params.with_ssds_multiqc && params.multiqc_dev_conda_env) { println("Checking multiqc_dev_conda_env directory...") ; d_multiqc_dev_conda_env = file(params.multiqc_dev_conda_env, checkIfExists: true ) } ; println("Ok")
 
 // Check if genome exists in the config file
 if (params.genomes && params.genome && !params.genomes.containsKey(params.genome)) {
@@ -347,9 +346,6 @@ Chromosome sizes file          : ${params.chrsize}
 BWA bin                        : ${params.custom_bwa}
 BWA-ra bin                     : ${params.custom_bwa_ra}
 BAM custom header              : ${params.bamPGline}
-SSDS multiQC dev bin           : ${params.custom_multiqc}
-SSDS multiQC custom conda env  : ${params.multiqc_dev_conda_env}
-Nextflow Tover token           : ${params.tower_token}
 Publish directory mode         : ${params.publishdir_mode}        
     
 """.stripIndent()
@@ -1133,7 +1129,7 @@ if (params.with_control) {
     process callPeaks_ct {
         tag "${id_ip}"
         label 'process_basic'
-        conda "${baseDir}/environment_callpeaks.yml"
+        conda "${baseDir}/conda_yml/environment_callpeaks.yml"
         publishDir "${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype}", mode: params.publishdir_mode, pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/bed",         mode: params.publishdir_mode, pattern: "*1.00pc.0_peaks_sc.bed"
         publishDir "${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/bed",         mode: params.publishdir_mode, pattern: "*summits.bed"
@@ -1292,7 +1288,7 @@ else {
     process callPeaks {
         tag "${id_ip}"
         label 'process_basic'
-        conda "${baseDir}/environment_callpeaks.yml"
+        conda "${baseDir}/conda_yml/environment_callpeaks.yml"
         publishDir "${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype}/peaks", mode: params.publishdir_mode, pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/bed",               mode: params.publishdir_mode, pattern: "*1.00pc.0_peaks_sc.bed"
         publishDir "${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/bed",               mode: params.publishdir_mode, pattern: "*.summits.bed"
@@ -1491,7 +1487,7 @@ if (params.hotspots == "None") {
     process computeFRIP {
         tag "${sampleId}"
         label 'process_low'
-        conda 'bioconda::deeptools=3.5.1'
+        conda "${baseDir}/conda_yml/environment_deeptools.yml"
         publishDir "${params.outdir}/qc/multiqc",  mode: params.publishdir_mode, patten: '*SSDSreport*'
 	publishDir "${params.outdir}/qc/frip",	   mode: params.publishdir_mode, patten: '*'
         input:
@@ -1528,16 +1524,19 @@ if (params.hotspots == "None") {
         process ssds_multiqc_denovo {
             tag "${sampleId}"
     	    label 'process_basic'
-    	    conda "${params.multiqc_dev_conda_env}" 
+	    conda "${baseDir}/conda_yml/environment_ggplot2.yml"
+            //conda 'conda-forge::r-ggplot2 conda-forge::r-gridextra conda-forge::r-scales'
             publishDir "${params.outdir}/qc/multiqc",  mode: params.publishdir_mode
             input:
                 set val(sampleId), file(report) from SSDSreport2ssdsmultiqcdenovo
             output:
-                file('*')
+                //file('*')
 		val('ok') into multiqc_denovo_ok
             script:
             """
-            multiqc -m ssds -n ${sampleId}.multiQC . 
+            #multiqc -m ssds -n ${sampleId}.multiQC . 
+            mkdir -p ${params.outdir}/qc/ssds
+            Rscript ${runPlotSSDSqc_script} ${plot_ssds_stat_script} ${report} ${sampleId}_mqc "${params.outdir}/qc/ssds"
             """
         }
     }
@@ -1558,21 +1557,27 @@ if (params.with_ssds_multiqc && params.hotspots != "None") {
     process ssds_multiqc {
         tag "${sampleId}"
         label 'process_basic'
-        conda "${params.multiqc_dev_conda_env}" 
+	conda "${baseDir}/conda_yml/environment_ggplot2.yml"
+        //conda 'conda-forge::r-ggplot2 conda-forge::r-gridextra conda-forge::r-scales'
         publishDir "${params.outdir}/qc/multiqc",  mode: params.publishdir_mode
         input:
             set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
         output:
-            file('*')
+            //file('*')
 	    val('ok') into ssds_multiqc_ok
+            val('ok') into computefrip_ok
+            val('ok') into multiqc_denovo_ok
         script:
         """
-        multiqc -m ssds -n ${sampleId}.multiQC .
+        #multiqc -m ssds -n ${sampleId}.multiQC .
+        mkdir -p ${params.outdir}/qc/ssds
+        Rscript ${runPlotSSDSqc_script} ${plot_ssds_stat_script} ${report} ${sampleId}_mqc "${params.outdir}/qc/ssds"
         """
         }
 }
 else {
     ssds_multiqc_ok = Channel.value( 'ok' )
+    multiqc_denovo_ok = Channel.value( 'ok' )
 }
 
 //***************************************************************************//
@@ -1668,7 +1673,7 @@ if (params.with_idr && params.nb_replicates == "2" ) {
         process callPeaksForIDR_ct {
             tag "${id_ip}"
             label 'process_medium'
-            conda "${baseDir}/environment_callpeaks.yml"
+            conda "${baseDir}/conda_yml/environment_callpeaks.yml"
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2",      mode: params.publishdir_mode, pattern: '*narrowPeak*'
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2",      mode: params.publishdir_mode, pattern: '*regionPeak*'
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2/log",  mode: params.publishdir_mode, pattern: '*.macs2.log'
@@ -1796,7 +1801,7 @@ if (params.with_idr && params.nb_replicates == "2" ) {
         process callPeaksForIDR {
             tag "${id_ip}"
             label 'process_medium'
-            conda "${baseDir}/environment_callpeaks.yml"
+            conda "${baseDir}/conda_yml/environment_callpeaks.yml"
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2",      mode: params.publishdir_mode, pattern: '*narrowPeak*'
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2",      mode: params.publishdir_mode, pattern: '*regionPeak*'
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2/log",  mode: params.publishdir_mode, pattern: '*.macs2.log'
@@ -1872,8 +1877,9 @@ if (params.with_idr && params.nb_replicates == "2" ) {
     process IDRanalysis {
         tag "${id_ip}"
         label 'process_medium'
-        conda 'idr=2.0.4.2 bioconda::ucsc-bedclip=377 bioconda::bedtools=2.29.2 bioconda::ucsc-bedtobigbed=377' 
-        publishDir "${params.outdir}/idr/${control_status}/${idr_params}/plot",               mode: params.publishdir_mode, pattern: '*.png'
+        //conda 'idr=2.0.4.2 bioconda::ucsc-bedclip=377 bioconda::bedtools=2.29.2 bioconda::ucsc-bedtobigbed=377' 
+        conda "${baseDir}/conda_yml/environment_idr.yml"
+	publishDir "${params.outdir}/idr/${control_status}/${idr_params}/plot",               mode: params.publishdir_mode, pattern: '*.png'
         publishDir "${params.outdir}/idr/${control_status}/${idr_params}/log",                mode: params.publishdir_mode, pattern: '*.log'
         publishDir "${params.outdir}/idr/${control_status}/${idr_params}/unthresholded-peaks",mode: params.publishdir_mode, pattern: '*unthresholded-peaks*'
         publishDir "${params.outdir}/idr/${control_status}/${idr_params}/bfilt",              mode: params.publishdir_mode, pattern: '*.bfilt.gz'
@@ -2185,7 +2191,7 @@ if (params.satcurve) {
     process makeSatCurve {
         tag "${outNameStem}"
         label 'process_basic'
-        conda "${baseDir}/environment_callpeaks.yml"
+        conda "${baseDir}/conda_yml/environment_callpeaks.yml"
         publishDir "${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype}",  mode: params.publishdir_mode
         input:
             file(saturation_curve_data) from allbed.collect()
@@ -2198,7 +2204,7 @@ if (params.satcurve) {
         # Get number of peaks in samples in the ${params.outdir}/saturation_curve/peaks directory (from callPeaks process)
         perl ${getPeaksBedFiles_script} -tf satCurve.tab -dir ${params.outdir}/saturation_curve/peaks
         # Plot saturation curve
-        Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}    
+        Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}_mqc
         """
     }
 }
@@ -2216,7 +2222,7 @@ else {
 process general_multiqc {
     tag "${outNameStem}"
     label 'process_basic'
-    conda 'bioconda::multiqc=1.11 conda-forge::python=3.8.5'
+    conda "${baseDir}/conda_yml/environment_multiqc.yml"
     publishDir "${params.outdir}/qc/multiqc",  mode: 'copy'
     input:
         val('trimming_ok') from trimming_ok.collect().ifEmpty([])
@@ -2252,7 +2258,8 @@ process general_multiqc {
         ${params.outdir}/qc/fingerprint ${params.outdir}/qc/flagstat \
         ${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/xls \
         ${params.outdir}/peaks/${control_status}/finalpeaks \
-        ${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype}
+        ${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype} \
+        ${params.outdir}/qc/ssds >& ${outNameStem}.multiQC.quality-control.log 2>&1
     
     """
 }
