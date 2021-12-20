@@ -300,7 +300,95 @@ This folder will contain the following directories :
 * **qc** with quality controls files and reports for sequencing, mapping, peak calling and parsing steps
 * **nxfReports** with nextflow execution reports and diagram
 * **slurm** with log files for main process
-* **work** is the working directory for Nextflow
+* **work** is the working directory for Nextflow   
+
+Tree overview of the output folder composition :
+
+````
+.
+├── nxfReports                                          : containts Nextflow execution reports and diagram.
+├── bigwig                                              : contains bigwig files according to the parameter set
+│   └── T1
+│       └── log
+├── qc                                                  : contains quality control files, pictures and reports
+│   ├── multiqc                                         : contains a summary of QC stats for all processes
+│   │   ├── *.multiQC.quality-control.report_plots
+│   │   │   ├── svg
+│   │   │   ├── png
+│   │   │   └── pdf
+│   │   └── *.multiQC.quality-control.report_data
+│   ├── samstats                                        : contains mapping statistics tabs
+│   ├── ssds                                            : contains tabs and plots about SSDS parsing statistics
+│   ├── flagstat                                        : contains mapping statistics files
+│   ├── fingerprint                                     : contains fingerprint plots
+│   ├── trim_fastqc                                     : contains fastqc reports for trimmed reads
+│   ├── raw_fastqc                                      : contains fastqc reports for raw reads
+│   ├── fastqscreen                                     : contains plots for fastqscreen screening
+│   └── design                                          : contains info about the run
+│       └── pipeline_info
+├── peaks                                               : contains bed files for peaks
+│   └── with[out]-input
+│       ├── normalized                                  : contains normalized and recentered peaks, 
+│       │   └── [no-]idr
+│       │       ├── tab
+│       │       └── log
+│       ├── finalpeaks                                  : contains a copy of final peaks (generally after IDR or merge)
+│       ├── saturation_curve                            : contains saturation curve files and plots
+│       │   └── standard
+│       │       └── peaks
+│       ├── macs2                                       : contains raw peaks called by macs2
+│       │   └── pv*_qv*_bw*_sloc*_extsize*
+│       │       ├── log
+│       │       ├── xls
+│       │       ├── narrowPeak
+│       │       └── bed
+│       └── bed_shuffle                                 : contains shuffled bed files before peak calling
+│           └── trim_q*
+├── bwa                                                 : contains raw, filtered and parsed reads in bam and bed format
+│   ├── filterbam
+│   │   └── flag_*
+│   │       ├── parse_itr
+│   │       │   ├── unclassified
+│   │       │   │   ├── bed
+│   │       │   │   └── bam
+│   │       │   ├── type2
+│   │       │   │   ├── bed
+│   │       │   │   └── bam
+│   │       │   ├── type1
+│   │       │   │   ├── bed
+│   │       │   │   └── bam
+│   │       │   ├── norm_factors
+│   │       │   ├── log
+│   │       │   ├── flagstat
+│   │       │   └── dsDNA
+│   │       │       └── bed
+│   │       ├── log
+│   │       ├── bed
+│   │       └── bam
+│   └── bam
+│       └── log
+├── trimming                                            : contains trimmed fastq files
+│   └── trim_fastq
+├── idr                                                 : contains files for IDR process
+│   └── with[out]-input
+│       └── narrowPeak_macs2pv*_macs2qv*1_idr_setup-*
+│           ├── bfilt                                   : contains blacklist filtered bed files
+│           ├── log
+│           ├── macs2                                   : contains macs2 narrowpeaks files
+│           │   └── log
+│           ├── peaks                                   : contains bed files
+│           ├── plot                                    : contains IDR plots
+│           ├── pseudo_replicates                       : contains bed for pseudo replicates files
+│           ├── qc
+│           │   └── log
+│           └── unthresholded-peaks                     : contains unthresholded bed files
+│
+├── slurm                                               : contains main script log file
+│
+└── work                                                : contains Nexflow work files
+    └── conda                                            : contains pipeline conda environments
+
+````
 
 The execution reports are in ``nxfReports`` folder created in your output directory.  
 I recommend to look at ``qc/multiqc/*.multiQC.quality-control.report.html`` file first to have a look at **sequencing, mapping, parsing quality.**   
