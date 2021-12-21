@@ -17,10 +17,10 @@ PIPELINE_DIRECTORY="/home/${USER}/work/ssdsnextflowpipeline"
 BASE_DIRECTORY="/home/${USER}/work/results"
 CONF="${PIPELINE_DIRECTORY}/conf/igh.config"
 GENOME_PROFILE="${PIPELINE_DIRECTORY}/conf/mm10.json"
-CENV="/home/${USER}/work/bin/miniconda3/envs/nextflow_dev"
+CENV="/home/${USER}/work/bin/miniconda3/envs/nextflow21"
 now=`date +"%FT%H%M%S"`
 INPUT=""
-OPTIONS="-profile conda "
+OPTIONS=""
 TEST="0"
 FORCE="0"
 PARAMS_FILE="${PIPELINE_DIRECTORY}/conf/mm10.config"
@@ -168,7 +168,7 @@ fi
 #Cheat lines for dev, do not use
 #OPTIONBASE="--with_control --satcurve false --kbrick_bigwig false -with-tower --bigwig_profile T12rep  --genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --nb_replicates 2 --with_ssds_multiqc --multiqc_dev_conda_env /work/demassyie/bin/miniconda2/envs/SSDSnextflowPipeline -resume"
 #OPTIONBASE="--genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --binsize 25  -resume"
-OPTIONBASE=""
+OPTIONBASE="-profile conda"
 JOBNAME="SSDS_main_${ANALYSIS_NAME}_${now}"
 
 sbatch -p computepart -J ${JOBNAME} -o ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir/slurm/%x.%j.out --export=ALL -n 1 --mem 7G -t 5-0:0  \

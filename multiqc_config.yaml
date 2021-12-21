@@ -41,14 +41,15 @@ extra_fn_clean_exts:
 
 exclude_modules:
     - cutadapt
+    - samtools idxstats
 
 sp:
-  my_custom_content_image:
-    fn: "*Curve.png"
+  saturation_curve:
+    fn: "*.saturationCurve_mqc.png"
 ignore_images: false
 
 custom_data:
-  my_custom_content_image:
+  saturation_curve:
     section_name: "Saturation Curve"
     description: "The saturation curve shows the number of peaks called in progressively downsampled samples, function of the number of reads in the samples." 
 

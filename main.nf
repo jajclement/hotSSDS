@@ -1536,7 +1536,7 @@ if (params.hotspots == "None") {
             """
             #multiqc -m ssds -n ${sampleId}.multiQC . 
             mkdir -p ${params.outdir}/qc/ssds
-            Rscript ${runPlotSSDSqc_script} ${plot_ssds_stat_script} ${report} ${sampleId}_mqc "${params.outdir}/qc/ssds"
+            Rscript ${runPlotSSDSqc_script} ${plot_ssds_stat_script} ${report} ${sampleId} "${params.outdir}/qc/ssds"
             """
         }
     }
@@ -1571,7 +1571,7 @@ if (params.with_ssds_multiqc && params.hotspots != "None") {
         """
         #multiqc -m ssds -n ${sampleId}.multiQC .
         mkdir -p ${params.outdir}/qc/ssds
-        Rscript ${runPlotSSDSqc_script} ${plot_ssds_stat_script} ${report} ${sampleId}_mqc "${params.outdir}/qc/ssds"
+        Rscript ${runPlotSSDSqc_script} ${plot_ssds_stat_script} ${report} ${sampleId} "${params.outdir}/qc/ssds"
         """
         }
 }
@@ -2204,7 +2204,7 @@ if (params.satcurve) {
         # Get number of peaks in samples in the ${params.outdir}/saturation_curve/peaks directory (from callPeaks process)
         perl ${getPeaksBedFiles_script} -tf satCurve.tab -dir ${params.outdir}/saturation_curve/peaks
         # Plot saturation curve
-        Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}_mqc
+        Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}
         """
     }
 }
