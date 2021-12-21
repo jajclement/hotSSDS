@@ -165,13 +165,11 @@ Optional IDR analysis parameters (ENCODE procedure, see https://github.com/ENCOD
     --idr_macs_pv               FLOAT   Macs2 callpeak p-value parameter, if not -1, will overrule macs_qv, see macs2 doc (default : 0.1)
 
 QC parameters:
-    --with_ssds_multiqc         BOOL    RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
-    --multiqc_dev_conda_env     DIR     PATH TO MULTIQC-DEV CONDA ENVIRONMENT (used when --with_ssds-multiqc is true ; default : multiqc_dev)
+    --with_ssds_multiqc         BOOL    RUN SSDS MULTIQC (default : true)
     --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : /work/${USER}/ssdsnextflowpipeline/multiqc_config.yaml)
 
 Nextflow Tower parameter:
     -with-tower                 BOOL    Enable job monitoring with Nextflow tower (https://tower.nf/)
-    --tower_token               STRING  Nextflow tower key token (see https://tower.nf/ to create your account)
 
 =================================================================================================
 """.stripIndent()
@@ -205,7 +203,7 @@ println result ? "Create scratch directory...OK" : "Cannot create directory: $sc
 def outNameStem = "${params.name}.$workflow.runName"
 def tmpNameStem = "${params.name}.tmpFile"
 def macs2_params = "pv${params.macs_pv}_qv${params.macs_qv}_bw${params.macs_bw}_sloc${params.macs_slocal}_extsize${params.macs_extsize}"
-def idr_params = "${params.idr_peaktype}_macs2pv${params.idr_macs_pv}_macs2qv${params.idr_macs_qv}_idr-threshold${params.idr_threshold}_setup-${params.idr_setup}"
+def idr_params = "${params.idr_peaktype}_macs2pv${params.idr_macs_pv}_macs2qv${params.idr_macs_qv}_setup-${params.idr_setup}"
 def control_status = params.with_control ? "with-input" : "without-input"
 
 // External scripts used in the pipeline
@@ -221,6 +219,8 @@ def getPeaksBedFiles_script = "${params.src}/getPeaksBedFiles.pl" //Author Kevin
 def runSatCurve_script = "${params.src}/runSatCurve.R" //Author Pauline Auffret
 def encode_idr_script= "${params.src}/encode-dcc_chip-seq-pipeline2_src/encode_task_idr.py" //Author Jin Lee from https://github.com/ENCODE-DCC/chip-seq-pipeline2
 def get_frip_script = "${params.src}/compute_frip.py" //Author Pauline Auffret
+def plot_ssds_stat_script = "${params.src}/plotSSDSqc.R" //Author Pauline Auffret
+def runPlotSSDSqc_script = "${params.src}/runPlotSSDSqc.R" //Author Pauline Auffret
 
 // Check if input csv file exists
 if (params.inputcsv) { println("Checking input sample file...") ; input_ch = file(params.inputcsv, checkIfExists: true) } else { exit 1, 'Samples design file not specified!' }
@@ -232,7 +232,6 @@ if (params.blacklist && params.blacklist != "None") { println("Checking blacklis
 if (params.multiqc_configfile) { println("Checking multiqc_configfile...") ; f_multiqc_configfile = file(params.multiqc_configfile, checkIfExists: true) } ; println("Ok")
 if (params.trimgalore_adapters) { println("Checking trimgalore_adapters file...") ; f_trimgalore_adapters = file(params.trimgalore_adapters, checkIfExists: true) } ; println("Ok")
 if (params.trimmomatic_adapters) { println("Checking trimmomatic_adapters file...") ; f_blacklist = file(params.trimmomatic_adapters, checkIfExists: true) } ; println("Ok")
-if (params.with_ssds_multiqc && params.multiqc_dev_conda_env) { println("Checking multiqc_dev_conda_env directory...") ; d_multiqc_dev_conda_env = file(params.multiqc_dev_conda_env, checkIfExists: true ) } ; println("Ok")
 
 // Check if genome exists in the config file
 if (params.genomes && params.genome && !params.genomes.containsKey(params.genome)) {
@@ -356,9 +355,6 @@ Chromosome sizes file          : ${params.chrsize}
 BWA bin                        : ${params.custom_bwa}
 BWA-ra bin                     : ${params.custom_bwa_ra}
 BAM custom header              : ${params.bamPGline}
-SSDS multiQC dev bin           : ${params.custom_multiqc}
-SSDS multiQC custom conda env  : ${params.multiqc_dev_conda_env}
-Nextflow Tover token           : ${params.tower_token}
 Publish directory mode         : ${params.publishdir_mode}        
     
 """.stripIndent()
@@ -481,7 +477,7 @@ fq_ch
 process crop {
     tag "${sampleId}"
     label 'process_low'
-    publishDir "${params.outdir}/qc/trim_fastqc", mode: params.publishdir_mode, pattern: "*_crop_R*"
+    //publishDir "${params.outdir}/qc/trim_fastqc", mode: params.publishdir_mode, pattern: "*_crop_R*"
     publishDir "${params.outdir}/qc/raw_fastqc",  mode: params.publishdir_mode, pattern: "*.html"
     publishDir "${params.outdir}/qc/raw_fastqc",  mode: params.publishdir_mode, pattern: "*.zip"
     publishDir "${params.outdir}/qc/fastqscreen", mode: params.publishdir_mode, pattern: "*.png"
@@ -534,8 +530,8 @@ process trimming {
     tag "${sampleId}" 
     label 'process_low'
     publishDir "${params.outdir}/qc/trim_fastqc",       mode: params.publishdir_mode, pattern: "*_report.txt"
-    publishDir "${params.outdir}/qc/trim_fastqc",       mode: params.publishdir_mode, pattern: "*.html"
-    publishDir "${params.outdir}/qc/trim_fastqc",       mode: params.publishdir_mode, pattern: "*.zip"
+    publishDir "${params.outdir}/qc/trim_fastqc",       mode: params.publishdir_mode, pattern: "*trim*.html"
+    publishDir "${params.outdir}/qc/trim_fastqc",       mode: params.publishdir_mode, pattern: "*trim*.zip"
     publishDir "${params.outdir}/trimming/trim_fastq",  mode: params.publishdir_mode, pattern: "*crop_trim_R1.fastq.gz"
     publishDir "${params.outdir}/trimming/trim_fastq",  mode: params.publishdir_mode, pattern: "*crop_trim_R2.fastq.gz"
     input:
@@ -730,7 +726,7 @@ process parseITRs {
     publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/parse_itr/unclassified/bed",mode: params.publishdir_mode, pattern: "*.unclassified.bed"
     publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/parse_itr/unclassified/bam",mode: params.publishdir_mode, pattern: "*f.unclassified.bam*"
     publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/parse_itr/flagstat",        mode: params.publishdir_mode, pattern: "*.flagstat"
-    publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/parse_itr/log",             mode: params.publishdir_mode, pattern: "*.log"
+    publishDir "${params.outdir}/qc/flagstat",								 mode: params.publishdir_mode, pattern: "*.flagstat"
     publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/parse_itr/log",             mode: params.publishdir_mode, pattern: "*.out"
     publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/parse_itr/norm_factors",    mode: params.publishdir_mode, pattern: "*norm_factors.txt"
     input:
@@ -747,7 +743,6 @@ process parseITRs {
         tuple val(sampleId), file('*norm_factors.txt'), file('*.ssDNA_type1.bed'), \
                 file('*.ssDNA_type12.bed') into BEDtoBW, BEDtoBWrep
         file('*.flagstat')
-        file('*.log')
 	file('*.out')
         val 'ok' into parseitr_ok
     script:
@@ -1004,6 +999,9 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
         println("Selected bigwig_profile is ${params.bigwig_profile} but nb_replicates is ${params.nb_replicates}, check the parameters.")
         exit 0
     }
+}
+else {
+    makeBigwigReplicates_ok = Channel.value( 'ok' )
 }        
             
 if ( params.kbrick_bigwig ) {
@@ -1063,6 +1061,10 @@ if ( params.kbrick_bigwig ) {
             --s 100 --w 1000 --sc ${params.scratch} --gIdx ${params.fai} -v >& ${sampleId}_toFRBigwig.log 2>&1
         """
     }    
+}
+else {
+    kb_bigwig_ok = Channel.value( 'ok' )
+    fr_bigwig_ok = Channel.value( 'ok' )
 }
 
 
@@ -1167,7 +1169,7 @@ if (params.with_control) {
     process callPeaks_ct {
         tag "${id_ip}"
         label 'process_basic'
-        conda "${baseDir}/environment_callpeaks.yml"
+        conda "${baseDir}/conda_yml/environment_callpeaks.yml"
         publishDir "${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype}", mode: params.publishdir_mode, pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/bed",         mode: params.publishdir_mode, pattern: "*1.00pc.0_peaks_sc.bed"
         publishDir "${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/bed",         mode: params.publishdir_mode, pattern: "*summits.bed"
@@ -1326,7 +1328,7 @@ else {
     process callPeaks {
         tag "${id_ip}"
         label 'process_medium'
-        conda "${baseDir}/environment_callpeaks.yml"
+        conda "${baseDir}/conda_yml/environment_callpeaks.yml"
         publishDir "${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype}/peaks", mode: params.publishdir_mode, pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/bed",               mode: params.publishdir_mode, pattern: "*1.00pc.0_peaks_sc.bed"
         publishDir "${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/bed",               mode: params.publishdir_mode, pattern: "*.summits.bed"
@@ -1525,7 +1527,7 @@ if (params.hotspots == "None") {
     process computeFRIP {
         tag "${sampleId}"
         label 'process_low'
-        conda 'bioconda::deeptools=3.5.1'
+        conda "${baseDir}/conda_yml/environment_deeptools.yml"
         publishDir "${params.outdir}/qc/multiqc",  mode: params.publishdir_mode, patten: '*SSDSreport*'
 	publishDir "${params.outdir}/qc/frip",	   mode: params.publishdir_mode, patten: '*'
         input:
@@ -1534,6 +1536,7 @@ if (params.hotspots == "None") {
         output:
             set val(sampleId), file('*SSDSreport*') into SSDSreport2ssdsmultiqcdenovo
 	    path("*")
+	    val('ok') into computefrip_ok
         script:
         """
         # For each bam type, execute python script to compute FRIP score with Deeptools and print results to text file
@@ -1561,18 +1564,27 @@ if (params.hotspots == "None") {
         process ssds_multiqc_denovo {
             tag "${sampleId}"
     	    label 'process_basic'
-    	    conda "${params.multiqc_dev_conda_env}" 
+	    conda "${baseDir}/conda_yml/environment_ggplot2.yml"
+            //conda 'conda-forge::r-ggplot2 conda-forge::r-gridextra conda-forge::r-scales'
             publishDir "${params.outdir}/qc/multiqc",  mode: params.publishdir_mode
             input:
                 set val(sampleId), file(report) from SSDSreport2ssdsmultiqcdenovo
             output:
-                file('*')
+                //file('*')
+		val('ok') into multiqc_denovo_ok
             script:
             """
-            multiqc -m ssds -n ${sampleId}.multiQC . 
+            #multiqc -m ssds -n ${sampleId}.multiQC . 
+            mkdir -p ${params.outdir}/qc/ssds
+            Rscript ${runPlotSSDSqc_script} ${plot_ssds_stat_script} ${report} ${sampleId}_mqc "${params.outdir}/qc/ssds"
             """
         }
     }
+}
+
+if (!params.with_ssds_multiqc)  {
+    computefrip_ok = Channel.value( 'ok' )
+    multiqc_denovo_ok = Channel.value( 'ok' )
 }
 
 
@@ -1585,17 +1597,27 @@ if (params.with_ssds_multiqc && params.hotspots != "None") {
     process ssds_multiqc {
         tag "${sampleId}"
         label 'process_basic'
-        conda "${params.multiqc_dev_conda_env}" 
+	conda "${baseDir}/conda_yml/environment_ggplot2.yml"
+        //conda 'conda-forge::r-ggplot2 conda-forge::r-gridextra conda-forge::r-scales'
         publishDir "${params.outdir}/qc/multiqc",  mode: params.publishdir_mode
         input:
             set val(sampleId), file(report) from SSDSreport2ssdsmultiqc
         output:
-            file('*')
+            //file('*')
+	    val('ok') into ssds_multiqc_ok
+            val('ok') into computefrip_ok
+            val('ok') into multiqc_denovo_ok
         script:
         """
-        multiqc -m ssds -n ${sampleId}.multiQC .
+        #multiqc -m ssds -n ${sampleId}.multiQC .
+        mkdir -p ${params.outdir}/qc/ssds
+        Rscript ${runPlotSSDSqc_script} ${plot_ssds_stat_script} ${report} ${sampleId}_mqc "${params.outdir}/qc/ssds"
         """
         }
+}
+else {
+    ssds_multiqc_ok = Channel.value( 'ok' )
+    multiqc_denovo_ok = Channel.value( 'ok' )
 }
 
 //***************************************************************************//
@@ -1691,7 +1713,7 @@ if (params.with_idr && params.nb_replicates == "2" ) {
         process callPeaksForIDR_ct {
             tag "${id_ip}"
             label 'process_medium'
-            conda "${baseDir}/environment_callpeaks.yml"
+            conda "${baseDir}/conda_yml/environment_callpeaks.yml"
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2",      mode: params.publishdir_mode, pattern: '*narrowPeak*'
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2",      mode: params.publishdir_mode, pattern: '*regionPeak*'
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2/log",  mode: params.publishdir_mode, pattern: '*.macs2.log'
@@ -1819,7 +1841,7 @@ if (params.with_idr && params.nb_replicates == "2" ) {
         process callPeaksForIDR {
             tag "${id_ip}"
             label 'process_medium'
-            conda "${baseDir}/environment_callpeaks.yml"
+            conda "${baseDir}/conda_yml/environment_callpeaks.yml"
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2",      mode: params.publishdir_mode, pattern: '*narrowPeak*'
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2",      mode: params.publishdir_mode, pattern: '*regionPeak*'
             publishDir "${params.outdir}/idr/${control_status}/${idr_params}/macs2/log",  mode: params.publishdir_mode, pattern: '*.macs2.log'
@@ -1895,8 +1917,9 @@ if (params.with_idr && params.nb_replicates == "2" ) {
     process IDRanalysis {
         tag "${id_ip}"
         label 'process_medium'
-        conda 'idr=2.0.4.2 bioconda::ucsc-bedclip=377 bioconda::bedtools=2.29.2 bioconda::ucsc-bedtobigbed=377' 
-        publishDir "${params.outdir}/idr/${control_status}/${idr_params}/plot",               mode: params.publishdir_mode, pattern: '*.png'
+        //conda 'idr=2.0.4.2 bioconda::ucsc-bedclip=377 bioconda::bedtools=2.29.2 bioconda::ucsc-bedtobigbed=377' 
+        conda "${baseDir}/conda_yml/environment_idr.yml"
+	publishDir "${params.outdir}/idr/${control_status}/${idr_params}/plot",               mode: params.publishdir_mode, pattern: '*.png'
         publishDir "${params.outdir}/idr/${control_status}/${idr_params}/log",                mode: params.publishdir_mode, pattern: '*.log'
         publishDir "${params.outdir}/idr/${control_status}/${idr_params}/unthresholded-peaks",mode: params.publishdir_mode, pattern: '*unthresholded-peaks*'
         publishDir "${params.outdir}/idr/${control_status}/${idr_params}/bfilt",              mode: params.publishdir_mode, pattern: '*.bfilt.gz'
@@ -1966,7 +1989,7 @@ if (params.with_idr && params.nb_replicates == "2" ) {
             --chrsz ${params.chrsize} \$blacklist_params \
             --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
             --prefix ${id_ip}_r1_pseudorep \
-            ${r1_pseudorep_r1} ${r1_pseudorep_r2} ${ip_rep1} > ${id_ip}_r1pseudorep.encodeidr.out.log 2>&1
+            ${r1_pseudorep_r1} ${r1_pseudorep_r2} ${ip_rep1} > ${id_ip}_r1_pseudorep.encodeidr.out.log 2>&1
 
         #IDR2
         python ${encode_idr_script} --peak-type ${params.idr_peaktype} \
@@ -1974,7 +1997,7 @@ if (params.with_idr && params.nb_replicates == "2" ) {
             --chrsz ${params.chrsize} \$blacklist_params \
             --regex-bfilt-peak-chr-name ${params.idr_filtering_pattern} \
             --prefix ${id_ip}_r2_pseudorep \
-            ${r2_pseudorep_r1} ${r2_pseudorep_r2} ${ip_rep2} > ${id_ip}_r2pseudorep.encodeidr.out.log 2>&1
+            ${r2_pseudorep_r1} ${r2_pseudorep_r2} ${ip_rep2} > ${id_ip}_r2_pseudorep.encodeidr.out.log 2>&1
 
         #IDR3
         python ${encode_idr_script} --peak-type ${params.idr_peaktype} \
@@ -2062,6 +2085,13 @@ if (params.with_idr && params.nb_replicates == "2" ) {
     }
 }
 
+if (!params.with_idr) {
+    createPseudoReplicates_ok = Channel.value( 'ok' )
+    callPeaksForIDR_ok = Channel.value( 'ok' )
+    IDRanalysis_ok = Channel.value( 'ok' )
+    IDRpostprocess_ok = Channel.value( 'ok' )
+}
+
 //***************************************************************************//
 //                     SECTION 8 : PEAK POST PROCESSING                      //
 //***************************************************************************//        
@@ -2133,9 +2163,12 @@ if (!params.with_idr) {
             """
         }
     }
+    else {
+        mergeFinalPeaks_ok = Channel.value( 'ok' )
+    }
 }
 
-else if ( params.nb_replicates == "2" ) {
+else if ( params.with_idr && params.nb_replicates == "2" ) {
 // PROCESS 23 : normalizePeaks (CENTER AND NORMALIZE PEAKS)
 // What it does : perform the peak centering using Kevin Brick's method :
 // 1. Recenters the peaks by the median of the F/R dists
@@ -2158,6 +2191,8 @@ else if ( params.nb_replicates == "2" ) {
             tuple val(id_ip), file("*normpeaks*.bedgraph"), file("*normpeaks*.tab")
             file('*.normpeaks*.log')
             val('ok') into normalizePeaks_idr_ok
+            val('ok') into mergeFinalPeaks_ok
+	    val('ok') into normalizePeaks_ok
         script:
         """
         # Merge the 2 T1BED replicates and sort
@@ -2177,6 +2212,11 @@ else if ( params.nb_replicates == "2" ) {
     }
 }
 
+else {
+    normalizePeaks_ok = Channel.value( 'ok' )
+    mergeFinalPeaks_ok = Channel.value( 'ok' )
+}
+
 //***************************************************************************//
 //                       SECTION 8 : SATURATION  CURVE                       //
 //***************************************************************************//
@@ -2191,7 +2231,7 @@ if (params.satcurve) {
     process makeSatCurve {
         tag "${outNameStem}"
         label 'process_basic'
-        conda "${baseDir}/environment_callpeaks.yml"
+        conda "${baseDir}/conda_yml/environment_callpeaks.yml"
         publishDir "${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype}",  mode: params.publishdir_mode
         input:
             file(saturation_curve_data) from allbed.collect()
@@ -2204,155 +2244,17 @@ if (params.satcurve) {
         # Get number of peaks in samples in the ${params.outdir}/saturation_curve/peaks directory (from callPeaks process)
         perl ${getPeaksBedFiles_script} -tf satCurve.tab -dir ${params.outdir}/saturation_curve/peaks
         # Plot saturation curve
-        Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}    
+        Rscript ${runSatCurve_script} ${satCurveHS_script} satCurve.tab ${outNameStem}_mqc
         """
     }
+}
+else {
+    makeSatCurve_ok = Channel.value( 'ok' )
 }
 
 //***************************************************************************//
 //                          SECTION 9 : GENERAL QC                           //
 //***************************************************************************//
-
-// Get flags indicating the end of conditionnal processes for all samples
-// To tell process multiqc to wait for all process before execution
-if (params.kbrick_bigwig) {
-    process createCheckPointKbrickBigwig {
-        tag "${outNameStem}"
-        label 'process_basic'
-        input:
-            val 'ok' from kb_bigwig_ok.collect()
-            val 'ok' from fr_bigwig_ok.collect()
-        output:
-            val 'ok' into kbrickb_ok
-        script:
-        """
-        echo "Deeptools bigwig files were run."
-        """
-    }
-}
-
-if (!params.kbrick_bigwig) {
-    process createCheckPointNoKbrickBigwig {
-        tag "${outNameStem}"
-        label 'process_basic'
-        output:
-            val 'ok' into kbrickb_ok
-        script:
-        """
-        echo "Deeptools bigwig files were not run."
-        """
-    }
-}
-
-if (params.with_idr && params.nb_replicates == "2" ) {
-    process createCheckPointIDR {
-        tag "${outNameStem}"
-        label 'process_basic'
-        input:
-            val 'ok' from createPseudoReplicates_ok.collect()
-            val 'ok' from callPeaksForIDR_ok.collect()
-            val 'ok' from IDRanalysis_ok.collect()
-            val 'ok' from IDRpostprocess_ok.collect()
-            val 'ok' from normalizePeaks_idr_ok.collect()
-        output:
-            val 'ok' into idr_ok
-        script:
-        """
-        echo "IDR analysis was run."
-        """
-    }
-}
-
-else if (params.nb_replicates == "2" ) {
-    process createCheckPointNoIDR {
-        tag "${outNameStem}"
-        label 'process_basic'
-        input:
-            val 'ok' from mergeFinalPeaks_ok.collect()
-            val 'ok' from normalizePeaks_ok.collect()
-        output:
-            val 'ok' into idr_ok
-        script:
-        """
-        echo "No IDR analysis was run."
-        """
-    }
-}
-
-else  {
-    process createCheckPointNoIDRNoReplicates {
-        tag "${outNameStem}"
-        label 'process_basic'
-        input:
-            val 'ok' from normalizePeaks_ok.collect()
-        output:
-            val 'ok' into idr_ok
-        script:
-        """
-        echo "No IDR analysis was run and no replicates."
-        """
-    }
-}
-
-
-if (params.satcurve) {
-    process createCheckPointSatCurve {
-        tag "${outNameStem}"
-        label 'process_basic'
-        input:
-            val 'ok' from makeSatCurve_ok.collect()
-        output:
-            val 'ok' into satcurve_ok
-        script:
-        """
-        echo "Saturation curve was run."
-        """
-    }
-}
- 
-if (!params.satcurve) {
-    process createCheckPointNoSatCurve {
-        tag "${outNameStem}"
-        label 'process_basic'
-        output:
-            val 'ok' into satcurve_ok
-        script:
-        """
-        echo "No saturation curve was run."
-        """
-    }
-}
-
-if(params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep" ) {
-    process createCheckPointRepBigwig {
-        tag "${outNameStem}"
-        label 'process_basic'
-        input:
-            val('ok') from makeBigwigReplicates_ok.collect()
-        output:
-            val 'ok' into bigwig_ok
-        script:
-        """
-        echo "No replicates bigwig was plot."
-        """
-    }
-} 
- 
-if(params.bigwig_profile == "T1" || params.bigwig_profile == "T12" ) {
-    process createCheckPointBigwig {
-        tag "${outNameStem}"
-        label 'process_basic'
-        input:
-            val('ok') from makeBigwig_ok.collect()
-        output:
-            val 'ok' into bigwig_ok
-        script:
-        """
-        echo "Replicates bigwig was plot."
-        """
-    }
-}
-
 // PROCESS 26 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
 // What it does : Compute multiCQ report for the analysis based on output folder content
 // Input : all termination tags of processes so that this process only runs at the end of the pipeline
@@ -2360,31 +2262,45 @@ if(params.bigwig_profile == "T1" || params.bigwig_profile == "T12" ) {
 process general_multiqc {
     tag "${outNameStem}"
     label 'process_basic'
-    conda 'bioconda::multiqc=1.9 conda-forge::python=3.8.5'
+    conda "${baseDir}/conda_yml/environment_multiqc.yml"
     publishDir "${params.outdir}/qc/multiqc",  mode: 'copy'
     input:
-        val('trimming_ok') from trimming_ok.collect()
-	val('fastqc_ok') from fastqc_ok.collect()
-	val('bwa_ok') from bwa_ok.collect()
-	val('filterbam') from filterbam_ok.collect()
-	val('parseitr') from parseitr_ok.collect()
-        val('kbrickb_ok') from kbrickb_ok.collect()
-	val('samstats') from samstats_ok.collect()
-        val('ssreport_ok') from ssreport_ok.collect()
-        val('shufbed_ok') from shufbed_ok.collect()
-        val('callPeaks_ok') from callPeaks_ok.collect()
-        val('satcurve_ok') from satcurve_ok.collect()
-        val('idr_ok') from idr_ok.collect()
-        val('bigwig_ok') from bigwig_ok.collect()
-        val('makefingerprint_ok') from makefingerprint_ok.collect()
+        val('trimming_ok') from trimming_ok.collect().ifEmpty([])
+	val('fastqc_ok') from fastqc_ok.collect().ifEmpty([])
+	val('bwa_ok') from bwa_ok.collect().ifEmpty([])
+	val('filterbam_ok') from filterbam_ok.collect().ifEmpty([])
+	val('parseitr_ok') from parseitr_ok.collect().ifEmpty([])
+	val('makeBigwig_ok') from makeBigwig_ok.collect().ifEmpty([])
+	val('makeBigwigReplicates_ok') from makeBigwigReplicates_ok.collect().ifEmpty([])
+        val('kb_bigwig_ok') from kb_bigwig_ok.collect().ifEmpty([])
+	val('fr_bigwig_ok') from fr_bigwig_ok.collect().ifEmpty([])
+	val('shufbed_ok') from shufbed_ok.collect().ifEmpty([])
+	val('callPeaks_ok') from callPeaks_ok.collect().ifEmpty([])
+	val('samstats_ok') from samstats_ok.collect().ifEmpty([])
+        val('ssreport_ok') from ssreport_ok.collect().ifEmpty([])
+	val('makefingerprint_ok') from makefingerprint_ok.collect().ifEmpty([])
+	val('computefrip_ok') from computefrip_ok.collect().ifEmpty([])
+	val('multiqc_denovo_ok') from multiqc_denovo_ok.collect().ifEmpty([])
+	val('ssds_multiqc_ok') from ssds_multiqc_ok.collect().ifEmpty([])
+	val('createPseudoReplicates_ok') from createPseudoReplicates_ok.collect().ifEmpty([])
+	val('callPeaksForIDR_ok') from callPeaksForIDR_ok.collect().ifEmpty([])
+	val('IDRanalysis_ok') from IDRanalysis_ok.collect().ifEmpty([])
+	val('IDRpostprocess_ok') from IDRpostprocess_ok.collect().ifEmpty([])
+	val('normalizePeaks_ok') from normalizePeaks_ok.collect().ifEmpty([])
+	val('mergeFinalPeaks_ok') from mergeFinalPeaks_ok.collect().ifEmpty([])
+	val('makeSatCurve_ok') from makeSatCurve_ok.collect().ifEmpty([])
     output:
 	file('*')
     script:
     """
-    multiqc -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC.sequencing_quality \
-        ${params.outdir}/qc/raw_fastqc ${params.outdir}/qc/trim_fastqc 
-    multiqc -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC.mapping_quality \
-        ${params.outdir}/qc/samstats ${params.outdir}/bigwig ${params.outdir}/qc/fingerprint
+    multiqc --export -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC.quality-control.report \
+        ${params.outdir}/qc/trim_fastqc ${params.outdir}/qc/samstats \
+        ${params.outdir}/qc/fingerprint ${params.outdir}/qc/flagstat \
+        ${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/xls \
+        ${params.outdir}/peaks/${control_status}/finalpeaks \
+        ${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype} \
+        ${params.outdir}/qc/ssds >& ${outNameStem}.multiQC.quality-control.log 2>&1
+    
     """
 }
 

@@ -18,15 +18,16 @@ BASE_DIRECTORY="/home/${USER}/work/results"
 CONF="${PIPELINE_DIRECTORY}/conf/igh.config"
 GENOME_PROFILE="${PIPELINE_DIRECTORY}/conf/mm10.json"
 CENV="/home/${USER}/work/bin/miniconda3/envs/nextflow_dev"
-now=`date +%y-%m-%d-%T`
+now=`date +"%FT%H%M%S"`
 INPUT=""
 OPTIONS="-profile conda "
 TEST="0"
 FORCE="0"
 PARAMS_FILE="${PIPELINE_DIRECTORY}/conf/mm10.config"
+TOWER_TOKEN="eyJ0aWQiOiA0MzE1fS40NTdmNTYxZjk2Y2U2ZTcxZWU5ZWZjMTJhZDdhMzFkMWIxN2FhNzg1"
 
 #Get command line arguments
-while getopts hp:b:n:c:a:i:o:t:f:g: flag
+while getopts hp:b:n:c:a:i:o:w:t:f:g: flag
 do
 	case "${flag}" in
 		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; \
@@ -39,6 +40,7 @@ do
 		   echo "-c Absolute path to IGH cluster configuration file (default : ${CONF})"; \
 		   echo "-a Absolute path to conda environment for nextflow (default : ${CENV})"; \
 		   echo "-o Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; \
+		   echo "-w Valid Nextflow Tower token (default : ${TOWER_TOKEN} ; if not None, then the option -with-tower has to be added in -o parameter))"; \
 		   echo "-t set to 1 if running pipeline on test data located in ${PIPELINE_DIRECTORY}/tests/fastq (default : ${TEST})"; \
 		   echo "-f set to 1 to force pipeline to run without checking resume/output directory (default : ${FORCE})" ; \
 		   echo "INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir)"; \
@@ -127,7 +129,7 @@ then echo "ABORT : configuration file ${CONF} not found! Check -c argument. Bye,
 else echo "Ok.";
 fi
 if [ ! -f ${GENOME_PROFILE} ];
-then echo "ABORT : configuration file ${GENOME_PROFILE} not found! Check -c argument. Bye, see you soon !" ; exit 0; 
+then echo "ABORT : configuration file ${GENOME_PROFILE} not found! Check -g argument. Bye, see you soon !" ; exit 0; 
 else echo "Ok.";
 fi 
 
@@ -135,6 +137,13 @@ fi
 echo "Activate conda environment ${CENV}."
 eval "$(conda shell.bash hook)"
 conda activate ${CENV}
+
+#If tower token is set, then TOWER_ACCESS_TOKEN variable must be added to the environment
+if [ ${TOWER_TOKEN} != "None" ];
+then
+    export TOWER_ACCESS_TOKEN=${TOWER_TOKEN} ;
+    export NXF_VER=20.10.0 ;
+fi
 
 #Run pipeline
 echo "Run pipeline !"
