@@ -83,18 +83,6 @@ get_frip <- function(tab,name) {
 }		
 
 # This function will plot a barplot for different types of mapping stats
-#plot_barplot_totinfo <- function(tab) {
-#  p <- ggplot(tab, aes(x = sample, y=number))+
-#    geom_col(aes(fill = type), width = 0.7) +
-#    xlab("Sample") +
-#    ylab("Number of fragments") +
-#    ggtitle("SSDS alignment stats") +
-#    coord_flip() +
-#    scale_y_continuous(labels = scientific)
-#  return(p)
-#}
-
-# This function will plot a barplot for different types of mapping stats
 plot_barplot_totinfo <- function(tab) {
   p <- ggplot(tab, aes(x = sample, y=number))+
     geom_col(aes(fill = type) , width = 0.7) +
@@ -106,35 +94,50 @@ plot_barplot_totinfo <- function(tab) {
     coord_flip() +
     theme(axis.text.x = element_text(colour = "grey20", size = 5),
           axis.text.y = element_text(colour = "grey20", size = 5),
-          text=element_text(size = 8)
-    ) +
-    theme(
-      plot.title = element_text(size = 8),    # Position et taille du titre au centre
-      plot.subtitle = element_text(size = 6)
-    )
+          text=element_text(size = 5)) +
+    theme(plot.title = element_text(size = 5),    
+          plot.subtitle = element_text(size = 5)) +
+    theme(legend.key.size = unit(0.2, "cm"))
   return(p)
 }
 
+
 # This function will plot a scatterplot for one type of fragment
-plot_scatter <- function(tab, name) {
+plot_scatter <- function(tab, name, frag_name) {
   tab$type<-as.numeric(tab$type)
   tab$number<-as.numeric(tab$number)
   p <- ggplot(tab, aes(x=type, y=number)) + 
-    geom_point(aes(col=category),size=1.5) + 
-    labs(y="Number of fragments", 
-         x="Size of fragments (bp)", 
-         title=name) +
-  scale_y_continuous(labels = scientific)
+    geom_point(aes(col=category), size=0) + 
+    xlab("Size of fragments (bp)") + 
+    ylab("Number of fragments") +
+    labs(color = paste("Origin of ",frag_name, sep="")) +
+    labs(title = paste(frag_name," size distribution", sep=""),
+         subtitle = paste("Size distribution of ", frag_name, 
+                    " from single stranded type 1 and type 2,
+                    \ndouble stranded and unclassified fragments", sep="" )) +
+    scale_y_continuous(labels = scientific) +
+    theme(axis.text.x = element_text(colour = "grey20", size = 5),
+          axis.text.y = element_text(colour = "grey20", size = 5),
+          text=element_text(size = 5)) +
+    guides(colour = guide_legend(override.aes = list(size=2))) 
   return(p)
 }
+
 
 #♣ This function will plot a barplot for FRIP scores
 plot_barplot_frip <- function(tab) {
   p <- ggplot(tab, aes(x = category, y=number, fill=type))+
     geom_bar(stat="identity", position=position_dodge()) +
-    xlab("Reference") +
-    ylab("FRIP") +
-    ggtitle("FRIP score stats") +
-    scale_y_continuous(labels = percent) 
+    xlab("Type of fragments") +
+    ylab("FRIP score") +
+    labs(title = "FRIP score",
+         subtitle = "The FRiP score is the fraction of reads
+                    \nfalling into peaks (de novo or from reference)") +
+    theme(axis.text.x = element_text(colour = "grey20", size = 2),
+          axis.text.y = element_text(colour = "grey20", size = 5),
+          text=element_text(size = 5)) +
+    labs(fill = "Genome / strain reference") +
+    theme(legend.key.size = unit(0.1, "cm")) 
   return(p)
 }
+

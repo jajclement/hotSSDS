@@ -56,9 +56,9 @@ satCurveHS <- function(fIN = 'satCurve.tab',
   
   png(paste0(sampleName,'.saturationCurve_mqc.png'), 
       res = 300, 
-      width = 5, 
-      height = 5, 
-      units='in')
+      width = 8, 
+      height = 4, 
+      units='cm')
   
   grid.arrange(gN,gL,nrow=2)
   dev.off()
