@@ -54,16 +54,16 @@ satCurveHS <- function(fIN = 'satCurve.tab',
     ylab('Hotspots') + 
     ggtitle(paste0('Saturation curve (',sampleName,')'))
   
-  png(paste0(sampleName,'.saturationCurve.png'), 
+  png(paste0(sampleName,'.saturationCurve_mqc.png'), 
       res = 300, 
-      width = 8, 
-      height = 8, 
+      width = 5, 
+      height = 5, 
       units='in')
   
   grid.arrange(gN,gL,nrow=2)
   dev.off()
   
-  cairo_pdf(paste0(sampleName,'.saturationCurve.pdf'),
+  cairo_pdf(paste0(sampleName,'.saturationCurve_mqc.pdf'),
       family="Sans",
       width = 8,
       height = 8)

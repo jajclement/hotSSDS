@@ -83,14 +83,35 @@ get_frip <- function(tab,name) {
 }		
 
 # This function will plot a barplot for different types of mapping stats
+#plot_barplot_totinfo <- function(tab) {
+#  p <- ggplot(tab, aes(x = sample, y=number))+
+#    geom_col(aes(fill = type), width = 0.7) +
+#    xlab("Sample") +
+#    ylab("Number of fragments") +
+#    ggtitle("SSDS alignment stats") +
+#    coord_flip() +
+#    scale_y_continuous(labels = scientific)
+#  return(p)
+#}
+
+# This function will plot a barplot for different types of mapping stats
 plot_barplot_totinfo <- function(tab) {
   p <- ggplot(tab, aes(x = sample, y=number))+
-    geom_col(aes(fill = type), width = 0.7) +
-    xlab("Sample") +
+    geom_col(aes(fill = type) , width = 0.7) +
+    xlab("Samples") +
     ylab("Number of fragments") +
-    ggtitle("SSDS alignment stats") +
+    labs(fill = "Type of fragment") +
+    labs(title = "SSDS parsing statistics",
+         subtitle = "Number of single stranded type 1 and type 2 fragments,\ndouble stranded fragments and unclassified fragments" ) +
     coord_flip() +
-    scale_y_continuous(labels = scientific)
+    theme(axis.text.x = element_text(colour = "grey20", size = 5),
+          axis.text.y = element_text(colour = "grey20", size = 5),
+          text=element_text(size = 8)
+    ) +
+    theme(
+      plot.title = element_text(size = 8),    # Position et taille du titre au centre
+      plot.subtitle = element_text(size = 6)
+    )
   return(p)
 }
 
