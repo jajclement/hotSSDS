@@ -946,8 +946,8 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
             R2libsizeT1=`wc -l ${R2_ssDNA_type1_bed} | grep -v "_random"| awk '{print \$1}'`
             
             # Compute normalization factor
-            R1R2normfactT1=`python -c "print(round((1000000/(\$R1libsizeT1+\$R2libsizeT1),5))"`
-	    R1R2normfactTot=`python -c "print(round((1000000/(\$R1libsizeTot+\$R2libsizeTot),5))"`
+            R1R2normfactT1=`python -c "print(round(1000000/(\$R1libsizeT1+\$R2libsizeT1),5))"`
+	    R1R2normfactTot=`python -c "print(round(1000000/(\$R1libsizeTot+\$R2libsizeTot),5))"`
             
             ## Compute bedgraphs and bigwig for T1 and T12
             # Merge T1 bed files from the 2 replicates
@@ -976,7 +976,7 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
                 R2libsizeT12=`wc -l ${R2_ssDNA_type12_bed} | grep -v "_random"| awk '{print \$1}'`
                 
                 # Compute normalization factor
-                R1R2normfactT12=`python -c "print(round((1000000/(\$R1libsizeT12+\$R2libsizeT12),5))"`
+                R1R2normfactT12=`python -c "print(round(1000000/(\$R1libsizeT12+\$R2libsizeT12),5))"`
                 
                 # Merge T1+T2 bed files from the 2 replicates
                 cat ${R1_ssDNA_type12_bed} ${R2_ssDNA_type12_bed} | grep -v "_random" | sort -k1,1 -k2,2n > ${sampleId}_R1R2_ssDNA_type12.bed
