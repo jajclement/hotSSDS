@@ -24,7 +24,7 @@ OPTIONS=""
 TEST="0"
 FORCE="0"
 PARAMS_FILE="${PIPELINE_DIRECTORY}/conf/mm10.config"
-TOWER_TOKEN="eyJ0aWQiOiA0MzE1fS40NTdmNTYxZjk2Y2U2ZTcxZWU5ZWZjMTJhZDdhMzFkMWIxN2FhNzg1"
+TOWER_TOKEN="None"
 
 #Get command line arguments
 while getopts hp:b:n:c:a:i:o:w:t:f:g: flag
@@ -53,6 +53,7 @@ do
 		a) CENV=${OPTARG};if [ ! -d ${CENV} ]; then echo "Environment ${CENV} not found!" ; exit 0; fi;;
 		i) INPUT=${OPTARG};if [ ! -f ${INPUT} ]; then echo "File ${INPUT} not found!" ; exit 0; fi;;
 		o) OPTIONS=${OPTARG};;
+		w) TOWER_TOKEN=${OPTARG};;
 		t) TEST=${OPTARG};;
 		f) FORCE=${OPTARG};;
 		\? ) echo "Unknown option: -$OPTARG" >&2; exit 1;;
