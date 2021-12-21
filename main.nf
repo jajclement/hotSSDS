@@ -244,6 +244,15 @@ params.genomedir = params.genome ? params.genomes[ params.genome ].genomedir ?: 
 params.genome_name = params.genome ? params.genomes[ params.genome ].genome_name ?: false : false
 params.fai = params.genome ? params.genomes[ params.genome ].fai ?: false : false
 
+// Check if the bwa index is present in the genome folder
+println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".amb", checkIfExists: true) ; println("Bwaindex .amb OK")
+println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".ann", checkIfExists: true) ; println("Bwaindex .ann OK")
+println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".bwt", checkIfExists: true) ; println("Bwaindex .bwt OK")
+println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".pac", checkIfExists: true) ; println("Bwaindex .pac OK")
+println("checking the bwa index...") ; fastaindex=file(params.genome_fasta + ".sa", checkIfExists: true) ; println("Bwaindex .sa OK >>>> All BWAindex OK!!!")
+
+
+
 // Check input parameters conformity
 if(params.bigwig_profile != "T1" && params.bigwig_profile != "T12" && params.bigwig_profile != "T1rep" && params.bigwig_profile != "T12rep") {
     println("Error : --bigwig_profile parameter must be either T1 ; T12 ; T1rep or T12rep.")
@@ -759,7 +768,7 @@ process parseITRs {
     libsizeDSstrict=`wc -l  *.dsDNA_strict.bed | grep -v "_random"| awk '{print \$1}'`
     libsizeUN=`wc -l  *.unclassified.bed | grep -v "_random"| awk '{print \$1}'`
     # Keep les unclassified ? #todo
-    libsizeTotal=`expr \$libsizeT1 + \$libsizeT2 + \$libsizeDS + \$libsizeDSstrict + \$libsizeUN`
+    libsizeTotal=`expr \$libsizeT1 + \$libsizeT2 + \$libsizeDS + \$libsizeUN`
     echo \$libsizeTotal > ${sampleId}_norm_factors.txt
 
     # Merge T1 and T2 bed files
@@ -843,30 +852,43 @@ process makeBigwig {
     ## Compute normalization factor (i.e, for T1 : normfactor=librarySizeT1/librarySizeTotal*1000000)
     # Get total library sizes
     libsizeTot=`cat ${libsizeTotal}`
-    
+	
     # Get T1 library sizes
     libsizeT1=`wc -l ${ssDNA_type1_bed} | grep -v "_random"| awk '{print \$1}'`
 
     # Get normalization factors
-    normfactT1=`python -c "print(round(((\$libsizeT1)/(\$libsizeTot))*1000000,5))"`
+    normfactT1=`python -c "print(round((1000000/(\$libsizeT1)),5))"`
+    normfactTot=`python -c "print(round((1000000/(\$libsizeTot)),5))"`
 
-    # Compute bedgraph and bigwig
-    genomeCoverageBed -i ${ssDNA_type1_bed} -g ${params.chrsize} -scale \$normfactT1 -bga > ${sampleId}_ssDNA_type1_RPM.bedgraph
-    sort -k1,1 -k2,2n ${sampleId}_ssDNA_type1_RPM.bedgraph > ${sampleId}_ssDNA_type1_RPM_sorted.bedgraph
-    bedGraphToBigWig ${sampleId}_ssDNA_type1_RPM_sorted.bedgraph ${params.chrsize} \
-        ${sampleId}_ssDNA_type1_RPM.bw >& ${sampleId}_ssDNA_type1.bedGraphToBigWig.log 2>&1
+    # Compute bedgraph and bigwig with normfactT1
+    genomeCoverageBed -i ${ssDNA_type1_bed} -g ${params.chrsize} -scale \$normfactT1 -bga > ${sampleId}_ssDNA_type1_RPM-T1.bedgraph
+    sort -k1,1 -k2,2n ${sampleId}_ssDNA_type1_RPM-T1.bedgraph > ${sampleId}_ssDNA_type1_RPM-T1_sorted.bedgraph
+    bedGraphToBigWig ${sampleId}_ssDNA_type1_RPM-T1_sorted.bedgraph ${params.chrsize} \
+        ${sampleId}_ssDNA_type1_RPM-T1.bw >& ${sampleId}_ssDNA_type1.bedGraphToBigWig.normfactT1.log 2>&1
+    
+    # Compute bedgraph and bigwig with normfactTot
+    genomeCoverageBed -i ${ssDNA_type1_bed} -g ${params.chrsize} -scale \$normfactTot -bga > ${sampleId}_ssDNA_type1_RPM-Tot.bedgraph
+    sort -k1,1 -k2,2n ${sampleId}_ssDNA_type1_RPM-Tot.bedgraph > ${sampleId}_ssDNA_type1_RPM-Tot_sorted.bedgraph
+    bedGraphToBigWig ${sampleId}_ssDNA_type1_RPM-Tot_sorted.bedgraph ${params.chrsize} \
+        ${sampleId}_ssDNA_type1_RPM-Tot.bw >& ${sampleId}_ssDNA_type1.bedGraphToBigWig.normfactTot.log 2>&1
  
     if [[ ${params.bigwig_profile} == "T12" || ${params.bigwig_profile} == "T12rep" ]]
     then  
         # Get normalization factors
         libsizeT12=`wc -l ${ssDNA_type12_bed} | grep -v "_random"| awk '{print \$1}'`
-        normfactT12=`python -c "print(round(((\$libsizeT12)/(\$libsizeTot))*1000000,5))"`
+        normfactT12=`python -c "print(round((1000000/(\$libsizeT12)),5))"`
 
-        # Compute bedgraph and bigwig
-        genomeCoverageBed -i ${ssDNA_type12_bed} -g ${params.chrsize} -scale \$normfactT12 -bga > ${sampleId}_ssDNA_type12_RPM.bedgraph
-        sort -k1,1 -k2,2n ${sampleId}_ssDNA_type12_RPM.bedgraph > ${sampleId}_ssDNA_type12_RPM_sorted.bedgraph
-        bedGraphToBigWig ${sampleId}_ssDNA_type12_RPM_sorted.bedgraph ${params.chrsize} \
-            ${sampleId}_ssDNA_type12_RPM.bw >& ${sampleId}_ssDNA_type12.bedGraphToBigWig.log 2>&1
+        # Compute bedgraph and bigwig with normfactT12
+        genomeCoverageBed -i ${ssDNA_type12_bed} -g ${params.chrsize} -scale \$normfactT12 -bga > ${sampleId}_ssDNA_type12_RPM-T12.bedgraph
+        sort -k1,1 -k2,2n ${sampleId}_ssDNA_type12_RPM-T12.bedgraph > ${sampleId}_ssDNA_type12_RPM-T12_sorted.bedgraph
+        bedGraphToBigWig ${sampleId}_ssDNA_type12_RPM-T12_sorted.bedgraph ${params.chrsize} \
+            ${sampleId}_ssDNA_type12_RPM-T12.bw >& ${sampleId}_ssDNA_type12.bedGraphToBigWig.normfactT12.log 2>&1
+ 
+        # Compute bedgraph and bigwig with normfactTot
+        genomeCoverageBed -i ${ssDNA_type12_bed} -g ${params.chrsize} -scale \$normfactTot -bga > ${sampleId}_ssDNA_type12_RPM-Tot.bedgraph
+        sort -k1,1 -k2,2n ${sampleId}_ssDNA_type12_RPM-Tot.bedgraph > ${sampleId}_ssDNA_type12_RPM-Tot_sorted.bedgraph
+        bedGraphToBigWig ${sampleId}_ssDNA_type12_RPM-Tot_sorted.bedgraph ${params.chrsize} \
+            ${sampleId}_ssDNA_type12_RPM-Tot.bw >& ${sampleId}_ssDNA_type12.bedGraphToBigWig.normfactTot.log 2>&1
     fi
     """
 }
@@ -909,7 +931,7 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
                 val('ok') into makeBigwigReplicates_ok
             script:
             """
-            ## Compute normalization factor (i.e, for T1 : normfactor=librarySizeT1/librarySizeTotal/1000000)
+            ## Compute normalization factor (i.e, for T1 : normfactor=1000000/librarySizeTotal)
             # Get total library sizes
             R1libsizeTot=`cat ${R1_libsizeTotal}`
             R2libsizeTot=`cat ${R2_libsizeTotal}`
@@ -919,18 +941,27 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
             R2libsizeT1=`wc -l ${R2_ssDNA_type1_bed} | grep -v "_random"| awk '{print \$1}'`
             
             # Compute normalization factor
-            R1R2normfactT1=`python -c "print(round(((\$R1libsizeT1+\$R2libsizeT1)/(\$R1libsizeTot+\$R2libsizeTot))*1000000,5))"`
+            R1R2normfactT1=`python -c "print(round(1000000/(\$R1libsizeT1+\$R2libsizeT1),5))"`
+	    R1R2normfactTot=`python -c "print(round(1000000/(\$R1libsizeTot+\$R2libsizeTot),5))"`
             
             ## Compute bedgraphs and bigwig for T1 and T12
             # Merge T1 bed files from the 2 replicates
             cat ${R1_ssDNA_type1_bed} ${R2_ssDNA_type1_bed} | grep -v "_random"| sort -k1,1 -k2,2n > ${sampleId}_R1R2_ssDNA_type1.bed
 
             # Compute bedgraph then bigwig for merged T1 bed files
-            genomeCoverageBed -i ${sampleId}_R1R2_ssDNA_type1.bed -g ${params.chrsize} -scale \$R1R2normfactT1 \
-                -bga > ${sampleId}_R1R2_ssDNA_type1_RPM.bedgraph
-            sort -k1,1 -k2,2n ${sampleId}_R1R2_ssDNA_type1_RPM.bedgraph > ${sampleId}_R1R2_ssDNA_type1_RPM_sorted.bedgraph
-            bedGraphToBigWig ${sampleId}_R1R2_ssDNA_type1_RPM_sorted.bedgraph \
-                ${params.chrsize} ${sampleId}_R1R2_ssDNA_type1_RPM.bw >& ${sampleId}_R1R2_ssDNA_type1.bedGraphToBigWig.log 2>&1
+            # normalized with R1R2normfactT1
+	    genomeCoverageBed -i ${sampleId}_R1R2_ssDNA_type1.bed -g ${params.chrsize} -scale \$R1R2normfactT1 \
+                -bga > ${sampleId}_R1R2_ssDNA_type1_RPM-T1.bedgraph
+            sort -k1,1 -k2,2n ${sampleId}_R1R2_ssDNA_type1_RPM-T1.bedgraph > ${sampleId}_R1R2_ssDNA_type1_RPM-T1_sorted.bedgraph
+            bedGraphToBigWig ${sampleId}_R1R2_ssDNA_type1_RPM-T1_sorted.bedgraph \
+                ${params.chrsize} ${sampleId}_R1R2_ssDNA_type1_RPM-T1.bw >& ${sampleId}_R1R2_ssDNA_type1.bedGraphToBigWig.normfactT1.log 2>&1
+            
+	    # normalized with R1R2normfactoTot
+    	    genomeCoverageBed -i ${sampleId}_R1R2_ssDNA_type1.bed -g ${params.chrsize} -scale \$R1R2normfactTot \
+                -bga > ${sampleId}_R1R2_ssDNA_type1_RPM-Tot.bedgraph
+            sort -k1,1 -k2,2n ${sampleId}_R1R2_ssDNA_type1_RPM-Tot.bedgraph > ${sampleId}_R1R2_ssDNA_type1_RPM-Tot_sorted.bedgraph
+            bedGraphToBigWig ${sampleId}_R1R2_ssDNA_type1_RPM-Tot_sorted.bedgraph \
+                ${params.chrsize} ${sampleId}_R1R2_ssDNA_type1_RPM-Tot.bw >& ${sampleId}_R1R2_ssDNA_type1.bedGraphToBigWig.normfactTot.log 2>&1
             
             # If bigwig_profile is "T12rep", compute the bigwigs for the merged T1 and T2 bed files
             if [[ ${params.bigwig_profile} == "T12rep" ]]
@@ -940,18 +971,27 @@ if ( params.bigwig_profile == "T1rep" || params.bigwig_profile == "T12rep") {
                 R2libsizeT12=`wc -l ${R2_ssDNA_type12_bed} | grep -v "_random"| awk '{print \$1}'`
                 
                 # Compute normalization factor
-                R1R2normfactT12=`python -c "print(round(((\$R1libsizeT12+\$R2libsizeT12)/(\$R1libsizeTot+\$R2libsizeTot))*1000000,5))"`
+                R1R2normfactT12=`python -c "print(round(1000000/(\$R1libsizeT12+\$R2libsizeT12),5))"`
                 
                 # Merge T1+T2 bed files from the 2 replicates
                 cat ${R1_ssDNA_type12_bed} ${R2_ssDNA_type12_bed} | grep -v "_random" | sort -k1,1 -k2,2n > ${sampleId}_R1R2_ssDNA_type12.bed
             
                 # Compute bedgraph then bigwig for merged T1+T2 bed files
-                genomeCoverageBed -i ${sampleId}_R1R2_ssDNA_type12.bed -g ${params.chrsize} -scale \$R1R2normfactT12 \
-                    -bga > ${sampleId}_R1R2_ssDNA_type12_RPM.bedgraph
-                sort -k1,1 -k2,2n ${sampleId}_R1R2_ssDNA_type12_RPM.bedgraph > ${sampleId}_R1R2_ssDNA_type12_RPM_sorted.bedgraph
-                bedGraphToBigWig ${sampleId}_R1R2_ssDNA_type12_RPM_sorted.bedgraph ${params.chrsize} \
-                    ${sampleId}_R1R2_ssDNA_type12_RPM.bw >& ${sampleId}_R1R2_ssDNA_type12.bedGraphToBigWig.log 2>&1
-            fi
+                # normalized with R1R2normfactT12
+		genomeCoverageBed -i ${sampleId}_R1R2_ssDNA_type12.bed -g ${params.chrsize} -scale \$R1R2normfactT12 \
+                    -bga > ${sampleId}_R1R2_ssDNA_type12_RPM-T12.bedgraph
+                sort -k1,1 -k2,2n ${sampleId}_R1R2_ssDNA_type12_RPM-T12.bedgraph > ${sampleId}_R1R2_ssDNA_type12_RPM-T12_sorted.bedgraph
+                bedGraphToBigWig ${sampleId}_R1R2_ssDNA_type12_RPM-T12_sorted.bedgraph ${params.chrsize} \
+                    ${sampleId}_R1R2_ssDNA_type12_RPM-T12.bw >& ${sampleId}_R1R2_ssDNA_type12.bedGraphToBigWig.normfactT12.log 2>&1
+            
+	        # normalized with R1R2normfactTot
+                genomeCoverageBed -i ${sampleId}_R1R2_ssDNA_type12.bed -g ${params.chrsize} -scale \$R1R2normfactTot \
+                    -bga > ${sampleId}_R1R2_ssDNA_type12_RPM-Tot.bedgraph
+                sort -k1,1 -k2,2n ${sampleId}_R1R2_ssDNA_type12_RPM-Tot.bedgraph > ${sampleId}_R1R2_ssDNA_type12_RPM-Tot_sorted.bedgraph
+                bedGraphToBigWig ${sampleId}_R1R2_ssDNA_type12_RPM-Tot_sorted.bedgraph ${params.chrsize} \
+                    ${sampleId}_R1R2_ssDNA_type12_RPM-Tot.bw >& ${sampleId}_R1R2_ssDNA_type12.bedGraphToBigWig.normfactTot.log 2>&1
+            
+	    fi
             """
         }
     }
@@ -1287,7 +1327,7 @@ else {
     // Also outputs genome size parameters (wil be used in post processes)
     process callPeaks {
         tag "${id_ip}"
-        label 'process_basic'
+        label 'process_medium'
         conda "${baseDir}/conda_yml/environment_callpeaks.yml"
         publishDir "${params.outdir}/peaks/${control_status}/saturation_curve/${params.sctype}/peaks", mode: params.publishdir_mode, pattern: "*peaks_sc.bed"
         publishDir "${params.outdir}/peaks/${control_status}/macs2/${macs2_params}/bed",               mode: params.publishdir_mode, pattern: "*1.00pc.0_peaks_sc.bed"
@@ -2287,3 +2327,7 @@ workflow.onError {
     println "Oops... Pipeline execution stopped with the following message: ${workflow.errorMessage}"
     println "Error report: ${workflow.errorReport}"
 }
+
+
+
+
