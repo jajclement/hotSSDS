@@ -113,7 +113,7 @@ There are currently **3 configuration files** :
 The complete list of parameters is accessible through the command :
 ````
 cd /home/${USER}/work/ssdsnextflowpipeline
-conda activate nextflow_dev
+conda activate nextflow21
 nextflow run main.nf --help
 ````
 ````
@@ -234,6 +234,7 @@ But if you want to use **another reference**, you will need to set the following
 - absolute path the chromosome size file ````--chrsize /path/to/genome.chrom.size````  
      
 Do not forget to set accordingly the parameters for ``--hotspots`` and ``--blacklist``.    
+You can create your own json parameter file to specify these parameters.
 
 ### 4. Run the pipeline !
    
@@ -249,7 +250,7 @@ Options :
 	- ``-c`` Absolute path to IGH cluster configuration file (default :`` /home/${USER}/work/ssdsnextflowpipeline/conf/igh.config``) **This option matches ``-c`` parameter in nextflow command line**     
 	- ``-a`` Absolute path to conda environment for nextflow (default : ``/home/${USER}/work/bin/miniconda3/envs/nextflow21``)     
 	- ``-o`` Optional arguments for the pipeline (for example ``"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50"`` ;  default : ``null``) **Be cautious with the ``--`` or ``-``, see section 2.
-    	- ``-w`` Valid Nextflow Tower token (default : "None" ; if not None, then the option **``-with-tower`` must be specified in -o parameter**)
+    - ``-w`` Valid Nextflow Tower token (default : "None" ; if not None, then the option **``-with-tower`` must be specified in -o parameter**)
 	- ``-t`` set to 1 if running pipeline on test data located in ``/home/${USER}/work/ssdsnextflowpipeline/tests/fastq`` (default : 0)      
 	- ``-f`` set to 1 to force pipeline to run without checking resume/output directory (default : 0)       
 INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ``/home/${USER}/work/results/SSDS_pipeline.outdir``)     
