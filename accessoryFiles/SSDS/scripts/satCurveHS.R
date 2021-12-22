@@ -35,7 +35,7 @@ satCurveHS <- function(fIN = 'satCurve.tab',
     geom_line(data = nu, 
               aes(x=reads,y=fit),
               linetype='dashed') +
-    geom_point(shape=21,fill='darkorange',color='grey50',size=4) + 
+    geom_point(shape=21,fill='darkorange',color='grey50',size=1) + 
     scale_x_log10() + 
     annotation_logticks(sides='b') + 
     xlab('ssDNA Fragments (Million)') + 
@@ -49,15 +49,15 @@ satCurveHS <- function(fIN = 'satCurve.tab',
     geom_line(data = nu, 
               aes(x=reads,y=fit),
               linetype='dashed') +
-    geom_point(shape=21,fill='darkorange',color='grey50',size=4) + 
+    geom_point(shape=21,fill='darkorange',color='grey50',size=1) + 
     xlab('ssDNA Fragments (Million)') + 
     ylab('Hotspots') + 
     ggtitle(paste0('Saturation curve (',sampleName,')'))
   
   png(paste0(sampleName,'.saturationCurve_mqc.png'), 
       res = 300, 
-      width = 8, 
-      height = 4, 
+      width = 10, 
+      height = 6, 
       units='cm')
   
   grid.arrange(gN,gL,nrow=2)

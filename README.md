@@ -443,7 +443,8 @@ For example, for process **trimming**, the associated key is **a7/2b8da0** meani
     * ``.command.run`` : nextflow script executed for the process    
     * ``.command.trace`` : resources used by the process    
     * ``.exitcode`` : exit code of the process (if process succedeed : must be 0)    
-- There is also a ``.nexflow.log`` file created each time the pipeline is run (the latest is named ``.nexflow.log``, the second latest is renamed ``.nexflow.log2`` and so on). This log file can give insights of nextflow - slurm communication during the pipeline, such as jobs ID, run time and so on. This file is located in the folder from where the pipeline is launched.    
+    * Optional process specific log (``*.log`` file)
+- There is also a ``.nexflow.log`` file created each time the pipeline is run (the latest is named ``.nexflow.log``, the second latest is renamed ``.nexflow.log2`` and so on). This log file can give insights of nextflow - slurm communication during the pipeline, such as jobs ID, run time and so on. This file is located in the folder from where the pipeline is launched.   
 - If the pipeline crashed because of time or memory limits, you can edit ``conf/igh.config`` file (usually, exit code is 143)    
 - The main causes of pipeline crashed are :    
     * Wrong parameters

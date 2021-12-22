@@ -54,7 +54,7 @@ ggsave(paste(outputPath,"/scatter_frag_length__",sampleName,"_mqc.png",sep=""),
           plot = p2, scale = 1, width = 7, height = 5, units = "cm", dpi = 300)
 
 ggsave(paste(outputPath,"/scatter_microh_length_",sampleName,"_mqc.png",sep=""),
-          plot = p3, scale = 1, width = 7, height = 5, units = "cm", dpi = 300)
+          plot = p3, scale = 1, width = 8, height = 5, units = "cm", dpi = 300)
 
 ggsave(paste(outputPath,"/scatter_itr_length_",sampleName,"_mqc.png",sep=""),
           plot = p4, scale = 1, width = 7, height = 5, units = "cm", dpi = 300)

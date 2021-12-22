@@ -5,24 +5,18 @@
 * Comment runSatCurve.R script
 * Check the blist files from ENCODE IDR : what is it
 * Put bigwig into separate folders depending on their normalization factor (T1, T12, Tot)
-* Test the existence of genome index in case of new genomes
 
 ## Medium tasks
-* Update README with examples & output description
-* Test with nexflow latest version **currently tested by Julie 2021-12-14**
 * Consistency of variables calling in ``main.nf``
-* Homogenize conda env calling in processes
 * Set python and perl version in processes with own conda env
-* Developp MutliQC report **currently implementating by Pauline 2021-12-14**
 * Formatting biblio 
 * Implement chipR process
 * REVIEW NORMALIZATION OF BIGWIG *
 * Replicates order in input channel for IDR (it's random but need to keep track of file names)
+* Reorder modules in multiqc report
 
 ## Big tasks
-* Implement a Global and pretty QC **currently implementating by Pauline 2021-12-14**
 * Migration to Singularity/Docker container
-* Better handling of custom Multiqc v0.7.dev0 via conda to let nextflow deal with conda env creation **currently implementating by Pauline 2021-12-14**
 * Fix the 'don't go beyond' resources function in config
 * Test running pipeline on Genotoul cluster
 * Pipeline starts from bam or another check point
@@ -38,9 +32,16 @@
 * Handling n>2 replicates for IDR **can be done with ChipR**
 * SRA inputs
 * Automate pipeline tests
-* Nextflow Tower wrapping
 
 ## Done
+* **Test the existence of genome index in case of new genomes**
+* **Update README with examples & output description**
+* **Test with nexflow latest version** 21.10.0
+* **Homogenize conda env calling in processes**
+* **Developp MutliQC report**
+* **Implement a Global and pretty QC**
+* **Better handling of custom Multiqc v0.7.dev0 via conda to let nextflow deal with conda env creation** (no longer considered ; just replaced with multiqc)
+* **Nextflow Tower wrapping
 * **Test pipeline on SRA and Julie's data** ok (Julie's data 2021-02-16)
 * **Fix Nextflow version=20.04.1** ok 2021-02-16
 * **Add check parameters conformity** ok 2021-02-16

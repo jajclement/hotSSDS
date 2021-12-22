@@ -2263,7 +2263,7 @@ process general_multiqc {
     tag "${outNameStem}"
     label 'process_basic'
     conda "${baseDir}/conda_yml/environment_multiqc.yml"
-    publishDir "${params.outdir}/qc/multiqc",  mode: 'copy'
+    publishDir "${params.outdir}/qc/multiqc",  mode: params.publishdir_mode
     input:
         val('trimming_ok') from trimming_ok.collect().ifEmpty([])
 	val('fastqc_ok') from fastqc_ok.collect().ifEmpty([])
@@ -2293,6 +2293,7 @@ process general_multiqc {
 	file('*')
     script:
     """
+    echo "this is a debug line"
     multiqc --export -c ${params.multiqc_configfile} -n ${outNameStem}.multiQC.quality-control.report \
         ${params.outdir}/qc/trim_fastqc ${params.outdir}/qc/samstats \
         ${params.outdir}/qc/fingerprint ${params.outdir}/qc/flagstat \

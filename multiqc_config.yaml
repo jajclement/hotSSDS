@@ -37,6 +37,8 @@ extra_fn_clean_exts:
       pattern: _trim
     - type: remove
       pattern: .md
+    - type: remove
+      pattern: _mqc.png
 
 
 exclude_modules:

@@ -143,7 +143,7 @@ conda activate ${CENV}
 if [ ${TOWER_TOKEN} != "None" ];
 then
     export TOWER_ACCESS_TOKEN=${TOWER_TOKEN} ;
-    export NXF_VER=20.10.0 ;
+    export NXF_VER=21.10.0 ;
 fi
 
 #Run pipeline
