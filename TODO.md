@@ -14,6 +14,7 @@
 * REVIEW NORMALIZATION OF BIGWIG *
 * Replicates order in input channel for IDR (it's random but need to keep track of file names)
 * Reorder modules in multiqc report
+* Determine automatically from input_sample.csv file if we have replicates or not (because sometimes, you can have 2 rep but only one, for one experiment)
 
 ## Big tasks
 * Migration to Singularity/Docker container
