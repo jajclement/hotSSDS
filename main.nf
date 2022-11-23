@@ -399,7 +399,7 @@ process check_design {
     fi
     """
 }
-    
+
 //CREATE INPUT CHANNEL WITH SAMPLE ID AND CORRESPONDING FASTQ FILES R1 AND R2
 //The resulting channel is composed of 3 elements : [sampleID,file_R1.fq(.gz),file_R2.fq(.gz)]
 ch_design_reads_csv
