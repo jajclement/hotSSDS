@@ -16,3 +16,4 @@ testing/
 # slurm log files
 *.out
 *COPY
+*.sif
