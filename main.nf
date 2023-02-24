@@ -207,20 +207,19 @@ def idr_params = "${params.idr_peaktype}_macs2pv${params.idr_macs_pv}_macs2qv${p
 def control_status = params.with_control ? "with-input" : "without-input"
 
 // External scripts used in the pipeline
-def ITR_id_v2c_NextFlow2_script = "${params.src}/ITR_id_v2c_NextFlow2.pl" //Author Kevin Brick
-def ssDNA_to_bigwigs_FASTER_LOMEM_script = "${params.src}/ssDNA_to_bigwigs_FASTER_LOMEM.pl" //Author Kevin Brick
-def makeSSMultiQCReport_nextFlow_script = "${params.src}/makeSSMultiQCReport_nextFlow.pl" //Author Kevin Brick
-def check_design_script = "${params.src}/check_design.py" // Adapted from nf-core chipseq pipeline version 1.2.1
-def pickNlines_script = "${params.src}/pickNlines.pl" //Author Kevin Brick
-def satCurveHS_script = "${params.src}/satCurveHS.R" //Author Kevin Brick
-def norm_script = "${params.src}/normalizeStrengthByAdjacentRegions.pl" //Author Kevin Brick
-def reverse_script = "${params.src}/reverseStrandsForOriCalling.pl" // MISSING // Author Kevin Brick #todo 
-def getPeaksBedFiles_script = "${params.src}/getPeaksBedFiles.pl" //Author Kevin Brick, script adapted by Pauline Auffret
-def runSatCurve_script = "${params.src}/runSatCurve.R" //Author Pauline Auffret
-def encode_idr_script= "${params.src}/encode-dcc_chip-seq-pipeline2_src/encode_task_idr.py" //Author Jin Lee from https://github.com/ENCODE-DCC/chip-seq-pipeline2
-def get_frip_script = "${params.src}/compute_frip.py" //Author Pauline Auffret
-def plot_ssds_stat_script = "${params.src}/plotSSDSqc.R" //Author Pauline Auffret
-def runPlotSSDSqc_script = "${params.src}/runPlotSSDSqc.R" //Author Pauline Auffret
+ITR_id_v2c_NextFlow2_ch = file("${params.src}/ITR_id_v2c_NextFlow2.pl", checkIfExists: true) //Author Kevin Brick
+ssDNA_to_bigwigs_FASTER_LOMEM_ch = file("${params.src}/ssDNA_to_bigwigs_FASTER_LOMEM.pl", checkIfExists: true) //Author Kevin Brick
+makeSSMultiQCReport_nextFlow_ch = file("${params.src}/makeSSMultiQCReport_nextFlow.pl", checkIfExists: true) //Author Kevin Brick
+check_design_ch = file("${params.src}/check_design.py", checkIfExists: true) // Adapted from nf-core chipseq pipeline version 1.2.1
+pickNlines_ch = file("${params.src}/pickNlines.pl", checkIfExists: true) //Author Kevin Brick
+satCurveHS_ch = file("${params.src}/satCurveHS.R", checkIfExists: true) //Author Kevin Brick
+norm_ch = file("${params.src}/normalizeStrengthByAdjacentRegions.pl", checkIfExists: true) //Author Kevin Brick
+getPeaksBedFiles_ch = file("${params.src}/getPeaksBedFiles.pl", checkIfExists: true) //Author Kevin Brick, script adapted by Pauline Auffret
+runSatCurve_ch = file("${params.src}/runSatCurve.R", checkIfExists: true) //Author Pauline Auffret
+encode_idr_ch= file("${params.src}/encode-dcc_chip-seq-pipeline2_src/encode_task_idr.py", checkIfExists: true) //Author Jin Lee from https://github.com/ENCODE-DCC/chip-seq-pipeline2
+get_frip_ch = file("${params.src}/compute_frip.py", checkIfExists: true) //Author Pauline Auffret
+plot_ssds_stat_ch = file("${params.src}/plotSSDSqc.R", checkIfExists: true) //Author Pauline Auffret
+runPlotSSDSqc_ch = file("${params.src}/runPlotSSDSqc.R", checkIfExists: true) //Author Pauline Auffret
 
 // Check if input csv file exists
 if (params.inputcsv) { println("Checking input sample file...") ; input_ch = file(params.inputcsv, checkIfExists: true) } else { exit 1, 'Samples design file not specified!' }
@@ -379,10 +378,12 @@ paramsSection()
 // External tool : python script ${check_design_script} adapted from nf-core chipseq pipeline.
 process check_design {
     tag "${design}"
+    label "python"
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
     publishDir "${params.outdir}/qc/design/pipeline_info", mode: params.publishdir_mode
     input:
-        path design from input_ch 
+        path design from input_ch
+        file(check_design_script) from check_design_ch 
     output:
         path 'design_reads.csv' into ch_design_reads_csv
         path 'design_controls.csv' into ch_raw_design_controls_csv
@@ -477,6 +478,7 @@ fq_ch
 process crop {
     tag "${sampleId}"
     label 'process_low'
+    label 'trimming'
     //publishDir "${params.outdir}/qc/trim_fastqc", mode: params.publishdir_mode, pattern: "*_crop_R*"
     publishDir "${params.outdir}/qc/raw_fastqc",  mode: params.publishdir_mode, pattern: "*.html"
     publishDir "${params.outdir}/qc/raw_fastqc",  mode: params.publishdir_mode, pattern: "*.zip"
@@ -529,6 +531,7 @@ process crop {
 process trimming {
     tag "${sampleId}" 
     label 'process_low'
+    label 'trimming'
     publishDir "${params.outdir}/qc/trim_fastqc",       mode: params.publishdir_mode, pattern: "*_report.txt"
     publishDir "${params.outdir}/qc/trim_fastqc",       mode: params.publishdir_mode, pattern: "*trim*.html"
     publishDir "${params.outdir}/qc/trim_fastqc",       mode: params.publishdir_mode, pattern: "*trim*.zip"
@@ -576,6 +579,16 @@ process trimming {
 //***************************************************************************//
 //                      SECTION 3 : MAPPING AND PARSING                      //
 //***************************************************************************//
+// First, define channels containing external resources needed by the following processes
+bwa_ch = file(params.custom_bwa, checkIfExists: true)
+bwa_ra_ch = file(params.custom_bwa_ra, checkIfExists: true)
+fasta_ch = file(params.genome_fasta, checkIfExists: true)
+index_amb_ch = file("${params.genomedir}/*.amb", checkIfExists: true)
+index_ann_ch = file("${params.genomedir}/*.ann", checkIfExists: true)
+index_bwt_ch = file("${params.genomedir}/*.bwt", checkIfExists: true)
+index_pac_ch = file("${params.genomedir}/*.pac", checkIfExists: true)
+index_sa_ch = file("${params.genomedir}/*.sa", checkIfExists: true)
+index_fai_ch = file(params.fai, checkIfExists: true)
 
 // PROCESS 5 : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
 // What it does : aligns trimmed ssds reads to the reference genome
@@ -585,6 +598,7 @@ process trimming {
 process bwaAlign {
     tag "${sampleId}"
     label 'process_long'
+    label 'bam'
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
     publishDir "${params.outdir}/bwa/bam",      mode: params.publishdir_mode, pattern: "*.sorted.bam*"
     publishDir "${params.outdir}/qc/flagstat",  mode: params.publishdir_mode, pattern: "*.flagstat"
@@ -592,6 +606,15 @@ process bwaAlign {
     publishDir "${params.outdir}/bwa/bam/log",  mode: params.publishdir_mode, pattern: "*.out"
     input:
         tuple val(sampleId), file(fqR1), file(fqR2) from trim_ch
+        file(bwa) from bwa_ch
+        file(bwa_ra) from bwa_ra_ch
+        file(fasta) from fasta_ch
+        file(amb) from index_amb_ch
+        file(ann) from index_ann_ch
+        file(bwt) from index_bwt_ch
+        file(pac) from index_pac_ch
+        file(sa) from index_sa_ch
+        file(fai) from index_fai_ch
     output:
         tuple val(sampleId), file('*.sorted.bam') into SORTEDBAM
         file('*.flagstat')
@@ -601,14 +624,14 @@ process bwaAlign {
     script:
     """
     # Align R1 reads (fully complementary to the genome)  with bwa aln
-    ${params.custom_bwa} aln -t ${task.cpus} ${params.genome_fasta} ${fqR1} \
+    ./${bwa} aln -t ${task.cpus} ${fasta} ${fqR1} \
             > ${tmpNameStem}.R1.sai 2>${tmpNameStem}.R1.sai.log
     # Align R2 reads (potentially contain fill-in ITR part at the end of the 5')
     # with bwa-ra aln (custom version of bwa that search for the longest mappable suffix in the query)
-    ${params.custom_bwa_ra} aln -t ${task.cpus} ${params.genome_fasta} ${fqR2} \
+    ./${bwa_ra} aln -t ${task.cpus} ${fasta} ${fqR2} \
             > ${tmpNameStem}.R2.sai 2>${tmpNameStem}.R2.sai.log
     # Generate alignments in the SAM format given R1 and R2 alignments
-    ${params.custom_bwa} sampe ${params.genome_fasta} ${tmpNameStem}.R1.sai ${tmpNameStem}.R2.sai ${fqR1} \
+    ./${bwa} sampe ${fasta} ${tmpNameStem}.R1.sai ${tmpNameStem}.R2.sai ${fqR1} \
             ${fqR2} >${tmpNameStem}.unsorted.sam 2> ${tmpNameStem}.unsorted.sam.log
     # Convert SAM to BAM file
     picard SamFormatConverter I=${tmpNameStem}.unsorted.sam O=${tmpNameStem}.unsorted.tmpbam \
@@ -654,6 +677,7 @@ process bwaAlign {
 process filterBam {
     tag "${sampleId}"
     label 'process_medium'
+    label 'bam'
     publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/bed",  mode: params.publishdir_mode, pattern: "*.bed*"
     publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/bam",  mode: params.publishdir_mode, pattern: "*.bam*"
     publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/log",  mode: params.publishdir_mode, pattern: "*.out"
@@ -715,6 +739,7 @@ if (params.with_control) {
 // External tool : perl scripts from K. Brick (original pipeline, 2012) 
 process parseITRs {
     tag "${sampleId}"
+    label 'bam'
     label 'process_high'
     errorStrategy { task.exitStatus == 140 ? 'retry' : 'terminate' }
     publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/parse_itr/type1/bed",       mode: params.publishdir_mode, pattern: "*.ssDNA_type1.bed"
@@ -731,6 +756,8 @@ process parseITRs {
     publishDir "${params.outdir}/bwa/filterbam/flag_${params.filtering_flag}/parse_itr/norm_factors",    mode: params.publishdir_mode, pattern: "*norm_factors.txt"
     input:
         tuple val(sampleId), file(bam) from FILTEREDBAM
+        file(ITR_id_v2c_NextFlow2_script) from ITR_id_v2c_NextFlow2_ch
+        file(fasta) from fasta_ch
     output:
         tuple val(sampleId), file("${bam}"), file('*.ssDNA_type1.bed'), file('*.ssDNA_type2.bed'), \
             file('*.dsDNA.bed'), file('*.dsDNA_strict.bed'), file('*.unclassified.bed')  into ITRBED
@@ -748,7 +775,7 @@ process parseITRs {
     script:
     """
     # Parse filtered bam file into 5 types
-    perl ${ITR_id_v2c_NextFlow2_script} ${bam} ${params.genome_fasta} >& ${sampleId}_parseITR.log 2>&1
+    perl ${ITR_id_v2c_NextFlow2_script} ${bam} ${fasta} >& ${sampleId}_parseITR.log 2>&1
     # Sort resulting bed files (the bed files will be used for peak calling)
     sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${bam}.ssDNA_type1.bed \
         -o ${bam}.ssDNA_type1.bed
