@@ -1,0 +1,69 @@
+fn_clean_exts:
+    - '.gz'
+    - '.fastq'
+    - '.fq'
+    - '.bam'
+    - '_screen.txt'
+    - '.samstats.tab'
+    - '.idxstats.tab'
+    - '.N*_1.00pc0*'
+    - '.flagstat'
+    - '.md.flagstat'
+
+custom_logo: "./sebimer.png"
+custom_logo_url: "https://wwz.ifremer.fr/Recherche/Departements-scientifiques/Departement-Infrastructures-de-Recherche-et-Systemes-d-Information/Bioinformatique"
+custom_logo_title: "SeBiMER"
+
+report_header_info:
+  - Analysis Pipeline : "SSDS DMC1 Nextflow Pipeline"
+  - Authors : "Pauline Auffret, Julie Clément, Bernard de Massy"
+  - Contact E-mail: "pauline.auffret@ifremer.fr"
+
+title: "Quality control report for SSDS DMC1 ChiP-seq data"
+subtitle: null
+intro_text: "This report was automatically generated."
+
+extra_fn_clean_exts:
+    - type: remove
+      pattern: .sorted
+    - type: remove
+      pattern: .unparsed
+    - type: remove
+      pattern: f.
+    - type: remove
+      pattern: .bam
+    - type: regex
+      pattern: "_T."
+    - type: remove
+      pattern: _crop
+    - type: remove
+      pattern: _trim
+    - type: remove
+      pattern: .md
+
+
+exclude_modules:
+    - cutadapt
+
+custom_data:
+  SSDS_pipeline_*_saturationCurve_mqc_png:
+    file_format: '_mqc.png'
+    section_name: "Saturation curve"
+    description: "The saturation curve shows the number of peaks called in progressively downsampled samples, function of the number of reads in the samples."
+
+sp:
+  SSDS_pipeline_*_saturationCurve_mqc_png:
+    fn: "*.saturationCurve_mqc.png"
+
+
+sp:
+  picard/markdups:
+    fn: "*.md.out"
+
+sp:
+  generalstats:
+    fn: "*.f*q*"
+
+sp:
+  macs2:
+    fn: '*peaks.xls'
