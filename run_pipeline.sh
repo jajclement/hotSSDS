@@ -2,32 +2,26 @@
 
 #Run ssds + callpeaks nextflow pipeline
 
-#Set slurm environment variables
-export MKL_NUM_THREADS=1
-export NUMEXPR_NUM_THREADS=1
-export OMP_NUM_THREADS=1
-
 #Singularity settings
 #Set environmental variable to mount the non canonical directories on IGH cluster
-export SINGULARITY_BINDPATH="/work,/poolzfs"
+export SINGULARITY_BINDPATH=""
 
 #Pipeline default parameters
 ANALYSIS_NAME="SSDS_pipeline"
-PIPELINE_DIRECTORY="/home/${USER}/work/ssdsnextflowpipeline"
-BASE_DIRECTORY="/home/${USER}/work/results"
-CONF="${PIPELINE_DIRECTORY}/conf/igh.config"
+PIPELINE_DIRECTORY="${DATAWORK}/ssdsnextflowpipeline"
+BASE_DIRECTORY="${DATAWORK}/results"
+CONF="${PIPELINE_DIRECTORY}/conf/cluster.config"
 GENOME_PROFILE="${PIPELINE_DIRECTORY}/conf/mm10.json"
-CENV="/home/${USER}/work/bin/miniconda3/envs/nextflow21"
 now=`date +"%FT%H%M%S"`
 INPUT=""
 OPTIONS=""
 TEST="0"
 FORCE="0"
 PARAMS_FILE="${PIPELINE_DIRECTORY}/conf/mm10.config"
-TOWER_TOKEN="None"
+TOWER_TOKEN="none"
 
 #Get command line arguments
-while getopts hp:b:n:c:a:i:o:w:t:f:g: flag
+while getopts hp:b:n:c:i:o:w:t:f:g: flag
 do
 	case "${flag}" in
 		h) echo ""; echo "Usage: bash `basename $0` -i input_file [options] "; \
@@ -38,9 +32,8 @@ do
 		   echo "-b Absolute path to base directory where the output directory will be created (default : ${BASE_DIRECTORY})"; \
 		   echo "-n Analysis name (default : ${ANALYSIS_NAME}) INFO : by default, this parameter will match the --name option in nextflow command line"; \
 		   echo "-c Absolute path to IGH cluster configuration file (default : ${CONF})"; \
-		   echo "-a Absolute path to conda environment for nextflow (default : ${CENV})"; \
 		   echo "-o Optional arguments for the pipeline (for example \"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50\" ;  default : \"${OPTIONS}\")"; \
-		   echo "-w Valid Nextflow Tower token (default : ${TOWER_TOKEN} ; if not None, then the option -with-tower has to be added in -o parameter))"; \
+		   echo "-w Valid Nextflow Tower token (default : ${TOWER_TOKEN} ; if not none, then the option -with-tower has to be added in -o parameter))"; \
 		   echo "-t set to 1 if running pipeline on test data located in ${PIPELINE_DIRECTORY}/tests/fastq (default : ${TEST})"; \
 		   echo "-f set to 1 to force pipeline to run without checking resume/output directory (default : ${FORCE})" ; \
 		   echo "INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir)"; \
@@ -50,7 +43,6 @@ do
 		n) ANALYSIS_NAME=${OPTARG};;
 		g) GENOME_PROFILE=${OPTARG};if [ ! -f ${GENOME_PROFILE} ]; then echo "File ${GENOME_PROFILE} not found!" ; exit 0; fi;;
 		c) CONF=${OPTARG};if [ ! -f ${CONF} ]; then echo "File ${CONF} not found!" ; exit 0; fi;;
-		a) CENV=${OPTARG};if [ ! -d ${CENV} ]; then echo "Environment ${CENV} not found!" ; exit 0; fi;;
 		i) INPUT=${OPTARG};if [ ! -f ${INPUT} ]; then echo "File ${INPUT} not found!" ; exit 0; fi;;
 		o) OPTIONS=${OPTARG};;
 		w) TOWER_TOKEN=${OPTARG};;
@@ -106,15 +98,8 @@ fi
 #Go to the output directory
 cd ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir
 
-#Create output directory for slurm log files
+#Create output directory for log files
 mkdir -p ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir/slurm
-
-#Check conda environment.
-echo "Checking conda environment..."
-if [ ! -d ${CENV} ]; 
-then echo "ABORT : environment ${CENV} not found! Check -a argument. Bye, see you soon !" ; exit 0; 
-else echo "Ok.";
-fi
 
 #Check pipeline directory
 echo "Checking pipeline directory..."
@@ -134,22 +119,10 @@ then echo "ABORT : configuration file ${GENOME_PROFILE} not found! Check -g argu
 else echo "Ok.";
 fi 
 
-#Activate conda environment
-echo "Activate conda environment ${CENV}."
-eval "$(conda shell.bash hook)"
-conda activate ${CENV}
-
-#If tower token is set, then TOWER_ACCESS_TOKEN variable must be added to the environment
-if [ ${TOWER_TOKEN} != "None" ];
-then
-    export TOWER_ACCESS_TOKEN=${TOWER_TOKEN} ;
-    export NXF_VER=21.10.0 ;
-fi
-
 #Run pipeline
 echo "Run pipeline !"
 if [ ${TEST} == "0" ]; then
-echo "Running SSDS pipeline from ${PIPELINE_DIRECTORY} on ${INPUT##*/} data within ${CENV##*/} conda environment. Check output directory ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir/"
+echo "Running SSDS pipeline from ${PIPELINE_DIRECTORY} on ${INPUT##*/} data. Check output directory ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir/"
 fi 
 
 #If running pipeline on test dataset, create relevant input csv file
@@ -169,13 +142,12 @@ fi
 #Cheat lines for dev, do not use
 #OPTIONBASE="--with_control --satcurve false --kbrick_bigwig false -with-tower --bigwig_profile T12rep  --genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --nb_replicates 2 --with_ssds_multiqc --multiqc_dev_conda_env /work/demassyie/bin/miniconda2/envs/SSDSnextflowPipeline -resume"
 #OPTIONBASE="--genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --binsize 25  -resume"
-OPTIONBASE="-profile conda"
-JOBNAME="SSDS_main_${ANALYSIS_NAME}_${now}"
+OPTIONBASE=""
 
-sbatch -p computepart -J ${JOBNAME} -o ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir/slurm/%x.%j.out --export=ALL -n 1 --mem 7G -t 5-0:0  \
---wrap "export MKL_NUM_THREADS=1 ; export NUMEXPR_NUM_THREADS=1 ; export OMP_NUM_THREADS=1 ; \
-nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} -params-file ${GENOME_PROFILE} --name ${ANALYSIS_NAME} --outdir ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"
+CMD="nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} -params-file ${GENOME_PROFILE} --name ${ANALYSIS_NAME} --outdir ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"
 
-#Deactivate conda environment
-conda deactivate
+# Launch PBS run script to run the pipeline on HPC cluster using pbs pro
+echo
+qsub -v CMDLINE="${CMD}",TOWER_TOKEN=${TOWER_TOKEN},OUTDIR=${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir ${PIPELINE_DIRECTORY}/run_main.pbs
+echo
 
