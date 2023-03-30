@@ -40,10 +40,13 @@ extra_fn_clean_exts:
       pattern: _trim
     - type: remove
       pattern: .md
+    - type: remove
+      pattern: _mqc.png
 
 
 exclude_modules:
     - cutadapt
+    - samtools idxstats
 
 custom_data:
   SSDS_pipeline_*_saturationCurve_mqc_png:
@@ -54,7 +57,6 @@ custom_data:
 sp:
   SSDS_pipeline_*_saturationCurve_mqc_png:
     fn: "*.saturationCurve_mqc.png"
-
 
 sp:
   picard/markdups:

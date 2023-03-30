@@ -10,11 +10,11 @@ export SINGULARITY_BINDPATH=""
 ANALYSIS_NAME="SSDS_pipeline"
 PIPELINE_DIRECTORY="${DATAWORK}/ssdsnextflowpipeline"
 BASE_DIRECTORY="${DATAWORK}/results"
-CONF="${PIPELINE_DIRECTORY}/ifremer.config"
+CONF="${PIPELINE_DIRECTORY}/conf/cluster.config"
 GENOME_PROFILE="${PIPELINE_DIRECTORY}/conf/mm10.json"
 now=`date +"%FT%H%M%S"`
 INPUT=""
-OPTIONS="-profile conda "
+OPTIONS=""
 TEST="0"
 FORCE="0"
 PARAMS_FILE="${PIPELINE_DIRECTORY}/conf/mm10.config"
@@ -45,6 +45,7 @@ do
 		c) CONF=${OPTARG};if [ ! -f ${CONF} ]; then echo "File ${CONF} not found!" ; exit 0; fi;;
 		i) INPUT=${OPTARG};if [ ! -f ${INPUT} ]; then echo "File ${INPUT} not found!" ; exit 0; fi;;
 		o) OPTIONS=${OPTARG};;
+		w) TOWER_TOKEN=${OPTARG};;
 		t) TEST=${OPTARG};;
 		f) FORCE=${OPTARG};;
 		\? ) echo "Unknown option: -$OPTARG" >&2; exit 1;;

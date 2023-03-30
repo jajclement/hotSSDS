@@ -20,7 +20,7 @@
 "binsize":"50",
 "bigwig_profile":"T1",
 "kbrick_bigwig":false,
-"with_ssds_multiqc":false,
+"with_ssds_multiqc":true,
 "satcurve":true,
 "with_control":false,
 "sctype":"standard",
