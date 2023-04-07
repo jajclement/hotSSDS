@@ -6,15 +6,14 @@
 The objective is to map **double-strand breaks** (DSBs) along the genome.   
 In this method, chromatin is extracted from adult testes and then immunoprecipitated with an antibody against **DMC1 protein**, which is a meiosis-specific recombinase. DMC1 covers the **single-stranded DNA** resulting from the **resection of double-strand breaks (DSBs)**. SSDS uses the ability of single-stranded DNA to form hairpins. The pipeline processes these specific data and identifies **recombination hotspots**.      
 
-See [review](https://pubmed.ncbi.nlm.nih.gov/24136506/) to learn more about meiotic recombination.
-
-*Please give me some feedback if you are using this pipeline, thank you* :blush:    
+See [this review](https://pubmed.ncbi.nlm.nih.gov/24136506/) by 
+Frédéric Baudat, Yukiko Imai and Bernard de Massy to learn more about meiotic recombination.
 
 ## **Pipeline overview**  
 **This pipeline is based on  [SSDS pipeline](https://github.com/kevbrick/SSDSnextflowPipeline) and [SSDS call peaks pipeline](https://github.com/kevbrick/callSSDSpeaks) by [Kevin Brick, PhD (NIH)](https://www.researchgate.net/profile/Kevin-Brick), updated and adapted to IGH cluster.**  
 See [initial paper](https://genome.cshlp.org/content/22/5/957.long) and [technical paper](https://www.sciencedirect.com/science/article/pii/S0076687917303750?via%3Dihub).  
 The pipeline uses [Nextflow]( https://www.nextflow.io/) > 20.04.1  
-Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**, input modification, callpeaks, post-processing and IDR procedure addition, and global nextflow homogeneisation.   
+Briefly, the update from SSDS pipeline version 1.8_NF included **conda/mamba/singularity/docker execution profiles**, input modification, callpeaks, post-processing and IDR procedure addition, and global nextflow homogeneisation.   
 
   
 **The main steps of the pipeline include :**
@@ -76,71 +75,180 @@ Briefly, the update from SSDS pipeline version 1.8_NF included **conda profile**
 	- Process 26 : general_multiqc (generate general multiqc report)    
 
     
-## **How to run the pipeline on IGH cluster**
-### 0. Requirements
-Get [conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/linux.html) if not installed on your system. First, download the installation script (for example in ``/home/${USER}/work/bin`` directory) :
-````sh
-mkdir -p /home/${USER}/work/bin
-cd /home/${USER}/work/bin
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-````
-Then execute the installation script and follow the prompts on the installer screens :
-````sh
-bash Miniconda3-latest-Linux-x86_64.sh
-````
+## **Requirements**
 
-### 1. Get the pipeline and set up conda environment
-First you need to clone the pipeline in your working directory (in the following instructions, ``/home/${USER}/work/`` will refer to your working directory. Please substitute with the according path if different) :
+The SSDS-DMC1 nextflow pipeline requires [Nextflow DSL1 version 20.10.0](https://github.com/nextflow-io/nextflow/),  and at least one of the following : 
+- [conda](https://docs.conda.io/en/latest/)
+- [mamba](https://github.com/mamba-org/mamba)
+- [Docker](https://www.docker.com/)
+- [Singularity version 3.4.1](https://sylabs.io/)
+   
+The preferable execution profile is **Singularity** to ensure full portability.
+
+Nextflow can be easily installed using [conda package manager](https://anaconda.org/bioconda/nextflow).
+
+Downloading the pipeline will preferably require [git](https://git-scm.com/), otherwise the pipeline can be downloaded using command-line programs for retrieving files from Internet such as [wget](https://www.gnu.org/software/wget/). Nextflow can easily be installed using conda package manager [https://anaconda.org/bioconda/nextflow].
+The SSDS-DMC1 pipeline will rely on the pre-existence of genome references on your system. If you need to download them, then [bwa](https://bio-bwa.sourceforge.net/bwa.shtml) and [samtools](http://www.htslib.org/) will be required as well.
+
+### **Download the pipeline**
+Using git (recommended)
 ````sh
-cd /home/${USER}/work
-git clone https://gitlab.igh.cnrs.fr/pauline.auffret/ssdsnextflowpipeline.git
+git clone https://github.com/jajclement/ssdsnextflowpipeline.git
 cd ssdsnextflowpipeline
 ````
-Then, if you don't already have a conda environment with Nextflow version 21.10.0, run the conda installation pipeline through sbatch script : 
-```` 
-sbatch -p computepart -J "install_conda_env" --export=ALL --mem 5G -t 5-0:0 --wrap "bash src/install_pipeline.sh"
-```` 
-Please use ``bash src/install_pipeline.sh -h`` before to see details.   
-This will create 1 conda environment (name by default **nextflow21**) containing **nextflow version 21.10.0**.  
-You can use your own conda environment as long as it contains that version of Nextflow.   
+Or download zip file using wget, then unzip file
+````sh
+wget https://github.com/jajclement/ssdsnextflowpipeline/archive/refs/heads/master.zip
+unzip ssdsnextflowpipeline-master.zip
+mv ssdsnextflowpipeline-master ssdsnextflowpipeline
+cd ssdsnextflowpipeline
+````
 
-### 2. Pipeline configuration 
-There are currently **3 configuration files** :
-- ````./conf/igh.config```` contains cluster resources requirements & reference genomes info. You don't need to edit this file unless you want to custom the requirements for CPU/memory usage and compute queue (see [IGH cluster documentation](https://kojiki.igh.cnrs.fr/doku.php?id=cluster,)). If a new genome is available on the cluster and does not appear in this file, please contact me or [Aubin Thomas](https://gitlab.igh.cnrs.fr/aubin.thomas), manager of bioinformatics resources at the IGH. If you are running the pipeline on an other computing cluster, you need to specify the relevant configuration file.
-- ````./nextflow.config```` contains default pipeline parameters (it's better to **not** edit this file, default parameters will be overwritten by your custom json parameter file, see next point).
-- ````./conf/mm10.json```` custom parameters file, you can use your own json file following the same template.    
-    
+### **Download Singularity images**
+Singularity images are used to encapsulate all required softwares and dependencies for the different steps of the pipeline. They make the pipeline portable on different systems. As they can be voluminous, they are not included in the pipeline git repository.  
+  
+Prior to run the pipeline using Singularity execution profile, it is necessary to download the images from [Zenodo ‘SSDS-DMC1 Pipeline Singularity Images’ open repository](https://zenodo.org/record/7783473).   
+  
+To do this, two options are available depending on whether the computing environment on which the pipeline will be executed has access to the Internet (see point a) or not (see point b).  
+
+#### a. Run the pipeline using the option ```--get_sif```
+The option ```--get_sif``` allows to launch a « dry run » that will check the existence of Singularity images in the pipeline directory. If not present, the pipeline will download them. Once download is completed, the pipeline stops. It can then ber run without the option ```--get_sif``` to perfom SSDS-DMC1 analyses.
+````sh
+nextflow run main.nf -c conf/cluster.config \
+	-params-file conf/test.json \
+	–profile test,<singularity|mamba|conda|docker> \
+	--get_sif >& get_sif_main_log.txt 2>&1
+````
+#### b. Download all singularity images independantly
+Download all the 10 *.sif* files from zenodo open repository at https://zenodo.org/record/7783473 and place them in ``ssdsnextflowpipeline/containers`` folder so that the final repository structure is :
+````sh
+containers/
+├── bam-box-1.0
+│   ├── bam-box_1.0.sif
+│   ├── Dockerfile
+│   └── environment.yml
+├── bigwig-box-1.0
+│   ├── bigwig-box-1.0.sif
+│   ├── Dockerfile
+│   └── environment.yml
+├── frip-box-1.0
+│   ├── Dockerfile
+│   ├── environment.yml
+│   └── frip-box_1.0.sif
+├── idr-box-1.0
+│   ├── Dockerfile
+│   ├── environment.yml
+│   └── idr-box_1.0.sif
+├── multiqc-box-1.0
+│   ├── Dockerfile
+│   ├── environment.yml
+│   └── multiqc-box_1.0.sif
+├── peak-calling-box-1.0
+│   ├── Dockerfile
+│   ├── environment.yml
+│   └── peak-calling-box_1.0.sif
+├── plot-box-1.0
+│   ├── Dockerfile
+│   ├── environment.yml
+│   └── plot-box_1.0.sif
+├── python-3.8
+│   ├── environment.yml
+│   └── python-3.8.sif
+├── ssds-qc-box-1.0
+│   ├── Dockerfile
+│   ├── environment.yml
+│   └── ssds-qc-box_1.0.sif
+└── trimming-box-1.0
+    ├── Dockerfile
+    ├── environment.yml
+    └── trimming-box_1.0.sif
+````
+### Configure computing parameter files
+Edit ``ssdsnextflowpipeline/conf/cluster.config`` file to adjust the parameters to a computing cluster.  
+The following sections are expected to be overwritten : 
+
+- **DEFAULT CLUSTER CONFIGURATION** section :  
+	- _Cluster description_ subsection (optional) : fill-in cluster description, mail and url ;
+    - _Executor (cluster scheduler) parameters_ subsection (mandatory) : in ‘name’ field, specify ‘slurm’ or ‘pbspro’ for instance, depending on your system scheduling program ;
+    - _Computing queues parameters_ (mandatory) : in ‘queue’ field, specify the computing queues name(s) on which jobs will be submitted. ;
+    - _Max resources_ (mandatory) : adapt max_memory, max_cpus and max_time fields if needed.  
+
+
+- **PROFILES SPECIFIC PARAMETERS** section :
+  - Specify custom launching commands for Conda, Mamba, Singularity and Docker  
+
+
+- **GENOMES LOCATION** section :  
+Write the absolute paths to reference genome(s) :
+	- _genome_fasta_ : absolute path to genome fasta file. If you need to, download the fasta file of your reference genome (you can use the [golden path](https://hgdownload.soe.ucsc.edu/downloads.html), the best way to get all the required infos for your genome if it is published on UCSC). There are several ways to do it. One is to directly upload using the wget command (other ways to do it will be specified there later). You often have the instruction to download and even the command line on the webpage where you access the genome.; 
+    - _genomedir_ : absolute path to directory containing genome fasta file AND bwa index files (to create using bwa-index) bwa index ref.fa ;
+    - _genome_name_	: genome name ;
+    - _fai_ : absolute path to genome fai index (to create with [faidx tool](http://www.htslib.org/doc/samtools-faidx.html) :  
+  
+  	  ``samtools faidx <ref.fasta> -o <ref.fai>``
+
+If needed, edit ``ssdsnextflowpipeline/conf/resources.config``  to adjust specific process resources. To do so, edit cpus/memory/time in **PROCESSES SPECIFIC RESSOURCES REQUIREMENTS** section. You can also add specific computing queues to some categories.
+
+It is important to note that many institutes have one such configuration file referenced in [nf-core/configs repository](https://github.com/nf-core/configs) that you can download and adapt to SSDS-DMC1 pipeline.
+
+### **Prepare input file**
+
+The pipeline will only process **paired-end data** in fastq(.gz) format.
+The input data must be described in an input csv file with the 6 following fields :
+````
+group,replicate,fastq_1,fastq_2,antibody,control
+DMC1-chip-WT,1,/path/to/data/SRR1035576_R1.fastq.gz,/path/to/data/SRR1035576_R2.fastq.gz,antiDMC1,Input-WT
+DMC1-chip-WT,2,/path/to/data/SRR1035577_R1.fastq.gz,/path/to/data/SRR1035577_R2.fastq.gz,antiDMC1,Input-WT
+DMC1-chip-KO,1,/path/to/data/SRR1035578_R1.fastq.gz,/path/to/data/SRR1035578_R2.fastq.gz,antiDMC1,Input-KO
+DMC1-chip-KO,2,/path/to/data/SRR1035579_R1.fastq.gz,/path/to/data/SRR1035579_R2.fastq.gz,antiDMC1,Input-KO
+Input-WT,1,/path/to/data/SRR1035580_R1.fastq.gz,/path/to/data/SRR1035580_R2.fastq.gz,,
+Input-KO,1,/path/to/data/SRR1035581_R1.fastq.gz,/path/to/data/SRR1035581_R2.fastq.gz,,
+````
+**Replicate samples** must have the **same "group" ID** ; the **same "antibody"** and the **same control group**.   
+If the samples do not have an associated input control sample, leave the last fields empty.  
+Control (input) samples must have the 2 last fields ("antibody" and "control") empty.  
+**There must be no empty line at the end of the csv file**
+
+### **Edit/create parameter file**
 The complete list of parameters is accessible through the command :
 ````
-cd /home/${USER}/work/ssdsnextflowpipeline
-conda activate nextflow21
 nextflow run main.nf --help
 ````
 ````
+N E X T F L O W  ~  version 20.10.0
+Launching `main.nf` [reverent_perlman] - revision: 5244f2a6f5
+=============================================================================
+  SSDS Pipeline version 2.0 : Align, parse and call hotspots from SSDNA
+=============================================================================
+    Usage:
+
+    nextflow run main.nf -c conf/cluster.config --params_file conf/mm10.json --inputcsv tests/fastq/input.csv  --name "runtest" --trim_cropR1 36 --trim_cropR2 40 --with_trimgalore -profile singularity -resume
+
+    Runs with Nextflow DSL1 v20.10.0
+=============================================================================
 Input data parameters:
-    --inputcsv                  FILE    PATH TO INPUT CSV FILE (template and default : /work/demassyie/ssdsnextflowpipeline/tests/fastq/input.csv)
-    -params_file                FILE    PATH TO PARAMETERS JSON FILE (template and default : /work/demassyie/ssdsnextflowpipeline/conf/mm10.json)
-    --genomebase                DIR     PATH TO REFERENCE GENOMES (default : "/poolzfs/genomes")
+    --inputcsv                  FILE    PATH TO INPUT CSV FILE (template and default : ssdsnextflowpipeline/tests/fastq/input.csv)
+    -params_file                FILE    PATH TO PARAMETERS JSON FILE (template and default : ssdsnextflowpipeline/conf/mm10.json)
+    --genomebase                DIR     PATH TO REFERENCE GENOMES
     --genome                    STRING  REFERENCE GENOME NAME (must correspond to an existing genome in your config file, default : "mm10")
     --genomedir                 DIR     PATH TO GENOME DIRECTORY (required if your reference genome is not present in your config file)
     --genome_name               STRING  REFERENCE GENOME NAME (e.g ".mm10", required if your reference genome is not present in your config file)
-    --genome_fasta              FILE    PATH TO FILE GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA (required if your reference genome is not present in your config file)
+    --genome_fasta              FILE    PATH TO GENOME FASTA FILE WITH PREEXISTING INDEX FILES FOR BWA (required if your reference genome is not present in your config file)
     --fai                       FILE    PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
     --genome2screen             STRING  GENOMES TO SCREEN FOR FASTQC SCREENING (default : ['mm10','hg19','dm3','dm6','hg38','sacCer2','sacCer3'], comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
-    --chrsize                   FILE    Chromosome sizes file, default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/mm10/mm10.chrom.sizes (downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.chrom.sizes 2021-01-11)
-    --hotspots                  DIR     PATH TO HOTSPOTS FILES DIRECTORY (set to "None" if none provided ; default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/hotspots)
-    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/blacklist/mm10/blackList.bed)
+    --chrsize                   FILE    Chromosome sizes file, default : ssdsnextflowpipeline/data/mm10/mm10.chrom.sizes (downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.chrom.sizes 2021-01-11)
+    --hotspots                  DIR     PATH TO HOTSPOTS FILES DIRECTORY (set to "None" if none provided ; default :  ssdsnextflowpipeline/data/hotspots/mm10/hotspots)
+    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : ssdsnextflowpipeline/data/blacklist/mm10/blackList.bed)
 
 Output and temporary directory parameters:
-    --name                      STRING  ANALYSIS NAME (default : "SSDS_pipeline")
-    --outdir                    DIR     PATH TO OUTPUT DIRECTORY (default : name.outdir)
+    --name                      STRING  ANALYSIS NAME (default : "SSDSnextflowPipeline")
+    --outdir                    DIR     PATH TO OUTPUT DIRECTORY (default : ssdsnextflowpipeline/{params.name}.outdir/02_results")
     --publishdir_mode           STRING  MODE FOR EXPORTING PROCESS OUTPUT FILES TO OUTPUT DIRECTORY (default : "copy", must be "symlink", "rellink", "link", "copy", "copyNoFollow","move", see https://www.nextflow.io/docs/latest/process.html)
-    --scratch                   DIR     PATH TO TEMPORARY DIRECTORY (default : scratch)
 
 Pipeline dependencies:
-    --src                       DIR     PATH TO SOURCE DIRECTORY (default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/scripts ; contains perl scripts)
-    --custom_bwa                EXE     PATH TO CUSTOM BWA EXEC (default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/bwa_0.7.12)
-    --custom_bwa_ra             EXE     PATH TO CUSTOM BWA_SRA EXEC (default : /work/demassyie/ssdsnextflowpipeline/accessoryFiles/SSDS/bwa_ra_0.7.12)
+    --src                       DIR     PATH TO SOURCE DIRECTORY (default : ssdsnextflowpipeline/bin ; contains perl scripts)
+    --custom_bwa                EXE     PATH TO CUSTOM BWA EXEC (default : ssdsnextflowpipeline/bin/bwa_0.7.12)
+    --custom_bwa_ra             EXE     PATH TO CUSTOM BWA_SRA EXEC (default : ssdsnextflowpipeline/bin/bwa_ra_0.7.12)
 
 Trimming parameters:
     --with_trimgalore           BOOL    Use trim-galore instead of Trimmomatic for quality trimming process (default : false)
@@ -152,11 +260,11 @@ Trimming parameters:
     --trim_cropR2               INT     fastx : Cut the R2 read to that specified length (default 50)
     --trim_slidingwin           STRING  trimmomatic : perform a sliding window trimming, cutting once the average quality within the window falls below a threshold (default "4:15")
     --trim_illumina_clip        STRING  trimmomatic : Cut adapter and other illumina-specific sequences from the read (default "2:20:10")
-    --trimmomatic_adapters      FILE    PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default /work/demassyie/ssdsnextflowpipeline/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
+    --trimmomatic_adapters      FILE    PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default ssdsnextflowpipeline/data/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
 
 Mapping parameters:
     --with_multimap             BOOL    Keep multimapping reads from bam (default : false)
-    --bamPGline                 STRING  bam header (default '@PG        ID:ssDNAPipeline2.0_PAUFFRET')
+    --bamPGline                 STRING  bam header (default '@PG\tID:ssDNAPipeline2.0_PAUFFRET')
     --filtering_flag            INT     SAM flag for filtering bam files (default : 2052 ; see https://broadinstitute.github.io/picard/explain-flags.html)
     --picard_min_distance       INT     Picard parameter for marking duplicates (--MINIMUM_DISTANCE) :  width of the window to search for duplicates of a given alignment, default : -1 (twice the first read's read length)
     --picard_optdup_distance    INT     Picard parameter for marking duplicates (--OPTICAL_DUPLICATE_PIXEL_DISTANCE) : The maximum offset between two duplicate clusters in order to consider them optical duplicates. The default is appropriate for unpatterned versions of the Illumina platform (HiSeq2500). For the patterned flowcell models (Novaseq 6000), 2500 is more appropriate, default : 100
@@ -184,130 +292,153 @@ Optional IDR analysis parameters (ENCODE procedure, see https://github.com/ENCOD
     --with_idr                  BOOL    Perform IDR analysis, only possible if nb_replicates=2 (default : false)
     --nb_replicates             INT     Number of replicates per sample (default : 2)
     --idr_peaktype              STRING  The peak file format for IDR (narrowPeak, regionPeak or broadPeak, default : "regionPeak")
-    --idr_threshold             FLOAT   idr p-value threshold (default : 0.1)
+    --idr_setup                 STRING  Threshold profile for idr. This will define the thresholds for true replicates, pool replicates, self replicates r1 and self replicates r2. Profile "auto" is based on ENCODE guidelines and profile "custom" allows to set custom thresholds (see parameters --idr_threshold_r1 --idr_threshold_r2 --idr_threshold_truerep and --idr_threshold_poolrep ; default : auto)
+    --idr_threshold_r1          FLOAT   idr threshold for self replicates r1 (used if --idr_setup is "custom" only ; default : 0.05)
+    --idr_threshold_r2          FLOAT   idr threshold for self replicates r2 (used if --idr_setup is "custom" only ; default : 0.05)
+    --idr_threshold_truerep     FLOAT   idr threshold for true replicates (used if --idr_setup is "custom" only ; default : 0.05)
+    --idr_threshold_poolrep     FLOAT   idr threshold for pooled replicates (used if --idr_setup is "custom" only ; default : 0.01)
     --idr_rank                  INT     p.value or q.value (default : p.value)
-    --idr_filtering_pattern     STRING  Regex for filtering bed files (default :"chr[1-9X]+")
+    --idr_filtering_pattern     STRING  Regex for filtering bed files (default :"chr[1-9X]+" for mouse ; set ".*" to keep everything)
     --idr_macs_qv               FLOAT   Macs2 callpeak q-value parameter (default : -1)
     --idr_macs_pv               FLOAT   Macs2 callpeak p-value parameter, if not -1, will overrule macs_qv, see macs2 doc (default : 0.1)
 
 QC parameters:
-    --with_ssds_multiqc         BOOL    RUN SSDS MULTIQC (need a functional conda environment, see multiqc-dev_conda-env parameter ; default : false)
-    --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : /work/demassyie/ssdsnextflowpipeline/multiqc_config.yaml)
+    --with_ssds_multiqc         BOOL    RUN SSDS MULTIQC (default : true)
+    --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : ssdsnextflowpipeline/conf/multiqc_config.yaml)
 
 Nextflow Tower parameter:
     -with-tower                 BOOL    Enable job monitoring with Nextflow tower (https://tower.nf/)
 
+Singularity images parameters:
+    --get_sif                   BOOL    [REQUIRE INTERNET ACCESS] Check and download singularity images if necessary (if true, pipeline will stops after download. Once downloading has been done, relaunch pipeline with false ; default: false)
+    --url_sif                   URL     URL TO PUBLIC SINGULARITY IMAGES REPOSITORY (default : https://zenodo.org/record/7783473/files)
+
 ````
-     
-One **important thing to note**, in Nextflow command lines, the **native options** are preceded with one **single hyphen** (e.g. ``-profile``), while **parameters specific to SSDS pipeline** are preceded with **2 hyphens** (e.g. ``--genome 'mm10'``).   
+
+Pipeline parameters can be set in two different ways :
+- via parameter file, 
+- directly in the nextflow command-line (parameters passed though command line will overwrite those in parameter file).  
+
+
+For _Mus musculus_ based analysis, parameter file ``ssdsnextflowpipeline/conf/mm10.json`` contains default parameters that can be overwritten
+
+One **important thing to note**, in Nextflow command lines, the **native options** are preceded with one **single dash** (e.g. ``-profile``), while **parameters specific to SSDS pipeline** are preceded with **2 dashes** (e.g. ``--genome 'mm10'``).   
    
+### **Launch the pipeline**
 
-### 3. Input data
-
-1. **Raw reads**     
-The pipeline will only process **paired-end data** in fastq(.gz) format.
-The input data must be described in an input csv file with the 6 following fields (see template in ``/home/${USER}/work/ssdsnextflowpipeline//tests/fastq/input.csv``)
+Once you have set computing config file and arameter file, you can launch the pipeline using the following command-line :  
+````sh
+nextflow run main.nf -c conf/cluster.config \
+	-params-file conf/mm10.json \
+	--inputcsv /path/to/input.csv \
+	-profile <singularity|mamba|conda|docker> \
+	--name "My_workflow_name" >& main_log.txt 2>&1
 ````
-group,replicate,fastq_1,fastq_2,antibody,control
-DMC1-chip-WT,1,/work/${USER}/data/SRR1035576_R1.fastq.gz,/work/${USER}/data/SRR1035576_R2.fastq.gz,antiDMC1,Input-WT
-DMC1-chip-WT,2,/work/${USER}/data/SRR1035577_R1.fastq.gz,/work/${USER}/data/SRR1035577_R2.fastq.gz,antiDMC1,Input-WT
-DMC1-chip-KO,1,/work/${USER}/data/SRR1035578_R1.fastq.gz,/work/${USER}/data/SRR1035578_R2.fastq.gz,antiDMC1,Input-KO
-DMC1-chip-KO,2,/work/${USER}/data/SRR1035579_R1.fastq.gz,/work/${USER}/data/SRR1035579_R2.fastq.gz,antiDMC1,Input-KO
-Input-WT,1,/work/${USER}/data/SRR1035580_R1.fastq.gz,/work/${USER}/data/SRR1035580_R2.fastq.gz,,
-Input-KO,1,/work/${USER}/data/SRR1035581_R1.fastq.gz,/work/${USER}/data/SRR1035581_R2.fastq.gz,,
-````
-**Replicate samples** must have the **same "group" ID** ; the **same "antibody"** and the **same control group**.   
-If the samples do not have an associated input control sample, leave the last fields empty.  
-Control (input) samples must have the 2 last fields ("antibody" and "control") empty.  
-:warning: **There must be no empty line at the end of the csv file**
+It is highly recommended to launch the command in a batch job on the computing cluster, as its execution will take time and computing resources. It is also recommanded to redirect the output of this main nextflow command-line to an identified log file, which will be usefull to monitor the pipeline execution.
 
-2. **Reference genome**    
-The reference genome should be in the ``/poolzvs/genomes`` directory on IGH cluster. Currently, the available genomes are mm10, hg19, hg38, sacCer2, sacCer3, dm3, dm6.
-
-You can use ````--genome 'mm10'```` and you won't need to worry about the other genome parameters like fasta path etc.
-
-But if you want to use **another reference**, you will need to set the following parameters : 
-- absolute path to genome ````--genomedir /path/to/genome````
-- absolute path to fasta file. **Indexes for BWA SHOULD EXIST in the same directory** ````--genome_fasta /path/to/genome.fa````
-- the name of the genome ````--genome_name mm11````
-- absolute path to the fai index ````--fai /path/to/genome.fa.fai````
-- absolute path the chromosome size file ````--chrsize /path/to/genome.chrom.size````  
-     
-Do not forget to set accordingly the parameters for ``--hotspots`` and ``--blacklist``.    
-You can create your own json parameter file to specify these parameters.
-
-### 4. Run the pipeline !
-   
-There are **2 ways** for running the pipeline.
-1. **Run through bash script ``bash run_pipeline.sh -i input_file [options]`` (RECOMMENDED)**    
-Options :
-	-  ``-h`` display help message    
-	- ``-i`` Absolute path to input csv file (REQUIRED except in case of run test on test dataset) **This option matches ``--inputcsv`` parameter in nextflow command line**    
-	- ``-g`` Absolute path to the genome config file (default : ``/home/${USER}/work/ssdsnextflowpipeline/conf/mm10.json``) **This option matches ``-params_file`` parameter in nextflow command line**   
-	- ``-p`` Absolute path to ssds nextflow pipeline base directory (default : ``/home/${USER}/work/ssdsnextflowpipeline``)    
-	- ``-b`` Absolute path to base directory where the output directory will be created (default : ``/home/${USER}/work/results``) **This option matches ``--outdir`` parameter in nextflow command line**   
-	- ``-n`` Analysis name (default : SSDS_pipeline) **this option matches ``--name`` parameter in nextflow command line**    
-	- ``-c`` Absolute path to IGH cluster configuration file (default :`` /home/${USER}/work/ssdsnextflowpipeline/conf/igh.config``) **This option matches ``-c`` parameter in nextflow command line**     
-	- ``-a`` Absolute path to conda environment for nextflow (default : ``/home/${USER}/work/bin/miniconda3/envs/nextflow21``)     
-	- ``-o`` Optional arguments for the pipeline (for example ``"--with_control --no_multimap --trim_cropR1 50 --trim_cropR2 50"`` ;  default : ``null``) **Be cautious with the ``--`` or ``-``, see section 2.
-    - ``-w`` Valid Nextflow Tower token (default : "None" ; if not None, then the option **``-with-tower`` must be specified in -o parameter**)
-	- ``-t`` set to 1 if running pipeline on test data located in ``/home/${USER}/work/ssdsnextflowpipeline/tests/fastq`` (default : 0)      
-	- ``-f`` set to 1 to force pipeline to run without checking resume/output directory (default : 0)       
-INFO : the output directory will be located in the base directory and will be named after the analysis name parameter with the .outdir suffix (default ``/home/${USER}/work/results/SSDS_pipeline.outdir``)     
-
-    
-Please provide all files and directories with **absolute paths**.   
-The command line should look like :
- ````
-bash run_pipeline.sh -i inputfile.csv -g custom_params.json -n your-analysis-name -b my-base-directory -o "-resume"
-````
-The results will be located in a directory named after the analyis name (-n argument) suffixed with .outdir, in the base directory.
-
-Example : 
-````
-bash run_pipeline.sh -i /home/demassyie/work/results/ChIP_Dmc1_cKO_Hells.outdir/infos/input_M_WT_D1_HE_KO.csv -g /home/demassyie/work/results/ChIP_Dmc1_cKO_Hells.outdir/infos/mm10.json -n ChIP_Dmc1_cKO_Hells_newtrim -a /home/demassyie/work/bin/miniconda3/envs/nextflow-dev -o "--with_sds_multiqc -resume" 
-````    
-
-2. **Run directly with Nextflow**     
 The main parameters that need to be set are :
-	-  ``--inputcsv`` : path to the input csv file, see section 3. This option matches the ``-i`` argument in ``run_pipeline.sh`` script.
-	- ``-params_file`` : json file containing list of parameters
-	- ``-profile conda`` : Run within conda environment (only available option at the moment)
-	- ``-resume`` : Prevent the entire workflow to be rerun in case you need to relaunch an aborted workflow
-	- ``--name`` : analysis name, e.g. "SSDS_SRA5678_DMC1". This option matches the ``-n`` argument in ``run_pipeline.sh`` script.
-	- ``--outdir`` : path to output directory. This option matches ``base-directory/analysis-name.outdir`` (i.e. defined by ``-b`` and ``-n`` arguments in ``run_pipeline.sh`` script).    
+- ``--inputcsv`` : path to the input csv file
+- ``-params_file`` : json file containing list of parameters
+- ``-profile`` : <conda|mamba|docker|singularity>
+- ``-resume`` : Prevent the entire workflow to be rerun in case you need to relaunch an aborted workflow.
+- ``--name`` : analysis name, e.g. "SSDS_SRA5678_DMC1".
+- ``--outdir`` : path to output directory.    
 And, if not set in json file :    
-	- ``--genome`` : the reference genome, see section 3
-	- ``--with_control`` (true/false) : use input control files, see section 3
-	- ``--no_multimap`` (true/false) : remove multimappers from bam files
-	- ``--nb_replicates`` : number of biological replicates you are running with (maximum 2)
-	- ``--bigwig_profile`` : indicates which bigwig to generate (T1 ; T12 ; T1rep or T12rep)
-	- ``--with_idr`` (true/false) : run IDR analysis (if nb_replicates=2)
-	- ``--satcurve`` (true/false) : plot saturation curve     
-    - ``--with_sds_multiqc`` (true/false) : generate ssds qc plots
+- ``--genome`` : the reference genome
+- ``--with_control`` (true/false) : use input control files
+- ``--no_multimap`` (true/false) : remove multimappers from bam files
+- ``--nb_replicates`` : number of biological replicates you are running with (maximum 2)
+- ``--bigwig_profile`` : indicates which bigwig to generate (T1 ; T12 ; T1rep or T12rep)
+- ``--with_idr`` (true/false) : run IDR analysis (if nb_replicates=2)
+- ``--satcurve`` (true/false) : plot saturation curve     
+- ``--with_sds_multiqc`` (true/false) : generate ssds qc plots
 
+### **Run a short test** 
+A small dataset can be used to test if the pipeline is correctly running on your system.  
+To do so, run :
+````sh
+nextflow run main.nf -c conf/cluster.config \
+	-params-file conf/test.json \
+	–profile test,<singularity|mamba|conda|docker> >& test_main_log.txt 2>&1
+````
+This test run should approximately take 5 minutes to complete.  
 
-### 5. Monitor the pipeline with Nextflow Tower
+On completion, the end of main log test_main_log.txt should look like :
+````
+executor >  pbspro (25)
+[aa/ff63f4] process > check_design (input.csv)			[100%] 1 of 1 ✔
+[1f/c81a5f] process > makeScreenConfigFile (TEST_SSDS)		[100%] 1 of 1 ✔
+[f1/341fad] process > crop (TEST_IP_R1_T1)			[100%] 1 of 1 ✔
+[fe/67d328] process > trimming (TEST_IP_R1_T1)			[100%] 1 of 1 ✔
+[cb/a77283] process > bwaAlign (TEST_IP_R1_T1)			[100%] 1 of 1 ✔
+[38/e2e8c6] process > filterBam (TEST_IP_R1_T1)			[100%] 1 of 1 ✔
+[af/05397c] process > parseITRs (TEST_IP_R1_T1)			[100%] 1 of 1 ✔
+[d1/b74fbc] process > makeBigwig (TEST_IP_R1_T1)		[100%] 1 of 1 ✔
+[1f/256f21] process > shufBEDs (TEST_IP_R1)			[100%] 1 of 1 ✔
+[3c/f2b936] process > callPeaks (TEST_IP_R1)			[100%] 5 of 5 ✔
+[43/655990] process > samStats (TEST_IP_R1_T1)			[100%] 5 of 5 ✔
+[18/200309] process > makeSSreport (TEST_IP_R1_T1)		[100%] 1 of 1 ✔
+[8f/19ef51] process > makeFingerPrint (TEST_SSDS)		[100%] 1 of 1 ✔
+[c8/a77ede] process > ssds_multiqc (TEST_IP_R1_T1)		[100%] 1 of 1 ✔
+[85/6daa72] process > normalizePeaks (TEST_IP_R1)		[100%] 1 of 1 ✔
+[6a/122837] process > makeSatCurve (TEST_SSDS)			[100%] 1 of 1 ✔
+[a7/a00c9c] process > general_multiqc (TEST_SSDS)		[100%] 1 of 1 ✔
+Completed at: 10-Mar-2023 13:37:48
+Duration    : 3m 57s
+CPU hours   : 0.3
+Succeeded   : 25
+````
+
+### **Monitor the pipeline**
+- Using **Nextflow Tower** :
 You can use ``-with-tower`` option to monitor your jobs through [nextflow tower web interface](https://tower.nf/).   
-You first need to sign in to get your key, then add it to your parameters with the ``-w "your_key"`` option (see 4.1)
-
-### 6. Output
-The main output folder is specified through the ````-b```` and ````-n```` arguments in ``run_pipeline.sh`` ; i.e. ``base-directory/analysis-name.outdir``    
+You first need to sign in to generate an access token then export  **tower_access_token** environment variable in your computing environment.
+- Checking the main log file (main_log.txt in the example command line) using :
+````sh
+tail –d main_log.txt
+executor >  pbspro (1)
+[21/3786f7] process > check_design (Nore_input_fi... [100%] 1 of 1 ✔
+[57/bc36de] process > makeScreenConfigFile (SSDS_... [100%] 1 of 1 ✔
+[d3/c42056] process > crop (WT_R2_T1)                [100%] 4 of 4 ✔
+[7d/c06fe8] process > trimming (WT_R2_T1)            [100%] 4 of 4 ✔
+[ca/74adfd] process > bwaAlign (WT_R2_T1)            [100%] 4 of 4 ✔
+[f0/dec2f6] process > filterBam (WT_R2_T1)           [100%] 4 of 4 ✔
+[aa/39f5f4] process > parseITRs (WT_R2_T1)           [100%] 4 of 4 ✔
+[79/c5fd62] process > makeBigwig (WT_R2_T1)          [100%] 4 of 4 ✔
+[22/a02566] process > makeDeeptoolsBigWig (WT_R2_T1) [100%] 20 of 20 ✔
+[1b/218fa3] process > toFRBigWig (WT_R2_T1)          [100%] 20 of 20 ✔
+[24/35b6ac] process > shufBEDs (WT_R1)               [100%] 4 of 4 ✔
+[78/1c307b] process > callPeaks (MUT_R1)             [100%] 9 of 9 ✔
+[18/b8edd6] process > samStats (WT_R2_T1)            [100%] 20 of 20 ✔
+[e4/4461d1] process > makeSSreport (WT_R2_T1)        [100%] 4 of 4  ✔
+[4b/e769b4] process > makeFingerPrint (SSDS_pipel... [100%] 1 of 1  ✔
+[58/02be5a] process > ssds_multiqc (WT_R2_T1)        [100%] 4 of 4  ✔
+[5b/be1b53] process > createPseudoReplicates (MUT)   [ 50%] 1 of 2
+[37/0acb1c] process > callPeaksForIDR (WT)           [100%] 1 of 1 ✔
+[-        ] process > IDRanalysis                    -
+[-        ] process > IDRpostprocess                 -
+[-        ] process > normalizePeaks_idr             -
+[-        ] process > makeSatCurve                   -
+[-        ] process > general_multiqc                
+````
+### Output
+The main output folder is specified using ``--outdir`` parameter.   
 This folder will contain the following directories :
-* **trimming** with trimmed fastq files
-* **bwa** with mapped reads, filtered mapped reads and parsed fragments in bam (bai) and bed format
-* **bigwig**  with bigwig and bedgraph files
-* **peaks** with raw, filtered, centered peaks in bed format and with saturation curve and IDR files is options are selected
-* **qc** with quality controls files and reports for sequencing, mapping, peak calling and parsing steps
-* **nxfReports** with nextflow execution reports and diagram
-* **slurm** with log files for main process
-* **work** is the working directory for Nextflow   
+- **00_reports** : contains Nextflow execution reports and diagram
+- **01_logs** : contains log files for all processes 
+- **02_results** : contains results files, including :
+  * **trimming** with trimmed fastq files
+  * **bwa** with mapped reads, filtered mapped reads and parsed fragments in bam (bai) and bed format
+  * **bigwig**  with bigwig and bedgraph files
+  * **peaks** with raw, filtered, centered peaks in bed format and with saturation curve and IDR files is options are selected
+  * **qc** with quality controls files and reports for sequencing, mapping, peak calling and parsing steps
+  * **idr** with peak set files for IDR statistical testing
+  * **work** is the working directory for Nextflow   
 
-Tree overview of the output folder composition :
+Tree overview of the output folder composition [DEPRECATED] :
 
 ````
 .
-├── nxfReports                                          : containts Nextflow execution reports and diagram.
 ├── bigwig                                              : contains bigwig files according to the parameter set
 │   └── T1
 │       └── log
@@ -371,51 +502,33 @@ Tree overview of the output folder composition :
 ├── trimming                                            : contains trimmed fastq files
 │   └── trim_fastq
 ├── idr                                                 : contains files for IDR process
-│   └── with[out]-input
-│       └── narrowPeak_macs2pv*_macs2qv*1_idr_setup-*
-│           ├── bfilt                                   : contains blacklist filtered bed files
-│           ├── log
-│           ├── macs2                                   : contains macs2 narrowpeaks files
-│           │   └── log
-│           ├── peaks                                   : contains bed files
-│           ├── plot                                    : contains IDR plots
-│           ├── pseudo_replicates                       : contains bed for pseudo replicates files
-│           ├── qc
-│           │   └── log
-│           └── unthresholded-peaks                     : contains unthresholded bed files
-│
-├── slurm                                               : contains main script log file
-│
-└── work                                                : contains Nexflow work files
-    └── conda                                            : contains pipeline conda environments
+   └── with[out]-input
+       └── narrowPeak_macs2pv*_macs2qv*1_idr_setup-*
+           ├── bfilt                                   : contains blacklist filtered bed files
+           ├── log
+           ├── macs2                                   : contains macs2 narrowpeaks files
+           │   └── log
+           ├── peaks                                   : contains bed files
+           ├── plot                                    : contains IDR plots
+           ├── pseudo_replicates                       : contains bed for pseudo replicates files
+           ├── qc
+           │   └── log
+           └── unthresholded-peaks                     : contains unthresholded bed files
 
 ````
 
-The execution reports are in ``nxfReports`` folder created in your output directory.  
+
 I recommend to look at ``qc/multiqc/*.multiQC.quality-control.report.html`` file first to have a look at **sequencing, mapping, parsing quality.**   
 Then you use the **bigwig files** in your favorite brower or online [IGV](https://igv.org/app/).    
 You can also look at the **peaks** in ``peaks/with[out]-input/finalpeaks`` .   
-Then, you can run [ssdspostprocess pipeline](https://gitlab.igh.cnrs.fr/pauline.auffret/ssdspostprocess) to go deeper in the peaks analysis.  
+Then, you can run [ssdspostprocess pipeline](https://github.com/jajclement/ssdspostprocess) to go deeper in the peaks analysis.  
 
-## 7. Test data
-You may want to test the installation before going with your own data. 
-A small dataset is present in ````tests/fastq```` directory. 
 
-To use it, you can run :
-````
-bash run_pipeline.sh -t 1
-````
-**Without -i option**. Please check ``-p`` (pipeline directory) ; ``-a`` (conda environment path) ; ``-n`` (analysis name) and ``-b`` (base directory for output) parameters before running.      
-
-Use ````bash run_pipeline.sh -h```` to see available options.   
-
-This should take around 10 minutes to run.
-
-## 8. Debug
+### **Debug**
 In an ideal world the pipeline would never crash but let's face it, it will happen. 
 Here are some clues to help you debug. 
-Fisrt, the Slurm main log ``.out file`` (located in the slurm directory in the pipeline results folder) will give you many precious clues :
-- The second line of this file looks like ``Launching `/home/demassyie/work/ssdsnextflowpipeline/main.nf` [fervent_ptolemy] - revision: e2a189c33c`` indicating that the current run has been internally named **fervent_ptolemy**
+Fisrt, the main log file will give you many precious clues :
+- The second line of this file looks like ``Launching `main.nf` [fervent_ptolemy] - revision: e2a189c33c`` indicating that the current run has been internally named **fervent_ptolemy**
 - Just after you will find all the parameters used in the current run
 - Then you will have the detailled pipeline status, for each process, for example :
 ````
@@ -455,12 +568,11 @@ For example, for process **trimming**, the associated key is **a7/2b8da0** meani
     * Exotic parameters unforeseen behavior (if running on a new genome for instance)  
 
              
-**Do not hesitate to contact me or open an issue in Gitlab if you can't resolve one bug.**
+**Do not hesitate to contact me or open an issue if you can't resolve one bug.**
 
-## 9. Notes and future developpments
-See [TODO.md](https://gitlab.igh.cnrs.fr/pauline.auffret/ssdsnextflowpipeline/-/blob/master/TODO.md) file.   
-- Singularity container
-- [ChipR](https://github.com/rhysnewell/ChIP-R) process option to assess peak reproducibility
+### **Notes and future developpments**
+See [TODO.md](https://github.com/jajclement/ssdsnextflowpipeline/blob/master/TODO.md) file.   
+
 
    
 :santa:

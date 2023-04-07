@@ -1,6 +1,8 @@
 {"name":"SSDS_pipeline_mm10",
 "publishdir_mode":"copy",
+"get_sif":false,
 "genome":"mm10",
+"hotspots":"None",
 "with_trimgalore":false,
 "trimgalore_adapters":"",
 "trimg_quality":10,
