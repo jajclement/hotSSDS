@@ -10,7 +10,7 @@ export SINGULARITY_BINDPATH=""
 ANALYSIS_NAME="SSDS_pipeline"
 PIPELINE_DIRECTORY="${DATAWORK}/ssdsnextflowpipeline"
 BASE_DIRECTORY="${DATAWORK}/results"
-CONF="${PIPELINE_DIRECTORY}/conf/cluster.config"
+CONF="${PIPELINE_DIRECTORY}/ifremer.config"
 GENOME_PROFILE="${PIPELINE_DIRECTORY}/conf/mm10.json"
 now=`date +"%FT%H%M%S"`
 INPUT=""
@@ -143,8 +143,10 @@ fi
 #OPTIONBASE="--with_control --satcurve false --kbrick_bigwig false -with-tower --bigwig_profile T12rep  --genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --nb_replicates 2 --with_ssds_multiqc --multiqc_dev_conda_env /work/demassyie/bin/miniconda2/envs/SSDSnextflowPipeline -resume"
 #OPTIONBASE="--genome mm10 --no_multimap --trim_cropR1 50 --trim_cropR2 50 --binsize 25  -resume"
 OPTIONBASE=""
-
 CMD="nextflow run ${PIPELINE_DIRECTORY}/main.nf -c ${CONF} -params-file ${GENOME_PROFILE} --name ${ANALYSIS_NAME} --outdir ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir --inputcsv ${INPUT} ${OPTIONBASE} ${OPTIONS}"
+echo $CMD
+echo ${TOWER_TOKEN}
+echo ${BASE_DIRECTORY}/${ANALYSIS_NAME}.outdir
 
 # Launch PBS run script to run the pipeline on HPC cluster using pbs pro
 echo

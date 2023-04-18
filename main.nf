@@ -1,18 +1,18 @@
 #!/usr/bin/env nextflow
 /*
 ========================================================================================
-                        SSDS Pipeline version 2.0
+                        hotSSDS pipeline version 2.0
 			Adapted from Kevin Brick (version 1.8_NF)
                         Pauline Auffret, 2020-2021
 ========================================================================================
- SSDS nextflow pipeline
+ hotSSDS pipeline
  #### Homepage / Documentation
  Adapted from version 1.8_NF (Kevin Brick)
  Original pipelines :
  https://github.com/kevbrick/SSDSnextflowPipeline
  https://github.com/kevbrick/callSSDSpeaks
  Version 2.0 (Pauline Auffret) :
- https://gitlab.igh.cnrs.fr/pauline.auffret/ssdsnextflowpipeline
+ https://github.com/jajclement/ssdsnextflowpipeline
 ----------------------------------------------------------------------------------------
 ----------------------------------------------------------------------------------------
 Single-Stranded-DNA-Sequencing (SSDS) Pipeline : Align, Parse and call Peaks in ssDNA
@@ -79,7 +79,7 @@ PROCESS 26 : general_multiqc (GENERATES GENERAL MULTIQC REPORT)
 def helpMessage() { 
     log.info"""
 =============================================================================
-  SSDS Pipeline version 2.0 : Align, parse and call hotspots from SSDNA
+  hotSSDS pipeline version 2.0 : Align, parse and call hotspots from SSDNA
 =============================================================================
     Usage:
 
@@ -102,7 +102,7 @@ Input data parameters:
     --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : ${baseDir}/data/blacklist/mm10/blackList.bed)
 
 Output and temporary directory parameters:
-    --name                      STRING  ANALYSIS NAME (default : "SSDSnextflowPipeline")
+    --name                      STRING  ANALYSIS NAME (default : "hotSSDS_pipeline")
     --outdir                    DIR     PATH TO OUTPUT DIRECTORY (default : ${baseDir}/{params.name}.outdir/02_results")
     --publishdir_mode           STRING  MODE FOR EXPORTING PROCESS OUTPUT FILES TO OUTPUT DIRECTORY (default : "copy", must be "symlink", "rellink", "link", "copy", "copyNoFollow","move", see https://www.nextflow.io/docs/latest/process.html)
 
@@ -303,7 +303,7 @@ params.fai = params.genome ? params.genomes[ params.genome ].fai ?: false : fals
 
 // Check if the bwa index is present in the genome folder
 println("Checking bwa index files...") ; fastaindex=file("${params.genome_fasta}" + ".amb", checkIfExists: true) ; println("Bwa index .amb file OK")
-println("Checking bwa index files...") ; fastaindex=file("${params.genome_fasta}"  + ".ann", checkIfExists: true) ; println("Bwa index .ann file OK")
+println("Checking bwa index files...") ; fastaindex=file("${params.genome_fasta}" + ".ann", checkIfExists: true) ; println("Bwa index .ann file OK")
 println("Checking bwa index files...") ; fastaindex=file("${params.genome_fasta}" + ".bwt", checkIfExists: true) ; println("Bwa index .bwt file OK")
 println("Checking bwa index files...") ; fastaindex=file("${params.genome_fasta}" + ".pac", checkIfExists: true) ; println("Bwa index .pac file OK")
 println("Checking bwa index files...") ; fastaindex=file("${params.genome_fasta}" + ".sa", checkIfExists: true) ; println("Bwa index .sa file OK >>>> All BWAindex OK!!!")
@@ -370,7 +370,7 @@ if(params.with_idr) {
 def paramsSection() {
 log.info """
 ==========================================================================
-   SSDS Pipeline version 2.0 : Align, parse and call hotspots from SSDNA  
+   hotSSDS pipeline version 2.0 : Align, parse and call hotspots from SSDNA  
 ==========================================================================
 ** Main parameters ** 
 Run name                       : ${params.name}
