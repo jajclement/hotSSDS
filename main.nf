@@ -478,7 +478,7 @@ if (params.get_sif) {
             echo "Downloading Singularity ${name} images..." >> get_sif_${name}.log
             wget '${params.sif_url}/${name}' -O ${baseDir}/containers/${dir}/${name} -o ./wget_${name}.log || rm -f ${baseDir}/containers/${dir}/${name}
         fi
-        if grep -q "ERROR" wget_bam-box_1.0.sif.log || grep -q "failed" wget_bam-box_1.0.sif.log ;
+        if grep -q "ERROR" wget_*.log || grep -q "failed" wget_*.log ;
         then
             echo "${name} file download failed. Check sif_url (${params.sif_url}) parameter."
             exit 1

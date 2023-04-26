@@ -1,4 +1,4 @@
-{"name":"SSDS_pipeline_mm10",
+{"name":"hotSSDS_pipeline_mm10",
 "publishdir_mode":"copy",
 "get_sif":false,
 "genome":"mm10",
