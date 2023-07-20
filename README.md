@@ -1,4 +1,4 @@
-# 🐭 **SSDS nextflow pipeline version 2.0** :fish:🌈
+# 🐭 **hotSSDS nextflow pipeline version 2.0** :fish:🌈
 **Parse, Align and Call Hotspots from single stranded DNA reads originated from SSDS (Single Stranded Dna Sequencing)**   
 
 ## **Context**  
@@ -77,7 +77,7 @@ Briefly, the update from SSDS pipeline version 1.8_NF included **conda/mamba/sin
     
 ## **Requirements**
 
-The SSDS-DMC1 nextflow pipeline requires [Nextflow DSL1 version 20.10.0](https://github.com/nextflow-io/nextflow/),  and at least one of the following : 
+The hotSSDS nextflow pipeline requires [Nextflow DSL1 version 20.10.0](https://github.com/nextflow-io/nextflow/),  and at least one of the following : 
 - [conda](https://docs.conda.io/en/latest/)
 - [mamba](https://github.com/mamba-org/mamba)
 - [Docker](https://www.docker.com/)
@@ -88,31 +88,31 @@ The preferable execution profile is **Singularity** to ensure full portability.
 Nextflow can be easily installed using [conda package manager](https://anaconda.org/bioconda/nextflow).
 
 Downloading the pipeline will preferably require [git](https://git-scm.com/), otherwise the pipeline can be downloaded using command-line programs for retrieving files from Internet such as [wget](https://www.gnu.org/software/wget/). Nextflow can easily be installed using conda package manager [https://anaconda.org/bioconda/nextflow].
-The SSDS-DMC1 pipeline will rely on the pre-existence of genome references on your system. If you need to download them, then [bwa](https://bio-bwa.sourceforge.net/bwa.shtml) and [samtools](http://www.htslib.org/) will be required as well.
+The hotSSDS pipeline will rely on the pre-existence of genome references on your system. If you need to download them, then [bwa](https://bio-bwa.sourceforge.net/bwa.shtml) and [samtools](http://www.htslib.org/) will be required as well.
 
 ### **Download the pipeline**
 Using git (recommended)
 ````sh
-git clone https://github.com/jajclement/ssdsnextflowpipeline.git
-cd ssdsnextflowpipeline
+git clone https://github.com/jajclement/hotSSDS.git
+cd hotSSDS
 ````
 Or download zip file using wget, then unzip file
 ````sh
-wget https://github.com/jajclement/ssdsnextflowpipeline/archive/refs/heads/master.zip
-unzip ssdsnextflowpipeline-master.zip
-mv ssdsnextflowpipeline-master ssdsnextflowpipeline
-cd ssdsnextflowpipeline
+wget https://github.com/jajclement/hotSSDS/archive/refs/heads/master.zip
+unzip hotSSDS-master.zip
+mv hotSSDS-master hotSSDS
+cd hotSSDS
 ````
 
 ### **Download Singularity images**
 Singularity images are used to encapsulate all required softwares and dependencies for the different steps of the pipeline. They make the pipeline portable on different systems. As they can be voluminous, they are not included in the pipeline git repository.  
   
-Prior to run the pipeline using Singularity execution profile, it is necessary to download the images from [Zenodo ‘SSDS-DMC1 Pipeline Singularity Images’ open repository](https://zenodo.org/record/7783473).   
+Prior to run the pipeline using Singularity execution profile, it is necessary to download the images from [Zenodo ‘hotSSDS Pipeline Singularity Images’ open repository](https://zenodo.org/record/7783473).   
   
 To do this, two options are available depending on whether the computing environment on which the pipeline will be executed has access to the Internet (see point a) or not (see point b).  
 
 #### a. Run the pipeline using the option ```--get_sif```
-The option ```--get_sif``` allows to launch a « dry run » that will check the existence of Singularity images in the pipeline directory. If not present, the pipeline will download them. Once download is completed, the pipeline stops. It can then ber run without the option ```--get_sif``` to perfom SSDS-DMC1 analyses.
+The option ```--get_sif``` allows to launch a « dry run » that will check the existence of Singularity images in the pipeline directory. If not present, the pipeline will download them. Once download is completed, the pipeline stops. It can then be run without the option ```--get_sif``` to perfom hotSSDS analyses.
 ````sh
 nextflow run main.nf -c conf/cluster.config \
 	-params-file conf/test.json \
@@ -120,7 +120,7 @@ nextflow run main.nf -c conf/cluster.config \
 	--get_sif >& get_sif_main_log.txt 2>&1
 ````
 #### b. Download all singularity images independantly
-Download all the 10 *.sif* files from zenodo open repository at https://zenodo.org/record/7783473 and place them in ``ssdsnextflowpipeline/containers`` folder so that the final repository structure is :
+Download all the 10 *.sif* files from zenodo open repository at https://zenodo.org/record/7783473 and place them in ``hotSSDS/containers`` folder so that the final repository structure is :
 ````sh
 containers/
 ├── bam-box-1.0
@@ -164,7 +164,7 @@ containers/
     └── trimming-box_1.0.sif
 ````
 ### Configure computing parameter files
-Edit ``ssdsnextflowpipeline/conf/cluster.config`` file to adjust the parameters to a computing cluster.  
+Edit ``hotSSDS/conf/cluster.config`` file to adjust the parameters to a computing cluster.  
 The following sections are expected to be overwritten : 
 
 - **DEFAULT CLUSTER CONFIGURATION** section :  
@@ -187,9 +187,9 @@ Write the absolute paths to reference genome(s) :
   
   	  ``samtools faidx <ref.fasta> -o <ref.fai>``
 
-If needed, edit ``ssdsnextflowpipeline/conf/resources.config``  to adjust specific process resources. To do so, edit cpus/memory/time in **PROCESSES SPECIFIC RESSOURCES REQUIREMENTS** section. You can also add specific computing queues to some categories.
+If needed, edit ``hotSSDS/conf/resources.config``  to adjust specific process resources. To do so, edit cpus/memory/time in **PROCESSES SPECIFIC RESSOURCES REQUIREMENTS** section. You can also add specific computing queues to some categories.
 
-It is important to note that many institutes have one such configuration file referenced in [nf-core/configs repository](https://github.com/nf-core/configs) that you can download and adapt to SSDS-DMC1 pipeline.
+It is important to note that many institutes have one such configuration file referenced in [nf-core/configs repository](https://github.com/nf-core/configs) that you can download and adapt to hotSSDS pipeline.
 
 ### **Prepare input file**
 
@@ -218,7 +218,7 @@ nextflow run main.nf --help
 N E X T F L O W  ~  version 20.10.0
 Launching `main.nf` [reverent_perlman] - revision: 5244f2a6f5
 =============================================================================
-  SSDS Pipeline version 2.0 : Align, parse and call hotspots from SSDNA
+  hotSSDS pipeline version 2.0 : Align, parse and call hotspots from SSDNA
 =============================================================================
     Usage:
 
@@ -227,8 +227,8 @@ Launching `main.nf` [reverent_perlman] - revision: 5244f2a6f5
     Runs with Nextflow DSL1 v20.10.0
 =============================================================================
 Input data parameters:
-    --inputcsv                  FILE    PATH TO INPUT CSV FILE (template and default : ssdsnextflowpipeline/tests/fastq/input.csv)
-    -params_file                FILE    PATH TO PARAMETERS JSON FILE (template and default : ssdsnextflowpipeline/conf/mm10.json)
+    --inputcsv                  FILE    PATH TO INPUT CSV FILE (template and default : hotSSDS/tests/fastq/input.csv)
+    -params_file                FILE    PATH TO PARAMETERS JSON FILE (template and default : hotSSDS/conf/mm10.json)
     --genomebase                DIR     PATH TO REFERENCE GENOMES
     --genome                    STRING  REFERENCE GENOME NAME (must correspond to an existing genome in your config file, default : "mm10")
     --genomedir                 DIR     PATH TO GENOME DIRECTORY (required if your reference genome is not present in your config file)
@@ -237,18 +237,18 @@ Input data parameters:
     --fai                       FILE    PATH TO GENOME FAI INDEX FILE (required if your reference genome is not present in your config file)
     --genome2screen             STRING  GENOMES TO SCREEN FOR FASTQC SCREENING (default : ['mm10','hg19','dm3','dm6','hg38','sacCer2','sacCer3'], comma separated list of genomes to screen reads for contamination, names must correspond to existing genomes in your config file)
     --chrsize                   FILE    Chromosome sizes file, default : ssdsnextflowpipeline/data/mm10/mm10.chrom.sizes (downloaded from https://hgdownload.soe.ucsc.edu/goldenPath/mm10/bigZips/mm10.chrom.sizes 2021-01-11)
-    --hotspots                  DIR     PATH TO HOTSPOTS FILES DIRECTORY (set to "None" if none provided ; default :  ssdsnextflowpipeline/data/hotspots/mm10/hotspots)
-    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : ssdsnextflowpipeline/data/blacklist/mm10/blackList.bed)
+    --hotspots                  DIR     PATH TO HOTSPOTS FILES DIRECTORY (set to "None" if none provided ; default :  hotSSDS/data/hotspots/mm10/hotspots)
+    --blacklist                 FILE    PATH TO BLACKLIST BED FILE FOR PEAK CALLING AND IDR (set to "None" if none provided ; default : hotSSDS/data/blacklist/mm10/blackList.bed)
 
 Output and temporary directory parameters:
-    --name                      STRING  ANALYSIS NAME (default : "SSDSnextflowPipeline")
-    --outdir                    DIR     PATH TO OUTPUT DIRECTORY (default : ssdsnextflowpipeline/{params.name}.outdir/02_results")
+    --name                      STRING  ANALYSIS NAME (default : "hotSSDSPipeline")
+    --outdir                    DIR     PATH TO OUTPUT DIRECTORY (default : hotSSDS/{params.name}.outdir/02_results")
     --publishdir_mode           STRING  MODE FOR EXPORTING PROCESS OUTPUT FILES TO OUTPUT DIRECTORY (default : "copy", must be "symlink", "rellink", "link", "copy", "copyNoFollow","move", see https://www.nextflow.io/docs/latest/process.html)
 
 Pipeline dependencies:
-    --src                       DIR     PATH TO SOURCE DIRECTORY (default : ssdsnextflowpipeline/bin ; contains perl scripts)
-    --custom_bwa                EXE     PATH TO CUSTOM BWA EXEC (default : ssdsnextflowpipeline/bin/bwa_0.7.12)
-    --custom_bwa_ra             EXE     PATH TO CUSTOM BWA_SRA EXEC (default : ssdsnextflowpipeline/bin/bwa_ra_0.7.12)
+    --src                       DIR     PATH TO SOURCE DIRECTORY (default : hotSSDS/bin ; contains perl scripts)
+    --custom_bwa                EXE     PATH TO CUSTOM BWA EXEC (default : hotSSDS/bin/bwa_0.7.12)
+    --custom_bwa_ra             EXE     PATH TO CUSTOM BWA_SRA EXEC (default : hotSSDS/bin/bwa_ra_0.7.12)
 
 Trimming parameters:
     --with_trimgalore           BOOL    Use trim-galore instead of Trimmomatic for quality trimming process (default : false)
@@ -260,7 +260,7 @@ Trimming parameters:
     --trim_cropR2               INT     fastx : Cut the R2 read to that specified length (default 50)
     --trim_slidingwin           STRING  trimmomatic : perform a sliding window trimming, cutting once the average quality within the window falls below a threshold (default "4:15")
     --trim_illumina_clip        STRING  trimmomatic : Cut adapter and other illumina-specific sequences from the read (default "2:20:10")
-    --trimmomatic_adapters      FILE    PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default ssdsnextflowpipeline/data/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
+    --trimmomatic_adapters      FILE    PATH TO ADAPTERS FILE FOR TRIMMOMATIC (default hotSSDS/data/TruSeq2-PE.fa, special formatting see http://www.usadellab.org/cms/?page=trimmomatic)
 
 Mapping parameters:
     --with_multimap             BOOL    Keep multimapping reads from bam (default : false)
@@ -304,7 +304,7 @@ Optional IDR analysis parameters (ENCODE procedure, see https://github.com/ENCOD
 
 QC parameters:
     --with_ssds_multiqc         BOOL    RUN SSDS MULTIQC (default : true)
-    --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : ssdsnextflowpipeline/conf/multiqc_config.yaml)
+    --multiqc_configfile        FILE    OPTIONAL : PATH TO MULTIQC CUSTOM CONFIG FILE (default : hotSSDS/conf/multiqc_config.yaml)
 
 Nextflow Tower parameter:
     -with-tower                 BOOL    Enable job monitoring with Nextflow tower (https://tower.nf/)
@@ -320,7 +320,7 @@ Pipeline parameters can be set in two different ways :
 - directly in the nextflow command-line (parameters passed though command line will overwrite those in parameter file).  
 
 
-For _Mus musculus_ based analysis, parameter file ``ssdsnextflowpipeline/conf/mm10.json`` contains default parameters that can be overwritten
+For _Mus musculus_ based analysis, parameter file ``hotSSDS/conf/mm10.json`` contains default parameters that can be overwritten
 
 One **important thing to note**, in Nextflow command lines, the **native options** are preceded with one **single dash** (e.g. ``-profile``), while **parameters specific to SSDS pipeline** are preceded with **2 dashes** (e.g. ``--genome 'mm10'``).   
    
@@ -571,7 +571,7 @@ For example, for process **trimming**, the associated key is **a7/2b8da0** meani
 **Do not hesitate to contact me or open an issue if you can't resolve one bug.**
 
 ### **Notes and future developpments**
-See [TODO.md](https://github.com/jajclement/ssdsnextflowpipeline/blob/master/TODO.md) file.   
+See [TODO.md](https://github.com/jajclement/hotSSDS/blob/master/TODO.md) file.   
 
 
    
