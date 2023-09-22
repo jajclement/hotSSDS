@@ -642,7 +642,7 @@ else {
         # Run fastqc and fastqscreen
         fastqc -t ${task.cpus} ${sampleId}_crop_R1.fastq.gz ${sampleId}_crop_R2.fastq.gz >& ${sampleId}_raw-fastqc.log 2>&1
      
-        fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${conf_fqscreen} ${sampleId}_crop_R1.fastq.gz ${sampleId}_crop_R2.fastq.gz >& ${sampleId}_fastqscreen.log 2>&1
+        #fastq_screen --threads ${task.cpus} --force --aligner bwa --conf ${conf_fqscreen} ${sampleId}_crop_R1.fastq.gz ${sampleId}_crop_R2.fastq.gz >& ${sampleId}_fastqscreen.log 2>&1
         """
     }
     
