@@ -615,7 +615,7 @@ else {
             path(conf_fqscreen) from conf_fqscreen_ch 
             path(ok) from fqscreen_conf_ok
         output:
-            tuple val("${sampleId}"), path("*_crop_R1.fastq.gz"), path("*_crop_R2.fastq.gz") into fqcrop_tuple, broute
+            tuple val("${sampleId}"), path("*_crop_R1.fastq.gz"), path("*_crop_R2.fastq.gz") into fqcrop_tuple
     	    path('*') into raw_fastqc_ch
             val 'ok' into fastqc_ok
             path('*.log')
@@ -678,7 +678,7 @@ else {
         input:
             tuple val(sampleId), path(cropread1), path(cropread2), path(trimgalore_adapters), path(trimmomatic_adapters) from fqcrop_tuple_adapters
         output:
-            tuple val("${sampleId}"), path('*crop_trim_R1.fastq.gz'), path('*crop_trim_R2.fastq.gz') into trim_ch, toot
+            tuple val("${sampleId}"), path('*crop_trim_R1.fastq.gz'), path('*crop_trim_R2.fastq.gz') into trim_ch
             path('*') into trim_fastqc_ch 
             val 'ok' into trimming_ok
             path('*.log')
