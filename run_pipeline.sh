@@ -1,6 +1,7 @@
 #!/bin/bash
 
-#Run ssds + callpeaks nextflow pipeline
+#Run ssds + callpeaks nextflow pipeline (DSL2, version 2.1)
+#Requires Nextflow >= 22.10.0
 
 #Singularity settings
 #Set environmental variable to mount the non canonical directories on IGH cluster
