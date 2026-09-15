@@ -109,7 +109,6 @@ Output and temporary directory parameters:
 Pipeline dependencies:
     --src                       DIR     PATH TO SOURCE DIRECTORY (default : ${baseDir}/bin ; contains perl scripts)
     --custom_bwa                EXE     PATH TO CUSTOM BWA EXEC (default : ${baseDir}/bin/bwa_0.7.12)
-    --custom_bwa_ra             EXE     PATH TO CUSTOM BWA_SRA EXEC (default : ${baseDir}/bin/bwa_ra_0.7.12)
 
 Trimming parameters:
     --with_trimgalore           BOOL    Use trim-galore instead of Trimmomatic for quality trimming process (default : false)
@@ -125,10 +124,11 @@ Trimming parameters:
 
 Mapping parameters:
     --with_multimap             BOOL    Keep multimapping reads from bam (default : false)
+    --sequencer                 STRING  Sequencing platform. 'hiseq' or 'novaseq'. This will adjust optical duplicate marking settings for patterned flowcells, and (if --with_trimgalore is set) switch trim_galore to --nextseq mode to handle NovaSeq's 2-channel-chemistry G-tailing artifact. (default: 'hiseq')
     --bamPGline                 STRING  bam header (default '@PG\tID:ssDNAPipeline2.0_PAUFFRET')
     --filtering_flag            INT     SAM flag for filtering bam files (default : 2052 ; see https://broadinstitute.github.io/picard/explain-flags.html)
     --picard_min_distance       INT     Picard parameter for marking duplicates (--MINIMUM_DISTANCE) :  width of the window to search for duplicates of a given alignment, default : -1 (twice the first read's read length)
-    --picard_optdup_distance    INT     Picard parameter for marking duplicates (--OPTICAL_DUPLICATE_PIXEL_DISTANCE) : The maximum offset between two duplicate clusters in order to consider them optical duplicates. The default is appropriate for unpatterned versions of the Illumina platform (HiSeq2500). For the patterned flowcell models (Novaseq 6000), 2500 is more appropriate, default : 100
+    --picard_optdup_distance    INT     Picard parameter for marking duplicates (--OPTICAL_DUPLICATE_PIXEL_DISTANCE) : The maximum offset between two duplicate clusters in order to consider them optical duplicates. For patterned flowcells (e.g. NovaSeq), 2500 is recommended. (default: 100, but adjusted to 2500 if --sequencer is 'novaseq')
     --get_supp                  BOOL    Publish bam files for supplementary aligments, default : false
 
 Bigwig parameter:
@@ -196,12 +196,41 @@ if (params.help){
     exit 0
 } 
 
+params.sequencer = params.sequencer ?: 'hiseq'
+params.picard_optdup_distance = params.picard_optdup_distance ?: 100
+
+// Canonicalize --outdir to an absolute path: makeScreenConfigFile (and others) write it via
+// plain Groovy File I/O at pipeline-definition time (relative to the launch directory), but
+// then check for it from inside each task's isolated work directory -- a relative outdir
+// would resolve to two different places and fail with a spurious "conf.fqscreen could not be
+// generated" error.
+params.outdir = new File(params.outdir).getCanonicalPath()
+
 // Custom name variables
 def global_name = "${params.name}.$workflow.runName"
 def tmp_name = "${params.name}.tmpFile"
 def macs2_params = "pv${params.macs_pv}_qv${params.macs_qv}_bw${params.macs_bw}_sloc${params.macs_slocal}_extsize${params.macs_extsize}"
 def idr_params = "${params.idr_peaktype}_macs2pv${params.idr_macs_pv}_macs2qv${params.idr_macs_qv}_setup-${params.idr_setup}"
 def control_status = params.with_control ? "with-input" : "without-input"
+
+// Determine correct picard optical duplicate distance based on sequencer
+// NB: params loaded from a JSON -params-file come through as Strings (e.g. "100"),
+// so comparisons are done via .toString() to avoid String/Integer mismatches.
+if (params.sequencer == 'novaseq' && params.picard_optdup_distance.toString() == '100') {
+    params.picard_optdup_distance = 2500
+    log.info "INFO: --sequencer 'novaseq' detected and --picard_optdup_distance is at its default for unpatterned flowcells (100). Adjusting to 2500."
+} else if (params.sequencer == 'novaseq' && params.picard_optdup_distance.toString() != '2500') {
+    log.warn "WARNING: --sequencer 'novaseq' was specified, but --picard_optdup_distance is set to ${params.picard_optdup_distance}. For NovaSeq, 2500 is recommended."
+} else if (params.sequencer && !['hiseq', 'novaseq'].contains(params.sequencer)) {
+    log.warn "WARNING: Unknown sequencer '${params.sequencer}'. Using provided/default picard_optdup_distance: ${params.picard_optdup_distance}."
+}
+
+// NovaSeq's 2-channel chemistry can miscall dark cycles as high-quality G runs (not handled by
+// trimmomatic); trim_galore's --nextseq mode is used instead of --quality for --sequencer novaseq
+// (see process trimming), but that only applies when --with_trimgalore is set.
+if (params.sequencer == 'novaseq' && !params.with_trimgalore) {
+    log.warn "WARNING: --sequencer 'novaseq' was specified with trimmomatic (not --with_trimgalore). Trimmomatic has no equivalent to trim_galore's --nextseq mode for NovaSeq's 2-channel chemistry G-tailing artifact; consider --with_trimgalore for NovaSeq data."
+}
 
 // Create empty files for optional results
 File emptyfile1  = new File("${params.outdir}/02_results/qc/empty1.txt")
@@ -215,7 +244,7 @@ File emptyfile6  = new File("${params.outdir}/02_results/qc/empty6.txt")
 logo_ch = file(params.logo, checkIfExists: true)
 
 // External scripts used in the pipeline
-ITR_id_v2c_NextFlow2_ch = Channel.fromPath("${params.src}/ITR_id_v2c_NextFlow2.pl", checkIfExists: true) //Author Kevin Brick
+ITR_id_bwamem_ch = Channel.fromPath("${params.src}/ITR_id_bwamem.pl", checkIfExists: true) //Adapted from Kevin Brick's ITR_id_v2c_NextFlow2.pl for bwa mem alignments
 ssDNA_to_bigwigs_FASTER_LOMEM_ch = Channel.fromPath("${params.src}/ssDNA_to_bigwigs_FASTER_LOMEM.pl", checkIfExists: true) //Author Kevin Brick
 makeSSMultiQCReport_nextFlow_ch = Channel.fromPath("${params.src}/makeSSMultiQCReport_nextFlow.pl", checkIfExists: true) //Author Kevin Brick
 check_design_ch = Channel.fromPath("${params.src}/check_design.py", checkIfExists: true) // Adapted from nf-core chipseq pipeline version 1.2.1
@@ -310,7 +339,6 @@ println("Checking bwa index files...") ; fastaindex=file("${params.genome_fasta}
 
 // Define channels containing genome and indexes
 bwa_ch = Channel.fromPath(params.custom_bwa, checkIfExists: true)
-bwa_ra_ch = Channel.fromPath(params.custom_bwa_ra, checkIfExists: true)
 
 Channel
     .fromPath(params.genome_fasta, checkIfExists: true)
@@ -378,6 +406,7 @@ Input file                     : ${params.inputcsv}
 Reference genome               : ${params.genome}
 Blacklist file                 : ${params.blacklist}
 Hotspots file                  : ${params.hotspots}
+Sequencer platform             : ${params.sequencer}
 Output directory               : ${params.outdir}
 Use input control files        : ${params.with_control}
 Keep multimappers              : ${params.with_multimap}
@@ -439,7 +468,6 @@ IDR filtering pattern          : ${params.idr_filtering_pattern}
 Source directory               : ${params.src}
 Chromosome sizes file          : ${params.chrsize}
 BWA bin                        : ${params.custom_bwa}
-BWA-ra bin                     : ${params.custom_bwa_ra}
 BAM custom header              : ${params.bamPGline}
 Publish directory mode         : ${params.publishdir_mode}
 Download Singularity images ?  : ${params.get_sif}
@@ -683,18 +711,23 @@ else {
             val 'ok' into trimming_ok
             path('*.log')
         script:
+        // On NovaSeq/2-channel-chemistry data, dark sequencing cycles are miscalled as high-quality G
+        // rather than N (unlike 4-channel HiSeq); --nextseq tells cutadapt (via trim_galore) to ignore
+        // quality at trailing G runs instead of the plain --quality cutoff, which otherwise leaves the
+        // resulting G-tails untrimmed (confirmed on real NovaSeq FastQC output, see VALIDATION_bwa_mem_vs_original.md)
+        def quality_opt = (params.sequencer == 'novaseq') ? "--nextseq ${params.trimg_quality}" : "--quality ${params.trimg_quality}"
         if (params.with_trimgalore && params.trimgalore_adapters)
     	"""
-    	trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} \
+    	trim_galore ${quality_opt} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} \
                     --cores ${task.cpus} --adapter "file:${trimgalore_adapters}" --gzip --paired --basename ${sampleId} ${cropread1} ${cropread2} >& ${sampleId}_trimgalore.log 2>&1
         mv ${sampleId}_val_1.fq.gz ${sampleId}_crop_trim_R1.fastq.gz
         mv ${sampleId}_val_2.fq.gz ${sampleId}_crop_trim_R2.fastq.gz
-            
+
         fastqc -t ${task.cpus} ${sampleId}_crop_trim_R1.fastq.gz ${sampleId}_crop_trim_R2.fastq.gz >& ${sampleId}_trim-fastqc.log 2>&1
         """
         else if (params.with_trimgalore && !params.trimgalore_adapters)
         """
-        trim_galore --quality ${params.trimg_quality} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} \
+        trim_galore ${quality_opt} --stringency ${params.trimg_stringency} --length ${params.trim_minlen} \
                 --cores ${task.cpus} --gzip --paired --basename ${sampleId} ${cropread1} ${cropread2} >& ${sampleId}_trimgalore.log 2>&1
         mv ${sampleId}_val_1.fq.gz ${sampleId}_crop_trim_R1.fastq.gz
         mv ${sampleId}_val_2.fq.gz ${sampleId}_crop_trim_R2.fastq.gz
@@ -718,13 +751,9 @@ else {
     //                      SECTION 3 : MAPPING AND PARSING                      //
     //***************************************************************************//
     // CREATE CHANNEL FOR MAPPING PROCESS
-    // The resulting channel contains 13 elements :
-    // sample_id, trimmed_faq_R1, trimmed_fq_R2, bwa, bwa_ra, genome_fasta, 7 bwa index files
-    
-    bwa_ch
-      .combine(bwa_ra_ch)
-      .set { bwa_all_ch }
-    
+    // The resulting channel contains 12 elements :
+    // sample_id, trimmed_faq_R1, trimmed_fq_R2, bwa, genome_fasta, 7 bwa index files
+
     fasta_ch
       .combine(index_amb_ch)
       .combine(index_ann_ch)
@@ -735,15 +764,15 @@ else {
       .set { all_bwa_index_ch }
     
     trim_ch
-      .combine(bwa_all_ch)
+      .combine(bwa_ch)
       .combine(all_bwa_index_ch)
       .set { bwa_trim_ch }
-    
-    // PROCESS 5 : bwaAlign (USE BWA AND CUSTOM BWA (BWA Right Align) TO ALIGN SSDS DATA)
+
+    // PROCESS 5 : bwaAlign (USE BWA MEM TO ALIGN SSDS DATA)
     // What it does : aligns trimmed ssds reads to the reference genome
     // Input : channel trim_ch with trimmed reads
     // Output : sorted and indexed bam file
-    // External tool : custom bwa (bwa-ra (bwa rigth align) from original pipeline by K. Brick (2012))
+    // External tool : bwa mem (replaces bwa aln / bwa-ra aln / bwa sampe -- see bin/ITR_id_bwamem.pl for ITR parsing)
     process bwaAlign {
         tag "${sampleId}"
         label 'bam'
@@ -752,7 +781,7 @@ else {
         publishDir "${params.outdir}/01_logs/bwa",  	       mode: params.publishdir_mode, pattern: "*.log"
         publishDir "${params.outdir}/01_logs/bwa",  	       mode: params.publishdir_mode, pattern: "*.out"
         input:
-            tuple val(sampleId), path(fqR1), path(fqR2), path(bwa), path(bwa_ra), path(fasta), path(amb), path(ann), path(bwt), path(pac), path(sa), path(fai) from bwa_trim_ch 
+            tuple val(sampleId), path(fqR1), path(fqR2), path(bwa), path(fasta), path(amb), path(ann), path(bwt), path(pac), path(sa), path(fai) from bwa_trim_ch
         output:
             tuple val(sampleId), path('*.sorted.bam') into SORTEDBAM
             path('*.flagstat') into bwa_flagstat_ch
@@ -761,16 +790,10 @@ else {
             val 'ok' into bwa_ok
         script:
         """
-        # Align R1 reads (fully complementary to the genome)  with bwa aln
-        ./${bwa} aln -t ${task.cpus} ${fasta} ${fqR1} \
-                > ${tmp_name}.R1.sai 2>${tmp_name}.R1.sai.log
-        # Align R2 reads (potentially contain fill-in ITR part at the end of the 5')
-        # with bwa-ra aln (custom version of bwa that search for the longest mappable suffix in the query)
-        ./${bwa_ra} aln -t ${task.cpus} ${fasta} ${fqR2} \
-                > ${tmp_name}.R2.sai 2>${tmp_name}.R2.sai.log
-        # Generate alignments in the SAM format given R1 and R2 alignments
-        ./${bwa} sampe ${fasta} ${tmp_name}.R1.sai ${tmp_name}.R2.sai ${fqR1} \
-                ${fqR2} >${tmp_name}.unsorted.sam 2> ${tmp_name}.unsorted.sam.log
+        # Align R1+R2 pair with bwa mem (soft-clips the non-homologous ITR part at the 5' of R2,
+        # replacing bwa aln / bwa-ra aln / bwa sampe -- see bin/ITR_id_bwamem.pl for ITR parsing)
+        ./${bwa} mem -M -t ${task.cpus} ${fasta} ${fqR1} ${fqR2} \
+                >${tmp_name}.unsorted.sam 2> ${tmp_name}.unsorted.sam.log
         # Convert SAM to BAM file
         picard SamFormatConverter I=${tmp_name}.unsorted.sam O=${tmp_name}.unsorted.tmpbam \
                 VALIDATION_STRINGENCY=LENIENT TMP_DIR=. >& ${tmp_name}.unsorted.picardSFC.out 2>&1
@@ -798,9 +821,8 @@ else {
         ## ! It's important that the final bam files are named *.sorted.bam for the next processes.
         if [[ ${params.with_multimap} == "false" ]]
         then
-            # from https://bioinformatics.stackexchange.com/questions/508/obtaining-uniquely-mapped-reads-from-bwa-mem-alignment
-            # samtools view -h ${sampleId}.sorted.bam | grep -v -e 'XA:Z:' -e 'SA:Z:' | samtools view -b > ${sampleId}.final.bam
-            samtools view -h ${sampleId}.sorted.bam | grep -v "XT:A:R" | samtools view -b | samtools sort -o ${sampleId}.final.bam
+            # bwa mem reports MAPQ 0 for multi-mapped reads (no XT:A:R tag, that was specific to bwa aln)
+            samtools view -h -q 1 ${sampleId}.sorted.bam | samtools view -b | samtools sort -o ${sampleId}.final.bam
             samtools index ${sampleId}.final.bam
             rm ${sampleId}.sorted.bam ; mv ${sampleId}.final.bam ${sampleId}.sorted.bam
             rm ${sampleId}.sorted.bam.bai ; mv ${sampleId}.final.bam.bai ${sampleId}.sorted.bam.bai
@@ -852,8 +874,8 @@ else {
             samtools view -f 2048 -hb ${bam} > ${bam.baseName}.supp.bam
             picard -Xms8g -Xmx8g MarkDuplicatesWithMateCigar I=${bam.baseName}.supp.bam O=${bam.baseName}.unparsed.suppAlignments.bam \
                 PG=Picard2.9.2_MarkDuplicates M=${bam.baseName}.suppAlignments.MDmetrics.txt \
-                MINIMUM_DISTANCE=${params.picard_min_distance} CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate \
-                OPTICAL_DUPLICATE_PIXEL_DISTANCE=${params.picard_optdup_distance} REMOVE_DUPLICATES=true \
+                MINIMUM_DISTANCE=${params.picard_min_distance} OPTICAL_DUPLICATE_PIXEL_DISTANCE=${params.picard_optdup_distance} \
+                CREATE_INDEX=false ASSUME_SORT_ORDER=coordinate REMOVE_DUPLICATES=true \
                 VALIDATION_STRINGENCY=LENIENT TMP_DIR=. >& ${bam.baseName}.supp.picardMD.out 2>&1
             samtools index ${bam.baseName}.unparsed.suppAlignments.bam
         fi
@@ -873,7 +895,7 @@ else {
     
     // CREATE CHANNEL FOR parseITRs process
     fasta_ch2
-      .combine(ITR_id_v2c_NextFlow2_ch)
+      .combine(ITR_id_bwamem_ch)
       .set { fasta_and_ITR_script }
     
     FILTEREDBAM
@@ -887,7 +909,7 @@ else {
     // What it does : parse the bam file into 5 types (type1 ssds, type2 ssds, ds, ds_strict, unclassified)
     // Input : filtered bam file
     // Output : bam and bed files of the 5 types
-    // External tool : perl scripts from K. Brick (original pipeline, 2012) 
+    // External tool : bin/ITR_id_bwamem.pl (adapted from K. Brick's original ITR_id_v2c_NextFlow2.pl, 2012, for bwa mem alignments) 
     process parseITRs {
         tag "${sampleId}"
         label 'bam'
@@ -905,7 +927,7 @@ else {
         publishDir "${params.outdir}/01_logs/parseITRs/flag_${params.filtering_flag}",         mode: params.publishdir_mode, pattern: "*.out"
         publishDir "${params.outdir}/02_results/bwa/filterbam/flag_${params.filtering_flag}/parse_itr/norm_factors",    mode: params.publishdir_mode, pattern: "*norm_factors.txt"
         input:
-            tuple val(sampleId), path(bam), path(fasta), path(ITR_id_v2c_NextFlow2_script) from FILTEREDBAM_fasta_script 
+            tuple val(sampleId), path(bam), path(fasta), path(ITR_id_bwamem_script) from FILTEREDBAM_fasta_script
         output:
             tuple val(sampleId), file("${bam}"), file('*.ssDNA_type1.bed'), file('*.ssDNA_type2.bed'), \
                 file('*.dsDNA.bed'), file('*.dsDNA_strict.bed'), file('*.unclassified.bed')  into ITRBED
@@ -923,7 +945,7 @@ else {
         script:
         """
         # Parse filtered bam file into 5 types
-        perl ${ITR_id_v2c_NextFlow2_script} ${bam} ${fasta} >& ${sampleId}_parseITR.log 2>&1
+        perl ${ITR_id_bwamem_script} ${bam} ${fasta} >& ${sampleId}_parseITR.log 2>&1
         # Sort resulting bed files (the bed files will be used for peak calling)
         sort -k1,1 -k2n,2n -k3n,3n -k4,4 -k5,5 -k6,6 ${bam}.ssDNA_type1.bed \
             -o ${bam}.ssDNA_type1.bed
@@ -2679,7 +2701,3 @@ workflow.onError {
     println "Oops... Pipeline execution stopped with the following message: ${workflow.errorMessage}"
     println "Error report: ${workflow.errorReport}"
 }
-
-
-
-
