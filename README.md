@@ -18,10 +18,7 @@ Briefly, the update from SSDS pipeline version 1.8_NF included **conda/mamba/sin
   
 **The main steps of the pipeline include :**
 - Quality check, hard & adapters trimming of paired-end raw fastq files
-- Three-step mapping of trimmed R1 and R2 reads to the reference genome :        
-	- aligns R1 reads (fully complementary to the genome) with *bwa aln*
-	- aligns R2 reads (potentially contain fill-in ITR part at the end of the 5') with *bwa-ra aln* (custom version of bwa that search for the longest mappable suffix in the query)
-	- merge with *bwa sampe*
+- Mapping of trimmed R1 and R2 read pairs to the reference genome with *bwa mem* (soft-clips the fill-in ITR part potentially present at the 5' of R2 instead of forcing an alignment through it, replacing the former *bwa aln* / *bwa-ra aln* / *bwa sampe* three-step mapping)
 - Bam files filtering for duplicates, unmapped and unpaired reads
 - Parsing of filtered bam files into [5 main categories](https://genome.cshlp.org/content/22/5/957/F1.large.jpg) : 
 	- type 1 reads (T1) : high confidence single stranded DNA (ITR > 5bp AND microHomology > 0bp AND fill-in > 2bp)
@@ -248,7 +245,6 @@ Output and temporary directory parameters:
 Pipeline dependencies:
     --src                       DIR     PATH TO SOURCE DIRECTORY (default : hotSSDS/bin ; contains perl scripts)
     --custom_bwa                EXE     PATH TO CUSTOM BWA EXEC (default : hotSSDS/bin/bwa_0.7.12)
-    --custom_bwa_ra             EXE     PATH TO CUSTOM BWA_SRA EXEC (default : hotSSDS/bin/bwa_ra_0.7.12)
 
 Trimming parameters:
     --with_trimgalore           BOOL    Use trim-galore instead of Trimmomatic for quality trimming process (default : false)
@@ -269,6 +265,7 @@ Mapping parameters:
     --picard_min_distance       INT     Picard parameter for marking duplicates (--MINIMUM_DISTANCE) :  width of the window to search for duplicates of a given alignment, default : -1 (twice the first read's read length)
     --picard_optdup_distance    INT     Picard parameter for marking duplicates (--OPTICAL_DUPLICATE_PIXEL_DISTANCE) : The maximum offset between two duplicate clusters in order to consider them optical duplicates. The default is appropriate for unpatterned versions of the Illumina platform (HiSeq2500). For the patterned flowcell models (Novaseq 6000), 2500 is more appropriate, default : 100
     --get_supp                  BOOL    Publish bam files for supplementary aligments, default : false
+    > **⚠️ Note importante pour les utilisateurs de NovaSeq :** Lors du traitement de données provenant d'un séquenceur avec une "patterned flow cell" (comme le NovaSeq), il est **critique** de définir `--picard_optdup_distance 2500`. La valeur par défaut de `100` est conçue pour les anciens séquenceurs (type HiSeq) et entraînera la suppression incorrecte de lectures valides, ce qui faussera vos résultats finaux.
 
 Bigwig parameter:
     --bigwig_profile            STRING  Bigwig profile using  bedtools (normalization by total library size) : "T1" will produce bigwig for T1 bed files only, one per replicates ; "T12" will also produce bigwig for merged T1+T2, one per replicates ; "T1rep" will also produce T1 bigwig for merged replicates ; "T12rep" will also produce T1+T2 bigwig for merged replicates (default : "T1")
